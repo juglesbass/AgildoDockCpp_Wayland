@@ -56,6 +56,10 @@ Com prefixo próprio (`/usr/local`): o mesmo comando com `-DCMAKE_INSTALL_PREFIX
 
 3. **`license=`** em `packaging/PKGBUILD`: substitui por licença real do projeto (SPDX).
 
+### Publicar no GitHub (primeira vez)
+
+O código já pode estar inicializado como repositório **git** (com commits e etiqueta **`v1.0`**). O envio (**`git push`**) exige iniciar sessão no GitHub à tua conta — faz isso no teu terminal. Corre **`./packaging/publicar-no-github.sh`**: lá estão os dois caminhos (site **novo repositório** vazio ou **`gh repo create`**).
+
 ### Arch User Repository (AUR)
 
 Ficheiros em **`packaging/aur/`** (`PKGBUILD`, `agildodock.install`, `prepare-for-aur.sh`, `README.txt`). Guia passo a passo: **`packaging/aur/README.txt`**.
