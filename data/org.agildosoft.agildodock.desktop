@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=AgildoDock
+GenericName=Dock de aplicativos
+Comment=Dock em Qt/Kirigami com Layer Shell para KDE Plasma (Wayland/X11).
+Exec=agildodock
+Icon=org.agildosoft.agildodock
+StartupNotify=false
+Terminal=false
+Categories=Utility;Qt;KDE;
+Keywords=dock;plasma;wayland;kde;

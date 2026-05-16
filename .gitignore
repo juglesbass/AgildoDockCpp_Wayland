@@ -1,0 +1,15 @@
+# Pasta de compilação local (CMake)
+/build/
+
+# Metadados do editor / agente (não faz parte do código-fonte)
+.cursor/
+
+# Artefactos de empacotamento local (tarballs gerados por scripts)
+*.tar.gz
+/pkg/
+/src/
+
+# Ficheiros temporários
+*~
+*.swp
+*.user

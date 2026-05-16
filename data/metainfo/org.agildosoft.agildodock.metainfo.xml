@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.agildosoft.agildodock</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <name>AgildoDock</name>
+  <summary>Dock de aplicativos para KDE Plasma (Wayland/X11)</summary>
+  <description>
+    <p>
+      Doca com Qt 6, Kirigami, Layer Shell, efeito de onda e integração com janelas
+      (kdotool no Wayland ou KWindowSystem em sessões X11 quando aplicável).
+    </p>
+  </description>
+  <launchable type="desktop-id">org.agildosoft.agildodock.desktop</launchable>
+  <url type="homepage">https://agildosoft.com</url>
+  <releases>
+    <release version="1.0.0" date="2026-05-15"/>
+  </releases>
+  <content_rating type="oars-1.1"/>
+</component>

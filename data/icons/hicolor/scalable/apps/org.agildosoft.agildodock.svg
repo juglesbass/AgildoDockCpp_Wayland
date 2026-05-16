@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- Ícone vetorial da doca: barra arredondada + ondas de ícones esquemáticos -->
+  <defs>
+    <linearGradient id="gradBar" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#3d3d4a;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#1a1a22;stop-opacity:1"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="24" fill="#15151d"/>
+  <rect x="12" y="66" width="104" height="44" rx="18" fill="url(#gradBar)" stroke="#ffffff22" stroke-width="2"/>
+  <ellipse cx="32" cy="52" rx="12" ry="18" fill="#58dfff" opacity="0.95"/>
+  <ellipse cx="56" cy="46" rx="12" ry="23" fill="#43c4fa" opacity="0.92"/>
+  <ellipse cx="80" cy="46" rx="12" ry="23" fill="#358ef0" opacity="0.9"/>
+  <ellipse cx="104" cy="52" rx="12" ry="18" fill="#2ad4c8" opacity="0.88"/>
+  <ellipse cx="32" cy="84" rx="7" ry="7" fill="#e9faff" opacity="0.35"/>
+  <ellipse cx="56" cy="84" rx="7" ry="7" fill="#e9faff" opacity="0.55"/>
+  <ellipse cx="80" cy="84" rx="7" ry="7" fill="#e9faff" opacity="0.75"/>
+  <ellipse cx="104" cy="84" rx="7" ry="7" fill="#e9faff" opacity="0.95"/>
+</svg>

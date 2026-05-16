@@ -1,0 +1,50 @@
+# Ajusta o campo «license» à licença real do projeto (SPDX).
+# Para enviar ao AUR usa packaging/aur/PKGBUILD (tarball desde GitHub + .install).
+#
+# Como usar:
+#   1) chmod +x make_dist.sh && ./make_dist.sh 1.0
+#   2) mv ../agildodock-1.0.tar.gz . && updpkgsums
+#   3) makepkg -sic
+#
+pkgname=agildodock
+pkgver=1.0
+pkgrel=1
+pkgdesc="Dock de aplicativos para KDE Plasma com Layer Shell, Kirigami e efeito de onda"
+arch=("x86_64")
+url="https://agildosoft.com"
+license=("GPL-3.0-or-later")  # substituir pela tua licença
+depends=(
+  "gcc-libs"
+  "glibc"
+  "kirigami"
+  "kwindowsystem"
+  "layer-shell-qt"
+  "qt6-base"
+  "qt6-declarative"
+  "qt6-shadertools"
+  "qt6-wayland"
+)
+makedepends=("cmake" "ninja" "extra-cmake-modules")
+optdepends=(
+  'kdotool: focar, minimizar e fechar janelas na sessão Wayland Plasma'
+)
+source=("agildodock-${pkgver}.tar.gz")
+sha256sums=("SKIP")
+
+build() {
+  cd "${srcdir}/agildodock-${pkgver}"
+  cmake -S . -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr
+  cmake --build build
+}
+
+check() {
+  cd "${srcdir}/agildodock-${pkgver}"
+  ctest --test-dir build --output-on-failure
+}
+
+package() {
+  cd "${srcdir}/agildodock-${pkgver}"
+  DESTDIR="${pkgdir}" cmake --install build
+}
