@@ -6,8 +6,11 @@
 
 # Artefactos de empacotamento local (tarballs gerados por scripts)
 *.tar.gz
+*.pkg.tar.zst
 /pkg/
 /src/
+packaging/aur/pkg/
+packaging/aur/src/
 
 # Ficheiros temporários
 *~

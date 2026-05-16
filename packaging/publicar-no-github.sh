@@ -25,6 +25,7 @@ OWNER="juglesbass"
 NOME_REPO="AgildoDockCpp_Wayland"
 
 REPO_URL_HTTPS="https://github.com/${OWNER}/${NOME_REPO}.git"
+URL_WEB="https://github.com/${OWNER}/${NOME_REPO}"
 
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo 'Erro: esta pasta não é um repositório git.' >&2
@@ -50,5 +51,5 @@ echo 'A enviar etiqueta v1.0…'
 git push origin v1.0
 
 echo ''
-echo 'Feito. Verifica: '"${REPO_URL_HTTPS}"'/releases/tag/v1.0'
+echo 'Feito. Verifica: '"${URL_WEB}"'/releases/tag/v1.0'
 echo 'Depois: cd packaging/aur && ./prepare-for-aur.sh'

@@ -29,6 +29,14 @@ qt6_add_qml_module(agildodock
         DockIconDelegate.qml
 )
 
+# Ícone embutido: fallback quando o tema do sistema ainda não indexou org.agildosoft.agildodock.
+set(_agildo_icon_svg "${CMAKE_CURRENT_SOURCE_DIR}/data/icons/hicolor/scalable/apps/org.agildosoft.agildodock.svg")
+set_source_files_properties("${_agildo_icon_svg}" PROPERTIES QT_RESOURCE_ALIAS "org.agildosoft.agildodock.svg")
+qt_add_resources(agildodock "agildodock_app_icon"
+    PREFIX "/icons"
+    FILES "${_agildo_icon_svg}"
+)
+
 set(AGILDO_DOCK_QML_I18N_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/main.qml"
     "${CMAKE_CURRENT_SOURCE_DIR}/DockSettingsWindow.qml"
@@ -67,6 +75,20 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/org.agildosoft.agildodock.deskto
 
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/icons/hicolor/scalable/apps/org.agildosoft.agildodock.svg"
     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/apps")
+
+# PNG em vários tamanhos: o editor de menus do KDE/Plasma muitas vezes ignora só SVG em scalable/.
+set(_agildo_icon_png_sizes 16 22 24 32 48 64 128 256)
+foreach(_sz IN LISTS _agildo_icon_png_sizes)
+    install(FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/data/icons/hicolor/${_sz}x${_sz}/apps/org.agildosoft.agildodock.png"
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/${_sz}x${_sz}/apps")
+endforeach()
+
+# Fallback legado para menus que procuram pixmap (nome sem extensão no .desktop).
+install(FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/data/icons/hicolor/48x48/apps/org.agildosoft.agildodock.png"
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/pixmaps"
+    RENAME org.agildosoft.agildodock.png)
 
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/metainfo/org.agildosoft.agildodock.metainfo.xml"
     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/metainfo")

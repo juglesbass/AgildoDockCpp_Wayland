@@ -10,7 +10,8 @@ O paru compila/instala como qualquer pacote da AUR e integra com o pacman.
 Pré-requisitos
 ──────────────────────────────────────────────────────────────────────────────
 
-• Conta em https://aur.archlinux.org e chave SSH pública no perfil (git push).
+• Registo/login em https://aur.archlinux.org .
+• Chave SSH pública colada na AUR (My Account → SSH Keys — necessário para enviar‑para‑aur.sh).
 • Repositório Git público (ex.: GitHub) com etiqueta Git «vVERSÃO» igual ao pkgver
   (ex.: v1.0 para pkgver=1.0). O PKGBUILD descarrega o tarball dessa etiqueta.
 • Ficheiro LICENSE/COPYING no código ou alinhar license=() com a licença real (SPDX).
@@ -44,25 +45,44 @@ Alternativa manual:
     makepkg --printsrcinfo > .SRCINFO
 
 ──────────────────────────────────────────────────────────────────────────────
-3) Primeira submissão
+3) SSH (uma vez) — obrigatório para «git push» na AUR
 ──────────────────────────────────────────────────────────────────────────────
 
-Se o nome «agildodock» ainda não existir na AUR, usa o formulário «Submit Package»
-no site da AUR e envia PKGBUILD + .SRCINFO (+ agildodock.install conforme pedido).
+Na máquina:
 
-Após aprovação, actualizações normais:
+    ssh-keygen -t ed25519 -f ~/.ssh/aur_arch -N "" -C "agomesdasilva99@gmail.com"
 
-    git clone ssh://aur@aur.archlinux.org/agildodock.git
-    cd agildodock
-    (copiar PKGBUILD, .SRCINFO, agildodock.install já preparados)
-    git add PKGBUILD .SRCINFO agildodock.install
-    git commit -m "Upstream release v…"
-    git push
+Mostra a chave pública e copia-a:
 
-No repositório da AUR não se versionam tarballs — só estes metadados.
+    cat ~/.ssh/aur_arch.pub
+
+Na AUR: login → «My Account» → «SSH Keys» → colar → guardar.
+
+Ficheiro ~/.ssh/config (cria ou acrescenta):
+
+    Host aur.archlinux.org
+      IdentityFile ~/.ssh/aur_arch
+      User aur
+
+Teste (mensagem estranha ou fecho logo = normal):
+
+    ssh -T aur@aur.archlinux.org
 
 ──────────────────────────────────────────────────────────────────────────────
-4) paru
+4) Enviar o pacote (script automático)
+──────────────────────────────────────────────────────────────────────────────
+
+    cd packaging/aur
+    ./prepare-for-aur.sh               # garante checksums + .SRCINFO
+    chmod +x enviar-para-aur.sh
+    ./enviar-para-aur.sh
+
+Este script faz fetch no git da AUR, copia PKGBUILD, .SRCINFO, agildodock.install
+e LICENSE, commit em «master» e push. Guia oficial:
+https://wiki.archlinux.org/title/AUR_submission_guidelines
+
+──────────────────────────────────────────────────────────────────────────────
+5) paru
 ──────────────────────────────────────────────────────────────────────────────
 
     paru -S agildodock
@@ -72,7 +92,7 @@ Se o pkgname estiver ocupado, escolhe outro nome coerente com o upstream e renom
 os ficheiros .install/README conforme necessário.
 
 ──────────────────────────────────────────────────────────────────────────────
-Variante «-git»
+6) Variante «-git»
 ──────────────────────────────────────────────────────────────────────────────
 
 Para empacotar o último commit em vez de tags estáveis: ver Wiki AUR sobre função

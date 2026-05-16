@@ -1,5 +1,6 @@
 #include <QCoreApplication>
 #include <QGuiApplication>
+#include <QIcon>
 #include <QLocale>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -65,6 +66,15 @@ void installAgildoTranslators(QGuiApplication &app)
     delete translator;
 }
 
+QIcon carregarIconeAgildoDock()
+{
+    QIcon icone = QIcon::fromTheme(QStringLiteral("org.agildosoft.agildodock"));
+    if (icone.isNull()) {
+        icone = QIcon(QStringLiteral(":/icons/org.agildosoft.agildodock.svg"));
+    }
+    return icone;
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -87,6 +97,11 @@ int main(int argc, char *argv[]) {
 
     QGuiApplication::setDesktopFileName(QStringLiteral("org.agildosoft.agildodock"));
     QGuiApplication app(argc, argv);
+
+    const QIcon iconeApp = carregarIconeAgildoDock();
+    if (!iconeApp.isNull()) {
+        QGuiApplication::setWindowIcon(iconeApp);
+    }
 
     installAgildoTranslators(app);
 
@@ -111,6 +126,10 @@ int main(int argc, char *argv[]) {
     }
 
     taskBackend->setMainWindow(window);
+
+    if (!iconeApp.isNull()) {
+        window->setIcon(iconeApp);
+    }
 
     // Workaround (testado em Plasma/Wayland + LayerShellQt): fechar e voltar a mostrar a QQuickWindow
     // raiz evita o primeiro frame sem decoração de superfície/blur; sem isto a doca pode aparecer
