@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(agildodock VERSION 1.0 LANGUAGES CXX)
+project(agildodock VERSION 1.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -13,11 +13,14 @@ qt_policy(SET QTP0001 NEW)
 find_package(KF6WindowSystem REQUIRED)
 find_package(KF6Kirigami REQUIRED)
 find_package(LayerShellQt REQUIRED)
+find_package(KF6GlobalAccel QUIET COMPONENTS GlobalAccel)
 
 add_executable(agildodock
     main.cpp
     taskbackend.cpp
     dock_window_management.cpp
+    dock_bridge.cpp
+    global_shortcuts.cpp
 )
 
 qt6_add_qml_module(agildodock
@@ -65,6 +68,11 @@ target_link_libraries(agildodock PRIVATE
     LayerShellQt::Interface
 )
 
+if(TARGET KF6::GlobalAccel)
+    target_link_libraries(agildodock PRIVATE KF6::GlobalAccel)
+    target_compile_definitions(agildodock PRIVATE AGILDO_HAVE_KGLOBALACCEL=1)
+endif()
+
 # --- Instalação (make install / pacotes) ---
 include(GNUInstallDirs)
 install(TARGETS agildodock
@@ -96,4 +104,4 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/metainfo/org.agildosoft.agildodo
 include(CTest)
 enable_testing()
 add_test(NAME agildodock_version COMMAND $<TARGET_FILE:agildodock> --version)
-set_tests_properties(agildodock_version PROPERTIES PASS_REGULAR_EXPRESSION "AgildoDock 1\\.0")
+set_tests_properties(agildodock_version PROPERTIES PASS_REGULAR_EXPRESSION "AgildoDock 1\\.1")

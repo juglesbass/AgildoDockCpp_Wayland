@@ -27,6 +27,23 @@ Window {
     property bool liveBehaviorDodgeWindows: false
     property bool liveBehaviorKeepAppsFocused: false
     property int liveBehaviorAutoHideDelayMs: 900
+    property int liveThemeMode: 0
+    property int liveDockPosition: 0
+    property bool liveMiddleClickCloses: false
+    property bool liveShowWindowBadge: true
+    property string liveLauncherTitle: ""
+    property string liveLauncherIcon: ""
+    property string liveLauncherCommand: ""
+
+    readonly property bool useLightChrome: {
+        if (root.liveThemeMode === 1) {
+            return true
+        }
+        if (root.liveThemeMode === 2 && Qt.styleHints && Qt.styleHints.colorScheme !== undefined) {
+            return Qt.styleHints.colorScheme === Qt.ColorScheme.Light
+        }
+        return false
+    }
 
     onLiveBehaviorKeepAppsFocusedChanged: applyLayerShellFromSettings()
     onLiveBehaviorDodgeWindowsChanged: applyDockRetractedState()
@@ -228,6 +245,75 @@ Window {
         taskBackend.setLayerShellActivateOnShow(!root.liveBehaviorKeepAppsFocused)
     }
 
+    function applyDockPositionFromSettings() {
+        if (typeof dockBridge !== "undefined" && dockBridge) {
+            dockBridge.applyDockAnchor(root.liveDockPosition)
+        }
+    }
+
+    function abrirJanelaPreferencias() {
+        settingsWin.show()
+        settingsWin.raise()
+        settingsWin.requestActivate()
+    }
+
+    function loadLauncherFromSettings() {
+        launcherModel.clear()
+        launcherModel.append({
+            name: root.liveLauncherTitle.length > 0 ? root.liveLauncherTitle : qsTr("Menu de Aplicativos"),
+            icon: root.liveLauncherIcon.length > 0 ? root.liveLauncherIcon : "start-here-kde",
+            cmd: root.liveLauncherCommand.length > 0
+                ? root.liveLauncherCommand
+                : "qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.activateLauncherMenu",
+            isLauncher: true
+        })
+    }
+
+    function loadSystemItemsFromSettings() {
+        systemModel.clear()
+        var raw = dockSettings.systemItemsJson
+        if (raw === "") {
+            systemModel.append({ name: qsTr("Transferências"), icon: "folder-downloads", cmd: "dolphin ~/Downloads", isSystem: true })
+            systemModel.append({ name: qsTr("Reciclagem"), icon: "user-trash", cmd: "dolphin trash:/", isSystem: true })
+            saveSystemItems()
+            return
+        }
+        try {
+            var arr = JSON.parse(raw)
+            if (!Array.isArray(arr)) {
+                return
+            }
+            for (var i = 0; i < arr.length; i++) {
+                if (arr[i] && arr[i].name && arr[i].cmd) {
+                    systemModel.append({
+                        name: arr[i].name,
+                        icon: arr[i].icon || "folder",
+                        cmd: arr[i].cmd,
+                        isSystem: true
+                    })
+                }
+            }
+        } catch (e) {
+            console.warn(qsTr("Itens de sistema inválidos; a repor padrão.") + " " + e)
+            dockSettings.systemItemsJson = ""
+            loadSystemItemsFromSettings()
+        }
+    }
+
+    function saveSystemItems() {
+        var arr = []
+        for (var i = 0; i < systemModel.count; i++) {
+            var item = systemModel.get(i)
+            if (item) {
+                arr.push({ name: item.name, icon: item.icon, cmd: item.cmd })
+            }
+        }
+        dockSettings.systemItemsJson = JSON.stringify(arr)
+        if (typeof dockSettings.sync === "function") {
+            dockSettings.sync()
+        }
+    }
+
     function applyDockRetractedState() {
         if (settingsWin.visible) {
             root.dockRetracted = false
@@ -299,6 +385,14 @@ Window {
         property bool behaviorDodgeWindows: false
         property bool behaviorKeepAppsFocused: false
         property int behaviorAutoHideDelayMs: 900
+        property int themeMode: 0
+        property int dockPosition: 0
+        property bool middleClickCloses: false
+        property bool showWindowBadge: true
+        property string launcherTitle: "Menu de Aplicativos"
+        property string launcherIcon: "start-here-kde"
+        property string launcherCommand: "qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.activateLauncherMenu"
+        property string systemItemsJson: ""
     }
 
     property alias appSettings: dockSettings
@@ -377,15 +471,7 @@ Window {
         onTriggered: updateZone()
     }
 
-    ListModel {
-        id: _launcherModel
-        ListElement {
-            name: "Menu de Aplicativos"
-            icon: "start-here-kde"
-            cmd: "qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.activateLauncherMenu"
-            isLauncher: true
-        }
-    }
+    ListModel { id: _launcherModel }
 
     ListModel { id: _appModel }
     ListModel { id: _dynamicModel }
@@ -485,7 +571,15 @@ Window {
         root.liveBehaviorDodgeWindows = dockSettings.behaviorDodgeWindows
         root.liveBehaviorKeepAppsFocused = dockSettings.behaviorKeepAppsFocused
         root.liveBehaviorAutoHideDelayMs = dockSettings.behaviorAutoHideDelayMs
+        root.liveThemeMode = dockSettings.themeMode
+        root.liveDockPosition = dockSettings.dockPosition
+        root.liveMiddleClickCloses = dockSettings.middleClickCloses
+        root.liveShowWindowBadge = dockSettings.showWindowBadge
+        root.liveLauncherTitle = dockSettings.launcherTitle
+        root.liveLauncherIcon = dockSettings.launcherIcon
+        root.liveLauncherCommand = dockSettings.launcherCommand
 
+        loadLauncherFromSettings()
         updateZone()
         let savedData = dockSettings.dockApps
 
@@ -513,8 +607,8 @@ Window {
                 if (typeof dockSettings.sync === "function") dockSettings.sync()
             }
         }
-        systemModel.append({name: qsTr("Transferências"), icon: "folder-downloads", cmd: "dolphin ~/Downloads", isSystem: true})
-        systemModel.append({name: qsTr("Reciclagem"), icon: "user-trash", cmd: "dolphin trash:/", isSystem: true})
+        loadSystemItemsFromSettings()
+        applyDockPositionFromSettings()
         updateDynamicApps()
     }
 
@@ -594,9 +688,13 @@ Window {
             width:  Math.round(rawBgWidth / 2) * 2
             height: Math.round(root.dockBarHeightPx * root.liveScaleFactor)
 
-            color: Qt.rgba(0.06, 0.06, 0.06, root.liveBgOpacity)
+            color: root.useLightChrome
+                ? Qt.rgba(0.94, 0.94, 0.96, root.liveBgOpacity)
+                : Qt.rgba(0.06, 0.06, 0.06, root.liveBgOpacity)
             radius: Math.round(22 * root.liveScaleFactor)
-            border.color: Qt.rgba(1.0, 1.0, 1.0, 0.15)
+            border.color: root.useLightChrome
+                ? Qt.rgba(0.0, 0.0, 0.0, 0.12)
+                : Qt.rgba(1.0, 1.0, 1.0, 0.15)
             border.width: 1
             antialiasing: true
 
@@ -654,9 +752,7 @@ Window {
                 hoverEnabled: true
                 acceptedButtons: Qt.RightButton
                 onClicked: {
-                    settingsWin.show()
-                    settingsWin.raise()
-                    settingsWin.requestActivate()
+                    root.abrirJanelaPreferencias()
                 }
             }
         }
@@ -860,10 +956,6 @@ Window {
 
     Shortcut {
         sequences: [StandardKey.Preferences, "Ctrl+,"]
-        onActivated: {
-            settingsWin.show()
-            settingsWin.raise()
-            settingsWin.requestActivate()
-        }
+        onActivated: root.abrirJanelaPreferencias()
     }
 }

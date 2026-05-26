@@ -11,7 +11,7 @@ Window {
 
     visible: false
     width: 410
-    height: 780
+    height: 920
     minimumWidth: 410
     maximumWidth: 410
     minimumHeight: 520
@@ -32,6 +32,14 @@ Window {
         dock.liveBehaviorDodgeWindows = dock.appSettings.behaviorDodgeWindows
         dock.liveBehaviorKeepAppsFocused = dock.appSettings.behaviorKeepAppsFocused
         dock.liveBehaviorAutoHideDelayMs = dock.appSettings.behaviorAutoHideDelayMs
+
+        dock.liveThemeMode = dock.appSettings.themeMode
+        dock.liveDockPosition = dock.appSettings.dockPosition
+        dock.liveMiddleClickCloses = dock.appSettings.middleClickCloses
+        dock.liveShowWindowBadge = dock.appSettings.showWindowBadge
+        dock.liveLauncherTitle = dock.appSettings.launcherTitle
+        dock.liveLauncherIcon = dock.appSettings.launcherIcon
+        dock.liveLauncherCommand = dock.appSettings.launcherCommand
     }
 
     function cancelarValores() {
@@ -56,11 +64,23 @@ Window {
         dock.appSettings.behaviorKeepAppsFocused = dock.liveBehaviorKeepAppsFocused
         dock.appSettings.behaviorAutoHideDelayMs = dock.liveBehaviorAutoHideDelayMs
 
+        dock.appSettings.themeMode = dock.liveThemeMode
+        dock.appSettings.dockPosition = dock.liveDockPosition
+        dock.appSettings.middleClickCloses = dock.liveMiddleClickCloses
+        dock.appSettings.showWindowBadge = dock.liveShowWindowBadge
+        dock.appSettings.launcherTitle = dock.liveLauncherTitle
+        dock.appSettings.launcherIcon = dock.liveLauncherIcon
+        dock.appSettings.launcherCommand = dock.liveLauncherCommand
+
         if (typeof dock.appSettings.sync === "function") {
             dock.appSettings.sync()
         }
+        dock.loadLauncherFromSettings()
+        dock.saveApps()
+        dock.saveSystemItems()
         dock.updateZone()
         dock.applyLayerShellFromSettings()
+        dock.applyDockPositionFromSettings()
         dock.applyDockRetractedState()
         settingsWin.close()
     }
@@ -81,10 +101,15 @@ Window {
         }
     }
 
-    ColumnLayout {
+    ScrollView {
         anchors.fill: parent
-        anchors.margins: 25
-        spacing: 12
+        anchors.margins: 12
+        clip: true
+        contentWidth: availableWidth
+
+        ColumnLayout {
+            width: settingsWin.width - 40
+            spacing: 12
 
         Accessible.role: Accessible.Dialog
         Accessible.name: settingsWin.title
@@ -305,8 +330,206 @@ Window {
             }
         }
 
+        Rectangle {
+            Layout.fillWidth: true
+            height: 1
+            color: "#33FFFFFF"
+            Layout.topMargin: 8
+            Layout.bottomMargin: 8
+        }
+
+        Label {
+            text: qsTr("Aparência e atalhos")
+            font.bold: true
+            font.pixelSize: 16
+            color: "#FFFFFF"
+            Layout.fillWidth: true
+        }
+
+        Label {
+            text: qsTr("Tema da barra")
+            color: "#CCCCCC"
+        }
+        ComboBox {
+            Layout.fillWidth: true
+            model: [qsTr("Escuro"), qsTr("Claro"), qsTr("Seguir o sistema")]
+            currentIndex: dock.liveThemeMode
+            onActivated: dock.liveThemeMode = currentIndex
+        }
+
+        Label {
+            text: qsTr("Posição (âncora Layer Shell)")
+            color: "#CCCCCC"
+        }
+        ComboBox {
+            Layout.fillWidth: true
+            model: [qsTr("Inferior"), qsTr("Esquerda"), qsTr("Direita"), qsTr("Superior")]
+            currentIndex: dock.liveDockPosition
+            onActivated: dock.liveDockPosition = currentIndex
+        }
+        Label {
+            text: qsTr("A disposição dos ícones continua optimizada para a margem inferior; outras posições podem exigir ajustes visuais.")
+            wrapMode: Text.WordWrap
+            Layout.fillWidth: true
+            font.pixelSize: 11
+            color: "#888888"
+        }
+
+        CheckBox {
+            text: qsTr("Clique do meio fecha o programa")
+            checked: dock.liveMiddleClickCloses
+            onToggled: dock.liveMiddleClickCloses = checked
+            palette.text: "#DDDDDD"
+            Layout.fillWidth: true
+        }
+
+        CheckBox {
+            text: qsTr("Mostrar contador de janelas nos ícones")
+            checked: dock.liveShowWindowBadge
+            onToggled: dock.liveShowWindowBadge = checked
+            palette.text: "#DDDDDD"
+            Layout.fillWidth: true
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            height: 1
+            color: "#33FFFFFF"
+            Layout.topMargin: 8
+            Layout.bottomMargin: 8
+        }
+
+        Label {
+            text: qsTr("Lançador (menu Plasma)")
+            font.bold: true
+            font.pixelSize: 16
+            color: "#FFFFFF"
+            Layout.fillWidth: true
+        }
+
+        TextField {
+            Layout.fillWidth: true
+            placeholderText: qsTr("Título")
+            text: dock.liveLauncherTitle
+            onTextEdited: dock.liveLauncherTitle = text
+            color: "#EEEEEE"
+        }
+        TextField {
+            Layout.fillWidth: true
+            placeholderText: qsTr("Ícone (nome do tema)")
+            text: dock.liveLauncherIcon
+            onTextEdited: dock.liveLauncherIcon = text
+            color: "#EEEEEE"
+        }
+        TextField {
+            Layout.fillWidth: true
+            placeholderText: qsTr("Comando")
+            text: dock.liveLauncherCommand
+            onTextEdited: dock.liveLauncherCommand = text
+            color: "#EEEEEE"
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            height: 1
+            color: "#33FFFFFF"
+            Layout.topMargin: 8
+            Layout.bottomMargin: 8
+        }
+
+        Label {
+            text: qsTr("Aplicações fixadas")
+            font.bold: true
+            font.pixelSize: 16
+            color: "#FFFFFF"
+            Layout.fillWidth: true
+        }
+
+        ListView {
+            Layout.fillWidth: true
+            Layout.preferredHeight: Math.min(180, Math.max(48, count * 52))
+            clip: true
+            model: dock.appModel
+            delegate: RowLayout {
+                width: ListView.view.width
+                spacing: 6
+                TextField {
+                    Layout.fillWidth: true
+                    text: model.name
+                    onTextEdited: dock.appModel.setProperty(index, "name", text)
+                    color: "#EEEEEE"
+                }
+                TextField {
+                    Layout.fillWidth: true
+                    text: model.cmd
+                    onTextEdited: dock.appModel.setProperty(index, "cmd", text)
+                    color: "#AAAAFF"
+                    font.pixelSize: 11
+                }
+                Button {
+                    text: "×"
+                    onClicked: dock.unpinApp(index)
+                }
+            }
+        }
+
+        Button {
+            text: qsTr("Adicionar linha vazia (editar depois)")
+            Layout.fillWidth: true
+            onClicked: dock.appModel.append({ name: qsTr("Nova app"), icon: "application-x-executable", cmd: "konsole" })
+        }
+
+        Label {
+            text: qsTr("Itens de sistema (Transferências, Lixeira, …)")
+            font.bold: true
+            font.pixelSize: 16
+            color: "#FFFFFF"
+            Layout.fillWidth: true
+        }
+
+        ListView {
+            id: systemItemsEditor
+            Layout.fillWidth: true
+            Layout.preferredHeight: Math.min(140, Math.max(48, count * 52))
+            clip: true
+            model: dock.systemModel
+            delegate: RowLayout {
+                width: systemItemsEditor.width
+                spacing: 6
+                TextField {
+                    Layout.fillWidth: true
+                    text: model.name
+                    onTextEdited: dock.systemModel.setProperty(index, "name", text)
+                    color: "#EEEEEE"
+                }
+                TextField {
+                    Layout.fillWidth: true
+                    text: model.cmd
+                    onTextEdited: dock.systemModel.setProperty(index, "cmd", text)
+                    color: "#AAAAFF"
+                    font.pixelSize: 11
+                }
+                Button {
+                    text: "×"
+                    onClicked: dock.systemModel.remove(index)
+                }
+            }
+        }
+
+        Button {
+            text: qsTr("Adicionar item de sistema")
+            Layout.fillWidth: true
+            onClicked: dock.systemModel.append({
+                name: qsTr("Pasta"),
+                icon: "folder",
+                cmd: "dolphin",
+                isSystem: true
+            })
+        }
+
         Item {
             Layout.fillHeight: true
+            Layout.minimumHeight: 12
         }
 
         RowLayout {
@@ -338,6 +561,7 @@ Window {
                     settingsWin.aplicarValores()
                 }
             }
+        }
         }
     }
 }

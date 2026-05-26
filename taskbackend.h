@@ -42,7 +42,9 @@ public:
     Q_INVOKABLE QVariantList getUnpinnedApps(const QVariantList &pinnedCmdsVar);
     Q_INVOKABLE void forceLaunchApp(const QString &command);
     Q_INVOKABLE void launchApp(const QString &command);
-    Q_INVOKABLE void closeApp(const QString &command);
+    Q_INVOKABLE void closeApp(const QString &command, bool killProcessIfNoWindow = false);
+    Q_INVOKABLE int windowCountForCommand(const QString &command);
+    Q_INVOKABLE void cycleAppWindows(const QString &command, bool forward);
     Q_INVOKABLE bool isAppRunning(const QString &command);
     Q_INVOKABLE bool isAppFocused(const QString &command);
     Q_INVOKABLE QVariantMap parseDropInfo(const QString &urlStr);
@@ -55,7 +57,7 @@ signals:
 
 private slots:
     void completeLaunchApp(const QString &command, const QString &winId);
-    void completeCloseApp(const QString &command, const QString &winId);
+    void completeCloseApp(const QString &command, const QString &winId, bool killIfNoWindow = false);
     void flushBlurRegion();
 
 private:
@@ -102,6 +104,10 @@ private:
     /// Descarta conclusões antigas quando há vários cliques rápidos no mesmo comando.
     QHash<QString, quint64> m_launchSeq;
     QHash<QString, quint64> m_closeSeq;
+    QHash<QString, int> m_cycleWindowIndex;
+
+    QStringList resolveAllWindowTokens(const QString &command) const;
+    void killProcessesForCommand(const QString &command) const;
 };
 
 #endif // TASKBACKEND_H

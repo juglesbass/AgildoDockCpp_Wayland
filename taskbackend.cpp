@@ -601,7 +601,7 @@ void TaskBackend::launchApp(const QString &command)
     });
 }
 
-void TaskBackend::completeCloseApp(const QString &command, const QString &winToken)
+void TaskBackend::completeCloseApp(const QString &command, const QString &winToken, bool killIfNoWindow)
 {
     if (!winToken.isEmpty()) {
         if (winToken.startsWith(QLatin1String("x11:"))) {
@@ -612,28 +612,97 @@ void TaskBackend::completeCloseApp(const QString &command, const QString &winTok
                                 {QStringLiteral("windowclose"), winToken});
         return;
     }
+    if (killIfNoWindow) {
+        killProcessesForCommand(command);
+        return;
+    }
     qWarning() << "AgildoDock: não foi possível fechar app (janela não encontrada):" << command;
 }
 
-void TaskBackend::closeApp(const QString &command)
+void TaskBackend::closeApp(const QString &command, bool killProcessIfNoWindow)
 {
     if (command.isEmpty()) {
         return;
     }
     const QString cmdCopy = command;
     const quint64 seq = ++m_closeSeq[cmdCopy];
-    (void)QtConcurrent::run([this, cmdCopy, seq]() {
+    const bool killCopy = killProcessIfNoWindow;
+    (void)QtConcurrent::run([this, cmdCopy, seq, killCopy]() {
         const QString winId = resolveWindowTokenForLaunch(cmdCopy);
         QMetaObject::invokeMethod(
             this,
-            [this, cmdCopy, winId, seq]() {
+            [this, cmdCopy, winId, seq, killCopy]() {
                 if (m_closeSeq.value(cmdCopy) != seq) {
                     return;
                 }
-                completeCloseApp(cmdCopy, winId);
+                completeCloseApp(cmdCopy, winId, killCopy);
             },
             Qt::QueuedConnection);
     });
+}
+
+QStringList TaskBackend::resolveAllWindowTokens(const QString &command) const
+{
+    return DockWindowManagement::resolveAllWindowHandlesForCommand(command,
+                                                                   knownApps,
+                                                                   m_kdotoolAvailable,
+                                                                   kKdotoolTimeoutMs);
+}
+
+int TaskBackend::windowCountForCommand(const QString &command)
+{
+    if (command.isEmpty()) {
+        return 0;
+    }
+    const QStringList handles = resolveAllWindowTokens(command);
+    if (!handles.isEmpty()) {
+        return handles.size();
+    }
+    return isAppRunning(command) ? 1 : 0;
+}
+
+void TaskBackend::cycleAppWindows(const QString &command, bool forward)
+{
+    if (command.isEmpty()) {
+        return;
+    }
+    QStringList handles = resolveAllWindowTokens(command);
+    if (handles.isEmpty()) {
+        if (isAppRunning(command)) {
+            launchApp(command);
+        }
+        return;
+    }
+    int idx = m_cycleWindowIndex.value(command, -1);
+    if (forward) {
+        idx = (idx + 1) % handles.size();
+    } else {
+        idx = (idx <= 0) ? (handles.size() - 1) : (idx - 1);
+    }
+    m_cycleWindowIndex.insert(command, idx);
+    DockWindowManagement::activateWindowToken(handles.at(idx), m_kdotoolAvailable);
+    m_activeAppClass = execBasenameFromCommand(command);
+    emit windowsUpdated();
+}
+
+void TaskBackend::killProcessesForCommand(const QString &command) const
+{
+    const QString exec = execBasenameFromCommand(command);
+    if (exec.isEmpty() || exec.size() < 2) {
+        return;
+    }
+    static const QSet<QString> bloqueados = {
+        QStringLiteral("python"),
+        QStringLiteral("python3"),
+        QStringLiteral("sh"),
+        QStringLiteral("bash"),
+        QStringLiteral("zsh"),
+    };
+    if (bloqueados.contains(exec)) {
+        qWarning() << "AgildoDock: encerramento por processo ignorado (interpretador genérico):" << command;
+        return;
+    }
+    QProcess::execute(QStringLiteral("pkill"), {QStringLiteral("-x"), exec});
 }
 
 bool TaskBackend::isAppRunning(const QString &command)

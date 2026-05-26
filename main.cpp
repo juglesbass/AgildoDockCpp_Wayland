@@ -12,6 +12,8 @@
 #include <QWindow>
 #include <QtGlobal>
 #include <LayerShellQt/Window>
+#include "dock_bridge.h"
+#include "global_shortcuts.h"
 #include "taskbackend.h"
 
 namespace {
@@ -83,7 +85,7 @@ int main(int argc, char *argv[]) {
     QCoreApplication::setOrganizationName("AgildoSoft");
     QCoreApplication::setOrganizationDomain("agildosoft.com");
     QCoreApplication::setApplicationName("AgildoDock");
-    QCoreApplication::setApplicationVersion(QStringLiteral("1.0"));
+    QCoreApplication::setApplicationVersion(QStringLiteral("1.1"));
 
     for (int i = 1; i < argc; ++i) {
         if (qstrcmp(argv[i], "--version") == 0 || qstrcmp(argv[i], "-v") == 0) {
@@ -108,7 +110,9 @@ int main(int argc, char *argv[]) {
     QQmlApplicationEngine engine;
 
     TaskBackend *taskBackend = new TaskBackend(&app);
+    DockBridge *dockBridge = new DockBridge(&app);
     engine.rootContext()->setContextProperty("taskBackend", taskBackend);
+    engine.rootContext()->setContextProperty("dockBridge", dockBridge);
 
     // Com QTP0001 o QML fica em :/qt/qml/<URI>/ (não :/AgildoDock/). main.qml não é tipo no qmldir — carregar por URL.
     const QUrl url(QStringLiteral("qrc:/qt/qml/AgildoDock/main.qml"));
@@ -126,10 +130,17 @@ int main(int argc, char *argv[]) {
     }
 
     taskBackend->setMainWindow(window);
+    dockBridge->setDockWindow(window);
 
     if (!iconeApp.isNull()) {
         window->setIcon(iconeApp);
     }
+
+    QObject *rootObject = engine.rootObjects().first();
+    QObject::connect(dockBridge, &DockBridge::pedirAbrirPreferencias, rootObject, [rootObject]() {
+        QMetaObject::invokeMethod(rootObject, "abrirJanelaPreferencias", Qt::QueuedConnection);
+    });
+    AgildoDock::configurarAtalhosGlobais(dockBridge, nullptr);
 
     // Workaround (testado em Plasma/Wayland + LayerShellQt): fechar e voltar a mostrar a QQuickWindow
     // raiz evita o primeiro frame sem decoração de superfície/blur; sem isto a doca pode aparecer
@@ -145,8 +156,8 @@ int main(int argc, char *argv[]) {
         // Zona exclusiva: updateZone → taskBackend.updateExclusiveZone.
     }
 
-    QObject *rootObject = engine.rootObjects().first();
     QMetaObject::invokeMethod(rootObject, "applyLayerShellFromSettings", Qt::DirectConnection);
+    QMetaObject::invokeMethod(rootObject, "applyDockPositionFromSettings", Qt::DirectConnection);
     QMetaObject::invokeMethod(rootObject, "updateZone", Qt::DirectConnection);
     QMetaObject::invokeMethod(rootObject, "applyDockRetractedState", Qt::DirectConnection);
 

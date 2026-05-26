@@ -17,6 +17,7 @@ Item {
     property bool isPinned: !isDynamicItem && !isSystemItem && !isLauncherItem
     property int itemIndex: index
     property bool isLaunching: false
+    property int windowCount: 0
     property bool isValid: model.name !== undefined && model.icon !== ""
     property bool scheduledRemove: model.removing === true
 
@@ -116,6 +117,11 @@ Item {
             if (!isLauncherItem && delegateRoot.isValid) {
                 delegateRoot.isRunning = taskBackend.isAppRunning(model.cmd)
                 delegateRoot.isFocused = delegateRoot.isRunning ? taskBackend.isAppFocused(model.cmd) : false
+                if (delegateRoot.isRunning && dock.liveShowWindowBadge) {
+                    delegateRoot.windowCount = taskBackend.windowCountForCommand(model.cmd)
+                } else {
+                    delegateRoot.windowCount = 0
+                }
             }
         }
     }
@@ -124,6 +130,9 @@ Item {
         if (!isLauncherItem && delegateRoot.isValid) {
             delegateRoot.isRunning = taskBackend.isAppRunning(model.cmd)
             delegateRoot.isFocused = delegateRoot.isRunning ? taskBackend.isAppFocused(model.cmd) : false
+            if (delegateRoot.isRunning && dock.liveShowWindowBadge) {
+                delegateRoot.windowCount = taskBackend.windowCountForCommand(model.cmd)
+            }
         }
     }
 
@@ -141,6 +150,9 @@ Item {
                 statusColor = "#00FFCC"
             } else if (delegateRoot.isRunning) {
                 status = "● " + qsTr("Em execução")
+                if (delegateRoot.windowCount > 1) {
+                    status += " (" + delegateRoot.windowCount + ")"
+                }
             } else if (isDynamicItem) {
                 hint = qsTr("Clique para fixar na doca")
             }
@@ -373,6 +385,30 @@ Item {
             }
         }
 
+        Rectangle {
+            visible: dock.liveShowWindowBadge && delegateRoot.windowCount > 1 && !isLauncherItem
+            z: 50
+            anchors.top: parent.top
+            anchors.right: parent.right
+            anchors.topMargin: 2 * dock.liveScaleFactor
+            anchors.rightMargin: 4 * dock.liveScaleFactor
+            width: Math.max(14, countLabel.implicitWidth + 8) * dock.liveScaleFactor
+            height: Math.max(14, countLabel.implicitHeight + 4) * dock.liveScaleFactor
+            radius: height * 0.45
+            color: "#E53935"
+            border.color: "#FFFFFF"
+            border.width: 1
+
+            Text {
+                id: countLabel
+                anchors.centerIn: parent
+                text: delegateRoot.windowCount > 9 ? "9+" : String(delegateRoot.windowCount)
+                color: "#FFFFFF"
+                font.bold: true
+                font.pixelSize: 10 * dock.liveScaleFactor
+            }
+        }
+
         MouseArea {
             id: mouseArea
             z: 100
@@ -382,7 +418,7 @@ Item {
             anchors.leftMargin: -dock.baseSpacing / 2
             anchors.rightMargin: -dock.baseSpacing / 2
             hoverEnabled: true
-            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
             drag.target: delegateRoot.isPinned ? visualItem : null
             drag.axis: Drag.XAxis
 
@@ -435,6 +471,15 @@ Item {
                     contextMenu.popup()
                     return
                 }
+                if (mouse.button === Qt.MiddleButton) {
+                    if (dock.liveMiddleClickCloses && !isLauncherItem && !isSystemItem) {
+                        taskBackend.closeApp(model.cmd, true)
+                        delegateRoot.isRunning = false
+                        delegateRoot.isFocused = false
+                        delegateRoot.windowCount = 0
+                    }
+                    return
+                }
                 if (delegateRoot.isLaunching) {
                     return
                 }
@@ -445,6 +490,26 @@ Item {
                     singleJumpAnim.start()
                 }
                 taskBackend.launchApp(model.cmd)
+            }
+        }
+
+        Item {
+            id: wheelCapture
+            z: 99
+            anchors.fill: mouseArea
+            WheelHandler {
+                // WheelHandler não tem anchors/z — a área é o Item pai (wheelCapture).
+                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                onWheel: (event) => {
+                    if (isLauncherItem || isSystemItem || !delegateRoot.isRunning) {
+                        return
+                    }
+                    if (delegateRoot.windowCount <= 1) {
+                        return
+                    }
+                    taskBackend.cycleAppWindows(model.cmd, event.angleDelta.y < 0)
+                    event.accepted = true
+                }
             }
         }
 
