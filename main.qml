@@ -8,6 +8,20 @@ import QtCore
 Window {
     id: root
 
+    function screenForDock() {
+        if (dockSettings.followPrimaryScreen && Qt.application.primaryScreen) {
+            return Qt.application.primaryScreen
+        }
+        const screens = Qt.application.screens
+        if (!screens || screens.length === 0) {
+            return null
+        }
+        const idx = Math.max(0, Math.min(dockSettings.targetScreenIndex, screens.length - 1))
+        return screens[idx]
+    }
+
+    screen: screenForDock()
+
     // Accessible: só em tipos derivados de Item — ver dockContainer.
 
     // Métricas nomeadas (geometria da onda e da barra)
@@ -34,6 +48,13 @@ Window {
     property string liveLauncherTitle: ""
     property string liveLauncherIcon: ""
     property string liveLauncherCommand: ""
+    property bool liveShowClockWidget: false
+    property bool liveShowActivityLabel: false
+    property bool liveFollowPrimaryScreen: true
+    property int liveTargetScreenIndex: 0
+    property bool liveGestureSwipeHide: true
+    property string liveHiddenAppsJson: ""
+    property int liveProcPollIntervalMs: 750
 
     readonly property bool useLightChrome: {
         if (root.liveThemeMode === 1) {
@@ -55,6 +76,31 @@ Window {
 
     property bool dockRetracted: false
     property bool dockAutoHideLatched: false
+    /// Enquanto um menu contextual de ícone estiver aberto, a onda não segue o rato.
+    property bool dockContextMenuOpen: false
+
+    function showIconContextMenu(anchorItem, data) {
+        iconContextMenu.openForIcon(anchorItem, data)
+    }
+
+    function lockDockForContextMenu(locked, anchorLogicalX) {
+        dockContextMenuOpen = locked
+        if (locked) {
+            waveCollapseTimer.stop()
+            waveAmplitude = 0
+            smoothedWaveRowWidth = baseRowWidth
+            if (anchorLogicalX !== undefined && !isNaN(anchorLogicalX) && anchorLogicalX >= 0) {
+                logicalMouseX = anchorLogicalX
+            }
+            hideDockIconTip()
+        } else {
+            if (dockHovered) {
+                waveAmplitude = 1.0
+                smoothedWaveRowWidth = baseRowWidth
+                logicalMouseX = -1000
+            }
+        }
+    }
 
     onLiveScaleFactorChanged: {
         if (settingsWin.visible) {
@@ -140,6 +186,9 @@ Window {
     HoverHandler {
         id: globalHover
         onPointChanged: {
+            if (root.dockContextMenuOpen) {
+                return
+            }
             var px = globalHover.point.position.x
             var py = globalHover.point.position.y
             if (px === undefined || py === undefined) return;
@@ -188,6 +237,9 @@ Window {
     property real logicalMouseX: -1000
 
     property bool dockHovered: {
+        if (root.dockContextMenuOpen) {
+            return false
+        }
         if (!globalHover.hovered) return false
 
             // Se estiver oculta, desliga o radar dos ícones!
@@ -401,6 +453,13 @@ Window {
         property string launcherIcon: "start-here-kde"
         property string launcherCommand: "qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.activateLauncherMenu"
         property string systemItemsJson: ""
+        property string hiddenAppsJson: ""
+        property bool showClockWidget: false
+        property bool showActivityLabel: false
+        property bool followPrimaryScreen: true
+        property int targetScreenIndex: 0
+        property bool gestureSwipeHide: true
+        property int procPollIntervalMs: 750
     }
 
     property alias appSettings: dockSettings
@@ -423,6 +482,9 @@ Window {
         interval: 48
         repeat: false
         onTriggered: {
+            if (root.dockContextMenuOpen) {
+                return
+            }
             if (root.dockRetracted) {
                 taskBackend.setPointerInputExcludeTop(0)
                 return
@@ -454,6 +516,9 @@ Window {
     property real dockTipAnchorY: 0
 
     function showDockIconTip(iconItem, name, statusLine, statusColor, hintLine) {
+        if (dockContextMenuOpen) {
+            return
+        }
         if (!iconItem) {
             return
         }
@@ -469,6 +534,101 @@ Window {
 
     function hideDockIconTip() {
         root.dockTipVisible = false
+    }
+
+    function loadHiddenAppsRules() {
+        taskBackend.setUserHiddenCommands([])
+        if (dockSettings.hiddenAppsJson === "") {
+            return
+        }
+        try {
+            const arr = JSON.parse(dockSettings.hiddenAppsJson)
+            if (Array.isArray(arr)) {
+                taskBackend.setUserHiddenCommands(arr)
+            }
+        } catch (e) {
+            console.warn("hiddenAppsJson inválido", e)
+        }
+    }
+
+    function applyScreenFromSettings() {
+        const sc = screenForDock()
+        if (sc) {
+            root.screen = sc
+        }
+        updateZone()
+    }
+
+    function reporPredefinicoes() {
+        dockSettings.scaleFactor = 1.0
+        dockSettings.iconSpacing = 10.0
+        dockSettings.bgOpacity = 0.66
+        dockSettings.dockMargin = 5.0
+        dockSettings.minIconSize = 45.0
+        dockSettings.maxIconSize = 75.0
+        dockSettings.behaviorAutoHide = false
+        dockSettings.behaviorDodgeWindows = false
+        dockSettings.behaviorKeepAppsFocused = false
+        dockSettings.behaviorAutoHideDelayMs = 900
+        dockSettings.themeMode = 0
+        dockSettings.dockPosition = 0
+        dockSettings.middleClickCloses = false
+        dockSettings.showWindowBadge = true
+        dockSettings.hiddenAppsJson = ""
+        dockSettings.showClockWidget = false
+        dockSettings.showActivityLabel = false
+        dockSettings.followPrimaryScreen = true
+        dockSettings.targetScreenIndex = 0
+        dockSettings.gestureSwipeHide = true
+        dockSettings.procPollIntervalMs = 750
+        if (typeof dockSettings.sync === "function") {
+            dockSettings.sync()
+        }
+        settingsWin.carregarValores()
+        loadHiddenAppsRules()
+        applyScreenFromSettings()
+        taskBackend.setProcPollIntervalMs(dockSettings.procPollIntervalMs)
+        updateZone()
+    }
+
+    function exportAppsToDefaultPath() {
+        const path = taskBackend.defaultDockAppsExportPath()
+        const ok = taskBackend.saveTextFile(path, dockSettings.dockApps)
+        console.log(ok ? qsTr("Apps exportadas para %1").arg(path) : qsTr("Falha ao exportar"))
+        return ok
+    }
+
+    function importAppsFromDefaultPath() {
+        const path = taskBackend.defaultDockAppsExportPath()
+        const raw = taskBackend.loadTextFile(path)
+        if (raw === "") {
+            return false
+        }
+        dockSettings.dockApps = raw
+        appModel.clear()
+        try {
+            const parsed = JSON.parse(raw)
+            const apps = Array.isArray(parsed) ? parsed : (parsed.apps || [])
+            for (let i = 0; i < apps.length; i++) {
+                if (apps[i] && apps[i].name) {
+                    appModel.append(apps[i])
+                }
+            }
+        } catch (e) {
+            return false
+        }
+        saveApps()
+        return true
+    }
+
+    function addSeparatorToPinned() {
+        appModel.append({
+            name: "—",
+            icon: "",
+            cmd: "",
+            isSeparator: true
+        })
+        saveApps()
     }
 
     Timer {
@@ -495,6 +655,35 @@ Window {
         saveApps()
     }
 
+    /// Adiciona o comando à lista de apps ocultas na área dinâmica (preferências).
+    function hideAppFromDynamicArea(cmd) {
+        if (!cmd || cmd === "") {
+            return
+        }
+        let arr = []
+        try {
+            if (dockSettings.hiddenAppsJson !== "") {
+                const parsed = JSON.parse(dockSettings.hiddenAppsJson)
+                if (Array.isArray(parsed)) {
+                    arr = parsed
+                }
+            }
+        } catch (e) {
+            console.warn("hiddenAppsJson inválido", e)
+        }
+        if (!arr.includes(cmd)) {
+            arr.push(cmd)
+        }
+        const json = JSON.stringify(arr)
+        dockSettings.hiddenAppsJson = json
+        root.liveHiddenAppsJson = json
+        if (typeof dockSettings.sync === "function") {
+            dockSettings.sync()
+        }
+        loadHiddenAppsRules()
+        updateDynamicApps()
+    }
+
     function finalizeDynamicRemove(cmd) {
         for (let i = dynamicModel.count - 1; i >= 0; i--) {
             let e = dynamicModel.get(i)
@@ -515,8 +704,10 @@ Window {
         let running = []
 
         for (let k = 0; k < rawRunning.length; k++) {
-            if (taskBackend.shouldHideFromDock(rawRunning[k].cmd, rawRunning[k].name)) continue
-                running.push(rawRunning[k])
+            if (taskBackend.shouldHideFromDock(rawRunning[k].cmd, rawRunning[k].name)) {
+                continue
+            }
+            running.push(rawRunning[k])
         }
 
         for (let i = dynamicModel.count - 1; i >= 0; i--) {
@@ -586,8 +777,17 @@ Window {
         root.liveLauncherTitle = dockSettings.launcherTitle
         root.liveLauncherIcon = dockSettings.launcherIcon
         root.liveLauncherCommand = dockSettings.launcherCommand
+        root.liveShowClockWidget = dockSettings.showClockWidget
+        root.liveShowActivityLabel = dockSettings.showActivityLabel
+        root.liveFollowPrimaryScreen = dockSettings.followPrimaryScreen
+        root.liveTargetScreenIndex = dockSettings.targetScreenIndex
+        root.liveGestureSwipeHide = dockSettings.gestureSwipeHide
+        root.liveProcPollIntervalMs = dockSettings.procPollIntervalMs
 
+        loadHiddenAppsRules()
+        taskBackend.setProcPollIntervalMs(dockSettings.procPollIntervalMs)
         loadLauncherFromSettings()
+        applyScreenFromSettings()
         updateZone()
         let savedData = dockSettings.dockApps
 
@@ -605,7 +805,7 @@ Window {
                     else if (parsed && parsed.version === 2 && Array.isArray(parsed.apps)) apps = parsed.apps
 
                         for (let i = 0; i < apps.length; i++) {
-                            if (apps[i] && apps[i].name && apps[i].cmd) {
+                            if (apps[i] && apps[i].name && (apps[i].cmd || apps[i].isSeparator)) {
                                 appModel.append(apps[i])
                             }
                         }
@@ -624,7 +824,14 @@ Window {
         let arr = []
         for (let i = 0; i < appModel.count; i++) {
             let item = appModel.get(i)
-            if (item) arr.push({ name: item.name, icon: item.icon, cmd: item.cmd })
+            if (!item) {
+                continue
+            }
+            if (item.isSeparator) {
+                arr.push({ name: item.name || "—", icon: "", cmd: "", isSeparator: true })
+            } else {
+                arr.push({ name: item.name, icon: item.icon, cmd: item.cmd })
+            }
         }
         dockSettings.dockApps = JSON.stringify({ version: 2, savedAt: Date.now(), apps: arr })
         if (typeof dockSettings.sync === "function") {
@@ -647,6 +854,29 @@ Window {
         id: dockContainer
         anchors.fill: parent
         opacity: 0.0
+
+        // Com menu contextual aberto: doca “travada” (sem hover/onda/cliques nos ícones).
+        MouseArea {
+            anchors.fill: parent
+            z: 300000
+            enabled: root.dockContextMenuOpen
+            hoverEnabled: false
+            propagateComposedEvents: false
+            acceptedButtons: Qt.AllButtons
+            onPressed: (mouse) => {
+                iconContextMenu.closeMenu()
+                mouse.accepted = true
+            }
+        }
+
+        DockSwipeHideArea {
+            dock: root
+            anchors.fill: parent
+        }
+
+        DockWarningBanner {
+            dock: root
+        }
 
         Accessible.role: Accessible.Pane
         Accessible.name: qsTr("AgildoDock")
@@ -758,6 +988,7 @@ Window {
             MouseArea {
                 anchors.fill: parent
                 hoverEnabled: true
+                enabled: !root.dockContextMenuOpen
                 acceptedButtons: Qt.RightButton
                 onClicked: {
                     root.abrirJanelaPreferencias()
@@ -790,11 +1021,13 @@ Window {
                 MouseArea {
                     anchors.fill: parent
                     hoverEnabled: true
+                    enabled: !root.dockContextMenuOpen
 
                     anchors.topMargin: -root.dividerExtraHitArea
                     anchors.bottomMargin: -40
 
                     function updateLogicalMouse(mx) {
+                        if (root.dockContextMenuOpen) return
                         if (mx === undefined || isNaN(mx) || width <= 0) return
                             if (root.dockHovered || root.waveAmplitude > 0.02) return
                                 var logicalStart = ((launcherModel.count + appModel.count) * root.baseStride) - (root.baseSpacing / 2)
@@ -827,11 +1060,13 @@ Window {
                 MouseArea {
                     anchors.fill: parent
                     hoverEnabled: true
+                    enabled: !root.dockContextMenuOpen
 
                     anchors.topMargin: -root.dividerExtraHitArea
                     anchors.bottomMargin: -40
 
                     function updateLogicalMouse(mx) {
+                        if (root.dockContextMenuOpen) return
                         if (mx === undefined || isNaN(mx) || width <= 0) return
                             if (root.dockHovered || root.waveAmplitude > 0.02) return
                                 var prevCount = launcherModel.count + appModel.count + dynamicModel.count
@@ -856,82 +1091,20 @@ Window {
                 model: systemModel
                 delegate: DockIconDelegate { dock: root }
             }
+
+            DockWidgetStrip {
+                dock: root
+            }
         }
 
-        // Tooltip global (coordenadas relativas ao dockContainer — mapToItem não aceita Window).
-        Item {
-            id: dockGlobalTip
-            z: 200000
-            visible: root.dockTipVisible
-            x: Math.round(root.dockTipAnchorX - (width * 0.5))
-            y: Math.round(root.dockTipAnchorY - height - (8 * root.liveScaleFactor))
-            width: globalTipBox.width
-            height: globalTipBox.height
-
-            Rectangle {
-                id: globalTipBox
-                property real tipInnerWidth: Math.min(
-                    320,
-                    Math.max(
-                        globalTipName.implicitWidth,
-                        globalTipStatus.visible ? globalTipStatus.implicitWidth : 0,
-                        globalTipHint.visible ? globalTipHint.implicitWidth : 0,
-                        80
-                    )
-                )
-                width: tipInnerWidth + 24
-                height: globalTipColumn.implicitHeight + 12
-                radius: 8
-                color: "#F0222222"
-                border.color: "#70FFFFFF"
-                border.width: 1
-                clip: true
-
-                Column {
-                    id: globalTipColumn
-                    x: 12
-                    y: 6
-                    spacing: 4
-                    width: globalTipBox.tipInnerWidth
-
-                    Text {
-                        id: globalTipName
-                        width: globalTipBox.tipInnerWidth
-                        text: root.dockTipName
-                        font.bold: true
-                        font.pixelSize: 13
-                        color: "#FFFFFF"
-                        horizontalAlignment: Text.AlignHCenter
-                        elide: Text.ElideRight
-                        maximumLineCount: 1
-                    }
-                    Text {
-                        id: globalTipStatus
-                        visible: text.length > 0
-                        width: globalTipBox.tipInnerWidth
-                        text: root.dockTipStatus
-                        font.pixelSize: 12
-                        color: root.dockTipStatusColor
-                        horizontalAlignment: Text.AlignHCenter
-                        wrapMode: Text.NoWrap
-                    }
-                    Text {
-                        id: globalTipHint
-                        visible: text.length > 0
-                        width: globalTipBox.tipInnerWidth
-                        text: root.dockTipHint
-                        font.pixelSize: 12
-                        color: "#CCCCCC"
-                        horizontalAlignment: Text.AlignHCenter
-                        wrapMode: Text.WordWrap
-                    }
-                }
-            }
+        DockGlobalTooltip {
+            dock: root
         }
     }
 
     DropArea {
         anchors.fill: dockContainer
+        enabled: !root.dockContextMenuOpen
         onDropped: function(drop) {
             if (drop.hasUrls) {
                 let info = taskBackend.parseDropInfo(drop.urls[0].toString())
@@ -941,6 +1114,11 @@ Window {
                 }
             }
         }
+    }
+
+    DockIconContextMenu {
+        id: iconContextMenu
+        dock: root
     }
 
     DockSettingsWindow {
@@ -955,8 +1133,17 @@ Window {
                 root.dockAutoHideLatched = false
                 autoHideDockTimer.stop()
                 root.dockRetracted = false
+                if (!root.dockContextMenuOpen) {
+                    waveCollapseTimer.stop()
+                    waveAmplitude = 1.0
+                    smoothedWaveRowWidth = root.baseRowWidth
+                    logicalMouseX = root.baseRowWidth * 0.5
+                }
                 root.updateZone()
             } else {
+                if (!root.dockHovered && !root.dockContextMenuOpen) {
+                    waveAmplitude = 0.0
+                }
                 root.applyDockRetractedState()
             }
         }

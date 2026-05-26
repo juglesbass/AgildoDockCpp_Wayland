@@ -1,102 +1,77 @@
 # AgildoDock
 
-Doca de aplicações para **Plasma (KDE) em Wayland**, com Layer Shell, efeito de onda e integração com janelas: **preferencialmente «kdotool»** quando estás em Plasma/Wayland, ou **KX11Extras/KWindowInfo** quando a própria doca corre numa sessão Qt **X11**.
+Doca de aplicações para **Plasma (KDE) em Wayland**, com Layer Shell, efeito de onda e integração com janelas.
+
+**Versão actual:** 1.2.0
 
 ## Requisitos
 
 - Qt 6, KF6 (KWindowSystem, Kirigami), LayerShellQt  
-- **kdotool** no `PATH` — caminho habitual no **Plasma/Wayland** para focar, minimizar, fechar e medir geometria («desviar»). Num **Plasma X11** com **`QT_QPA_PLATFORM=xcb`** podes ficar apenas com **KWinStack**.  
-- Testado em fluxos **Plasma 6 + Wayland**; outros compositores podem ter diferenças em blur, região de input e layer-shell  
+- **kdotool** no `PATH` — recomendado no Plasma/Wayland para focar, minimizar e fechar janelas  
+- **kglobalaccel** (opcional) — atalhos globais `Ctrl+,` e `Meta+Alt+D`  
+- No Plasma 6, **org.kde.KWin** via D-Bus acelera o foco da janela activa (sem substituir o `kdotool` para todas as operações)
 
-## Comportamento de processos
+## Funcionalidades (1.2)
 
-O estado **«em execução»** dos ícones usa leitura periódica de **`/proc/*/cmdline`** (em thread de trabalho, sem bloquear a UI). O **meta-informações da janela ativa** (classe WM, título, geometria) vêm primeiro de **KX11Extras** quando a sessão permite; caso contrário, do **kdotool** quando estiver instalado. O sinal `windowsUpdated` dispara após cada varredura de `/proc` e novo após esse refresco da janela em primeiro plano.
+- Apps fixadas, área dinâmica, menu Plasma, itens de sistema configuráveis  
+- Tema escuro / claro / sistema, auto-ocultar, desviar janelas maximizadas  
+- Múltiplas janelas: badge, roda do rato, menu «Janelas abertas»  
+- Regras para ocultar apps da área dinâmica (JSON nas configurações)  
+- Separadores na lista fixada, exportar/importar `~/agildodock-apps.json`  
+- Relógio e nome da actividade Plasma (opcional)  
+- Ecrã primário ou índice de ecrã  
+- Aviso na doca se `kdotool` não estiver instalado  
+- Autostart Plasma (`X-KDE-Autostart`)
 
 ## Atalhos
 
-- **Ctrl+,** ou **Preferências** (tecla de atalho do ambiente): abre a janela de configurações (se o compositor entregar teclas à superfície da doca).
+- **Ctrl+,** — preferências (global com kglobalaccel)  
+- **Meta+Alt+D** — mostrar/ocultar doca (com kglobalaccel)  
+- Clique direito na barra — configurações  
 
-## Linha de comandos
+## Instalação
+
+### Arch / CachyOS (AUR)
 
 ```bash
-agildodock --version   # ou -v; não precisa de servidor gráfico
+paru -S agildodock
 ```
 
-## Instalação no sistema
+Publicar actualização (mantenedor):
 
-O projeto instala um binário **`agildodock`**, entrada **`.desktop`**, ícone tema **hicolor** e **metainfo** (Discover / lojas compatíveis com AppStream).
+1. Etiqueta `v1.2.0` no GitHub  
+2. `cd packaging/aur && ./prepare-for-aur.sh && ./enviar-para-aur.sh`  
+3. `paru -Syu agildodock`
 
-### Instalar com CMake (manual)
+### Compilar localmente
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 sudo cmake --install build
-sudo gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true
 ```
 
-Com prefixo próprio (`/usr/local`): o mesmo comando com `-DCMAKE_INSTALL_PREFIX=/usr/local` (atenção aos `PATH` do `.desktop`; em ambiente Plasma costuma estar ok).
-
-### Pacote Arch / CachyOS (makepkg)
-
-1. Gera o tarball com a estrutura que o **`PKGBUILD`** espera (`agildodock-VERSION/…` no topo):
-
-   ```bash
-   ./packaging/make_dist.sh 1.0
-   ```
-
-2. Copia **`agildodock-1.0.tar.gz`** para **`packaging/`**, atualiza checksums e compila:
-
-   ```bash
-   cd packaging
-   mv ../agildodock-1.0.tar.gz .
-   updpkgsums
-   makepkg -sic
-   ```
-
-3. **`license=`** em `packaging/PKGBUILD`: substitui por licença real do projeto (SPDX).
-
-### Publicar no GitHub (primeira vez)
-
-O código já pode estar inicializado como repositório **git** (com commits e etiqueta **`v1.0`**). O envio (**`git push`**) exige iniciar sessão no GitHub à tua conta — faz isso no teu terminal. Corre **`./packaging/publicar-no-github.sh`**: lá estão os dois caminhos (site **novo repositório** vazio ou **`gh repo create`**).
-
-### Arch User Repository (AUR)
-
-Ficheiros em **`packaging/aur/`** (`PKGBUILD`, `agildodock.install`, `prepare-for-aur.sh`, `README.txt`). Guia passo a passo: **`packaging/aur/README.txt`**.
-
-Fluxo rápido: público no GitHub com etiqueta **`v1.0`** (ou igual ao `pkgver`), preenches `Maintainer` e **`_githubuser`** no `PKGBUILD`, `./prepare-for-aur.sh`, submissão na AUR, depois **`paru -S agildodock`**.
-
-## Testes (CTest)
+## Testes
 
 ```bash
-cmake -S . -B build && cmake --build build && ctest --test-dir build
+ctest --test-dir build --output-on-failure
 ```
 
-## Traduções (i18n)
+Inclui verificação de versão e testes de correspondência de janelas (`test_dock_matching`).
 
-O CMake usa **`qt_add_translations`** (Qt **LinguistTools**): em cada compilação o **`lrelease`** gera `agildodock_en_US.qm` e `agildodock_pt_PT.qm` e inclui-os no recurso **`:/i18n/`**.
+## Traduções
 
-- **Ficheiros no repositório:** `i18n/agildodock_en_US.ts`, `i18n/agildodock_pt_PT.ts` e **`i18n/agildodock_pt_BR.ts`** (português do Brasil: «mouse», «tela», «Salvar», «Arquivos», «Lixeira», «Downloads», etc.).
-- **Atualizar as cadeias** a partir do QML (corrige `<location>` e mensagens novas):
-
-  ```bash
-  cmake --build build --target agildodock_lupdate
-  ```
-
-  Depois edita os `.ts` (por exemplo com **Linguist**), volta a compilar para regenerar os `.qm`.
-
-- **Arranque:** `main.cpp` escolhe o `.qm` por `QLocale`: **`pt_BR`** usa `agildodock_pt_BR.qm`; **`pt_PT`** usa `agildodock_pt_PT.qm`; outros `pt_*` tentam Brasil e depois Portugal. Variável **`AGILDO_DOCK_LOCALE`** (ex. `pt_BR`) força um catálogo.
-
-- **Novo idioma:** copia um `.ts` existente, altera `language="…"`, traduz, acrescenta o ficheiro em **`qt_add_translations`** em `CMakeLists.txt` e recompila.
-
-## Acessibilidade
-
-- Papéis **Accessible** em **`Item`** válidos: área visual da doca (`dockContainer`), coluna das definições, e cada ícone (`DockIconDelegate`). Em **`Window`** o anexo `Accessible` não é suportado (aviso em runtime).
-- Tooltip com maior contraste e texto ligeiramente maior  
-- Sugestão de **≥ 44 px** para alvos de toque nas definições (recomendação; o mínimo do slider mantém-se em 30 px por compatibilidade com configurações antigas)
+```bash
+cmake --build build --target agildodock_lupdate
+# Editar i18n/agildodock_pt_BR.ts (e outros), depois recompilar
+```
 
 ## Limitações conhecidas
 
-- **X11**: a doca não aplica `setMask` no ponteiro (evita recorte visual); o restante comportamento não foi o foco principal do projeto  
-- Atalhos globais dependem do compositor entregar eventos de teclado à janela da doca  
-- Ícones «moles» em escalas altas podem vir do tema/SVG; a doca expõe opções de tamanho e `roundToIconSize: false` nos ícones Kirigami  
+- Posição lateral/superior da doca: não disponível (só margem inferior)  
+- Pré-visualização gráfica de janelas (miniaturas KWin): não implementada; usa lista de títulos no menu  
+- Gestos multi-toque (pinch): não implementados  
+
+## Licença
+
+Ver `packaging/aur/LICENSE` e campo `license` no PKGBUILD (GPL-3.0-or-later).

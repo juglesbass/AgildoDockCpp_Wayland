@@ -20,6 +20,7 @@ class TaskBackend : public QObject
     Q_PROPERTY(bool activeWindowCoversWorkArea READ activeWindowCoversWorkArea NOTIFY activeWindowCoversWorkAreaChanged)
     Q_PROPERTY(bool kdotoolAvailable READ kdotoolAvailable CONSTANT)
     Q_PROPERTY(bool windowManagementAvailable READ windowManagementAvailable CONSTANT)
+    Q_PROPERTY(bool kwinIntegrationAvailable READ kwinIntegrationAvailable CONSTANT)
 
 public:
     explicit TaskBackend(QObject *parent = nullptr);
@@ -28,6 +29,7 @@ public:
 
     bool activeWindowCoversWorkArea() const { return m_activeWindowCoversWorkArea; }
     bool kdotoolAvailable() const { return m_kdotoolAvailable; }
+    bool kwinIntegrationAvailable() const;
     bool windowManagementAvailable() const;
 
     Q_INVOKABLE void updateExclusiveZone(int size);
@@ -43,13 +45,22 @@ public:
     Q_INVOKABLE void forceLaunchApp(const QString &command);
     Q_INVOKABLE void launchApp(const QString &command);
     Q_INVOKABLE void closeApp(const QString &command, bool killProcessIfNoWindow = false);
+    Q_INVOKABLE void closeAllWindows(const QString &command, bool killProcessIfNoWindow = false);
     Q_INVOKABLE int windowCountForCommand(const QString &command);
     Q_INVOKABLE void cycleAppWindows(const QString &command, bool forward);
+    Q_INVOKABLE void focusWindowToken(const QString &token);
     Q_INVOKABLE bool isAppRunning(const QString &command);
     Q_INVOKABLE bool isAppFocused(const QString &command);
     Q_INVOKABLE QVariantMap parseDropInfo(const QString &urlStr);
     /// Centraliza filtro de apps que não devem aparecer na área dinâmica (ex.: Agildo Monitor).
-    Q_INVOKABLE bool shouldHideFromDock(const QString &cmd, const QString &name) const;
+      Q_INVOKABLE bool shouldHideFromDock(const QString &cmd, const QString &name) const;
+    Q_INVOKABLE void setUserHiddenCommands(const QStringList &cmdFragments);
+    Q_INVOKABLE QVariantList windowEntriesForCommand(const QString &command) const;
+    Q_INVOKABLE QString plasmaCurrentActivityLabel() const;
+    Q_INVOKABLE void setProcPollIntervalMs(int intervalMs);
+    Q_INVOKABLE bool saveTextFile(const QString &path, const QString &utf8Text) const;
+    Q_INVOKABLE QString loadTextFile(const QString &path) const;
+    Q_INVOKABLE QString defaultDockAppsExportPath() const;
 
 signals:
     void windowsUpdated();
@@ -105,8 +116,12 @@ private:
     QHash<QString, quint64> m_launchSeq;
     QHash<QString, quint64> m_closeSeq;
     QHash<QString, int> m_cycleWindowIndex;
+    QTimer *m_pollTimer = nullptr;
+    QTimer *m_foregroundTimer = nullptr;
+    QStringList m_userHiddenCmdFragments;
 
     QStringList resolveAllWindowTokens(const QString &command) const;
+    QString windowTitleForToken(const QString &token) const;
     void killProcessesForCommand(const QString &command) const;
 };
 

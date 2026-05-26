@@ -9,16 +9,21 @@ Item {
     required property int index
     required property var model
 
+    // Comando da app — o «model» do ListModel perde-se dentro de Menu/Repeater.
+    readonly property string itemCmd: (model.isSeparator === true || model.cmd === undefined)
+        ? "" : String(model.cmd)
+
     property bool isRunning: false
     property bool isFocused: false
     property bool isDynamicItem: model.isDynamic === true
     property bool isSystemItem: model.isSystem === true
     property bool isLauncherItem: model.isLauncher === true
+    property bool isSeparator: model.isSeparator === true
     property bool isPinned: !isDynamicItem && !isSystemItem && !isLauncherItem
     property int itemIndex: index
     property bool isLaunching: false
     property int windowCount: 0
-    property bool isValid: model.name !== undefined && model.icon !== ""
+    property bool isValid: isSeparator || (model.name !== undefined && model.icon !== "")
     property bool scheduledRemove: model.removing === true
 
     Accessible.role: Accessible.Button
@@ -108,17 +113,17 @@ Item {
         return v
     }
 
-    width: isValid ? (targetIconSize + (15 * dock.liveScaleFactor)) : 0
+    width: isValid ? (isSeparator ? dock.dividerWidth : (targetIconSize + (15 * dock.liveScaleFactor))) : 0
     height: isValid ? (dock.dockBarHeightPx * dock.liveScaleFactor) : 0
 
     Connections {
         target: taskBackend
         function onWindowsUpdated() {
             if (!isLauncherItem && delegateRoot.isValid) {
-                delegateRoot.isRunning = taskBackend.isAppRunning(model.cmd)
-                delegateRoot.isFocused = delegateRoot.isRunning ? taskBackend.isAppFocused(model.cmd) : false
-                if (delegateRoot.isRunning && dock.liveShowWindowBadge) {
-                    delegateRoot.windowCount = taskBackend.windowCountForCommand(model.cmd)
+                delegateRoot.isRunning = taskBackend.isAppRunning(delegateRoot.itemCmd)
+                delegateRoot.isFocused = delegateRoot.isRunning ? taskBackend.isAppFocused(delegateRoot.itemCmd) : false
+                if (delegateRoot.isRunning && dock.liveShowWindowBadge && !isSystemItem) {
+                    delegateRoot.windowCount = taskBackend.windowCountForCommand(delegateRoot.itemCmd)
                 } else {
                     delegateRoot.windowCount = 0
                 }
@@ -128,16 +133,16 @@ Item {
 
     Component.onCompleted: {
         if (!isLauncherItem && delegateRoot.isValid) {
-            delegateRoot.isRunning = taskBackend.isAppRunning(model.cmd)
-            delegateRoot.isFocused = delegateRoot.isRunning ? taskBackend.isAppFocused(model.cmd) : false
-            if (delegateRoot.isRunning && dock.liveShowWindowBadge) {
-                delegateRoot.windowCount = taskBackend.windowCountForCommand(model.cmd)
+            delegateRoot.isRunning = taskBackend.isAppRunning(delegateRoot.itemCmd)
+            delegateRoot.isFocused = delegateRoot.isRunning ? taskBackend.isAppFocused(delegateRoot.itemCmd) : false
+            if (delegateRoot.isRunning && dock.liveShowWindowBadge && !isSystemItem) {
+                delegateRoot.windowCount = taskBackend.windowCountForCommand(delegateRoot.itemCmd)
             }
         }
     }
 
     function refreshNameTip() {
-        if (!mouseArea.containsMouse || contextMenu.visible || mouseArea.drag.active) {
+        if (!mouseArea.containsMouse || dock.dockContextMenuOpen || mouseArea.drag.active) {
             dock.hideDockIconTip()
             return
         }
@@ -272,13 +277,23 @@ Item {
         Timer {
             id: hoverDelay
             interval: 320
-            running: mouseArea.containsMouse && !contextMenu.visible && !mouseArea.drag.active
+            running: mouseArea.containsMouse && !dock.dockContextMenuOpen && !mouseArea.drag.active
             repeat: false
             onTriggered: delegateRoot.refreshNameTip()
         }
 
+        Rectangle {
+            visible: isSeparator
+            width: Math.max(2, Math.round(2 * dock.liveScaleFactor))
+            height: parent.height * 0.45
+            anchors.centerIn: parent
+            color: "#30FFFFFF"
+            radius: 1
+        }
+
         Kirigami.Icon {
             id: appIcon
+            visible: !isSeparator
             source: model.icon
             // Padrão true: arredonda a 32/48/64… do tema; a onda volta a escalar → menos nitidez.
             roundToIconSize: false
@@ -386,7 +401,8 @@ Item {
         }
 
         Rectangle {
-            visible: dock.liveShowWindowBadge && delegateRoot.windowCount > 1 && !isLauncherItem
+            visible: dock.liveShowWindowBadge && delegateRoot.windowCount > 1
+                     && !isLauncherItem && !isSystemItem
             z: 50
             anchors.top: parent.top
             anchors.right: parent.right
@@ -417,12 +433,16 @@ Item {
             anchors.bottomMargin: -40
             anchors.leftMargin: -dock.baseSpacing / 2
             anchors.rightMargin: -dock.baseSpacing / 2
-            hoverEnabled: true
+            enabled: !dock.dockContextMenuOpen
+            hoverEnabled: enabled
             acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
             drag.target: delegateRoot.isPinned ? visualItem : null
             drag.axis: Drag.XAxis
 
             function updateLogicalMouse(mx) {
+                if (dock.dockContextMenuOpen) {
+                    return
+                }
                 if (dock.dockHovered || dock.waveAmplitude > 0.02) {
                     return
                 }
@@ -433,7 +453,7 @@ Item {
 
             onPositionChanged: (mouse) => {
                 updateLogicalMouse(mouse.x)
-                if (mouseArea.containsMouse && !hoverDelay.running && !contextMenu.visible && !mouseArea.drag.active) {
+                if (mouseArea.containsMouse && !hoverDelay.running && !dock.dockContextMenuOpen && !mouseArea.drag.active) {
                     delegateRoot.refreshNameTip()
                 }
                 if (mouseArea.drag.active && delegateRoot.isPinned) {
@@ -467,13 +487,30 @@ Item {
             }
 
             onClicked: (mouse) => {
+                if (isSeparator) {
+                    return
+                }
                 if (mouse.button === Qt.RightButton) {
-                    contextMenu.popup()
+                    dock.showIconContextMenu(appIcon, {
+                        cmd: delegateRoot.itemCmd,
+                        name: model.name,
+                        icon: model.icon,
+                        logicalCenter: delegateRoot.myLogicalCenter,
+                        isLauncher: isLauncherItem,
+                        isSeparator: isSeparator,
+                        isSystem: isSystemItem,
+                        isDynamic: isDynamicItem,
+                        isRunning: delegateRoot.isRunning,
+                        isFocused: delegateRoot.isFocused,
+                        windowCount: delegateRoot.windowCount,
+                        itemIndex: delegateRoot.itemIndex,
+                        delegate: delegateRoot
+                    })
                     return
                 }
                 if (mouse.button === Qt.MiddleButton) {
                     if (dock.liveMiddleClickCloses && !isLauncherItem && !isSystemItem) {
-                        taskBackend.closeApp(model.cmd, true)
+                        taskBackend.closeApp(delegateRoot.itemCmd, true)
                         delegateRoot.isRunning = false
                         delegateRoot.isFocused = false
                         delegateRoot.windowCount = 0
@@ -489,7 +526,7 @@ Item {
                 } else {
                     singleJumpAnim.start()
                 }
-                taskBackend.launchApp(model.cmd)
+                taskBackend.launchApp(delegateRoot.itemCmd)
             }
         }
 
@@ -497,6 +534,7 @@ Item {
             id: wheelCapture
             z: 99
             anchors.fill: mouseArea
+            enabled: mouseArea.enabled
             WheelHandler {
                 // WheelHandler não tem anchors/z — a área é o Item pai (wheelCapture).
                 acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
@@ -507,105 +545,8 @@ Item {
                     if (delegateRoot.windowCount <= 1) {
                         return
                     }
-                    taskBackend.cycleAppWindows(model.cmd, event.angleDelta.y < 0)
+                    taskBackend.cycleAppWindows(delegateRoot.itemCmd, event.angleDelta.y < 0)
                     event.accepted = true
-                }
-            }
-        }
-
-        Menu {
-            id: contextMenu
-            y: -height - (5 * dock.liveScaleFactor)
-            modal: true
-            dim: false
-            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-
-            onVisibleChanged: {
-                if (visible) {
-                    dock.hideDockIconTip()
-                }
-            }
-
-            Connections {
-                target: dock
-                function onActiveChanged() {
-                    if (!dock.active) {
-                        contextMenu.close()
-                    }
-                }
-            }
-
-            background: Rectangle {
-                color: Qt.rgba(0.10, 0.11, 0.13, 0.97)
-                radius: 10 * dock.liveScaleFactor
-                border.color: Qt.rgba(1, 1, 1, 0.12)
-                border.width: 1
-            }
-
-            MenuItem {
-                text: qsTr("Nova janela")
-                visible: !isLauncherItem
-                contentItem: Text {
-                    text: parent.text
-                    color: "#00E5FF"
-                    font.pixelSize: 14 * dock.liveScaleFactor
-                }
-                onTriggered: {
-                    if (!delegateRoot.isLaunching) {
-                        taskBackend.forceLaunchApp(model.cmd)
-                    }
-                }
-            }
-
-            MenuItem {
-                text: delegateRoot.isFocused ? qsTr("Minimizar") : qsTr("Restaurar")
-                visible: delegateRoot.isRunning && !isLauncherItem && !isSystemItem
-                contentItem: Text {
-                    text: parent.text
-                    color: "#CCCCCC"
-                    font.pixelSize: 14 * dock.liveScaleFactor
-                }
-                onTriggered: {
-                    singleJumpAnim.start()
-                    taskBackend.launchApp(model.cmd)
-                }
-            }
-
-            MenuItem {
-                text: isDynamicItem ? qsTr("Fixar na doca") : qsTr("Desafixar da doca")
-                visible: !isSystemItem && !isLauncherItem
-                contentItem: Text {
-                    text: parent.text
-                    color: "white"
-                    font.pixelSize: 14 * dock.liveScaleFactor
-                }
-                onTriggered: {
-                    if (isDynamicItem) {
-                        dock.appModel.append({
-                            name: model.name,
-                            icon: model.icon,
-                            cmd: model.cmd
-                        })
-                        dock.saveApps()
-                    } else {
-                        dock.unpinApp(delegateRoot.itemIndex)
-                    }
-                }
-            }
-
-            MenuItem {
-                text: qsTr("Fechar programa")
-                visible: delegateRoot.isRunning && !isLauncherItem
-                contentItem: Text {
-                    text: parent.text
-                    color: "#FF5555"
-                    font.bold: true
-                    font.pixelSize: 14 * dock.liveScaleFactor
-                }
-                onTriggered: {
-                    taskBackend.closeApp(model.cmd)
-                    delegateRoot.isRunning = false
-                    delegateRoot.isFocused = false
                 }
             }
         }

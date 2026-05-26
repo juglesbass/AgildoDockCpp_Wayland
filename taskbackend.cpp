@@ -1,5 +1,11 @@
 #include "taskbackend.h"
 #include "dock_window_management.h"
+#include "kwin_integration.h"
+
+#include <QDBusInterface>
+#include <QDBusReply>
+#include <QFile>
+#include <QStandardPaths>
 
 #include <QDirIterator>
 #include <QFile>
@@ -28,7 +34,9 @@ namespace {
     constexpr int kKdotoolGeometryKillMs = 800;
     constexpr int kKdotoolActiveWindowKillMs = 900;
     /// Intervalo do timer: escaneamento /proc é pesado em máquinas com muitos processos.
-    constexpr int kSystemPollIntervalMs = 1400;
+    constexpr int kSystemPollIntervalMs = 1200;
+    constexpr int kSystemPollIntervalKwinMs = 750;
+    constexpr int kForegroundPollKwinMs = 380;
 
     // Interpreta saída do kdotool getwindowgeometry (formato estilo xdotool / texto livre).
     static QSize parseWindowGeometryFromKdotool(const QString &text)
@@ -54,6 +62,77 @@ namespace {
         return QSize();
     }
 } // namespace
+
+static QString shQuote(const QString &s)
+{
+    // Aspas simples para bash/sh; escapa single-quote interno (fechando/abrindo).
+    // Ex: abc'd -> 'abc'\''d'
+    QString escaped = s;
+    escaped.replace(QLatin1Char('\''), QStringLiteral("'\\''"));
+    return QStringLiteral("'") + escaped + QStringLiteral("'");
+}
+
+static bool tryOpenDolphinLocation(const QString &command)
+{
+    const QString trimmed = command.trimmed();
+    if (trimmed.isEmpty()) {
+        return false;
+    }
+
+    const QStringList parts =
+        trimmed.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+    if (parts.isEmpty()) {
+        return false;
+    }
+
+    const QString execName = parts.first().split(QLatin1Char('/')).last().toLower();
+    if (execName != QLatin1String("dolphin")) {
+        return false;
+    }
+
+    if (parts.size() < 2) {
+        return false;
+    }
+
+    QString target = parts.mid(1).join(QLatin1Char(' ')).trimmed();
+    if (target.isEmpty()) {
+        return false;
+    }
+    target.remove(QStringLiteral("\"")).remove(QStringLiteral("'"));
+
+    // Expande ~/ para caminho absoluto.
+    if (target.startsWith(QStringLiteral("~/"))) {
+        const QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+        if (!home.isEmpty()) {
+            target = home + target.mid(1);
+        }
+    }
+
+    QUrl url;
+    // trash:/ é um esquema KIO.
+    if (target.startsWith(QStringLiteral("trash:/")) || target.startsWith(QStringLiteral("trash:"))) {
+        url = QUrl(target);
+    } else if (target.contains(QLatin1String("://"))) {
+        // Já é URL.
+        url = QUrl(target);
+    } else {
+        // Considera caminho local.
+        url = QUrl::fromLocalFile(target);
+    }
+
+    if (!url.isValid()) {
+        return false;
+    }
+
+    const QString urlStr = url.toString(QUrl::FullyEncoded);
+
+    // kfmclient costuma reutilizar a instância do Dolphin e abrir em tab.
+    // Se falhar (ex.: não instalado/erro), tentamos xdg-open e só depois fallback pro comando original.
+    const QString script = QStringLiteral("kfmclient openURL %1 >/dev/null 2>&1 || xdg-open %1 >/dev/null 2>&1 || sh -c %2")
+                                .arg(shQuote(urlStr), shQuote(command));
+    QProcess::startDetached(QStringLiteral("sh"), {QStringLiteral("-c"), script});
+    return true;
+}
 
 QString TaskBackend::readProcCmdlineFile(const QString &path)
 {
@@ -88,9 +167,24 @@ TaskBackend::TaskBackend(QObject *parent)
 
     loadKnownApps();
 
-    auto *timer = new QTimer(this);
-    connect(timer, &QTimer::timeout, this, &TaskBackend::updateSystemState);
-    timer->start(kSystemPollIntervalMs);
+    m_pollTimer = new QTimer(this);
+    connect(m_pollTimer, &QTimer::timeout, this, &TaskBackend::updateSystemState);
+  m_pollTimer->start(KwinIntegration::isAvailable() ? kSystemPollIntervalKwinMs : kSystemPollIntervalMs);
+
+    if (KwinIntegration::isAvailable()) {
+        m_foregroundTimer = new QTimer(this);
+        connect(m_foregroundTimer, &QTimer::timeout, this, [this]() {
+            if (!m_procScanRunning) {
+                pollActiveForegroundHints();
+            }
+        });
+        m_foregroundTimer->start(kForegroundPollKwinMs);
+    }
+}
+
+bool TaskBackend::kwinIntegrationAvailable() const
+{
+    return KwinIntegration::isAvailable();
 }
 
 bool TaskBackend::windowManagementAvailable() const
@@ -171,6 +265,24 @@ void TaskBackend::pollActiveForegroundHints()
     QString clsNative;
     QString ttlNative;
     QSize innerGeom;
+
+    if (KwinIntegration::pollActiveWindow(&clsNative, &ttlNative, &innerGeom)) {
+        m_activeAppClass = clsNative;
+        m_activeAppTitle = ttlNative;
+        if (m_mainWindow && m_mainWindow->screen()) {
+            const QRect sg = m_mainWindow->screen()->geometry();
+            const bool covers = DockWindowManagement::activeWindowProbablyCoversWorkArea(
+                innerGeom,
+                QSize(sg.width(), sg.height()));
+            if (covers != m_activeWindowCoversWorkArea) {
+                m_activeWindowCoversWorkArea = covers;
+                emit activeWindowCoversWorkAreaChanged();
+            }
+        }
+        emit windowsUpdated();
+        return;
+    }
+
     if (DockWindowManagement::fillActiveHintsFromNativeStacking(clsNative, ttlNative, &innerGeom, nullptr)) {
         m_activeAppClass = clsNative;
         m_activeAppTitle = ttlNative;
@@ -515,6 +627,9 @@ void TaskBackend::forceLaunchApp(const QString &command)
     if (command.isEmpty()) {
         return;
     }
+    if (tryOpenDolphinLocation(command)) {
+        return;
+    }
 
     QString desktopPath;
     if (knownApps.contains(command) && knownApps[command].contains(QStringLiteral("desktopPath"))) {
@@ -584,6 +699,9 @@ void TaskBackend::launchApp(const QString &command)
     if (command.isEmpty()) {
         return;
     }
+    if (tryOpenDolphinLocation(command)) {
+        return;
+    }
     const QString cmdCopy = command;
     const quint64 seq = ++m_launchSeq[cmdCopy];
     // Descobre janela em thread do pool — evita travar a UI durante vários kdotool/waitForFinished.
@@ -617,6 +735,20 @@ void TaskBackend::completeCloseApp(const QString &command, const QString &winTok
         return;
     }
     qWarning() << "AgildoDock: não foi possível fechar app (janela não encontrada):" << command;
+}
+
+void TaskBackend::closeAllWindows(const QString &command, bool killProcessIfNoWindow)
+{
+    if (command.isEmpty()) {
+        return;
+    }
+    const QStringList handles = resolveAllWindowTokens(command);
+    for (const QString &tok : handles) {
+        completeCloseApp(command, tok, false);
+    }
+    if (handles.isEmpty() && killProcessIfNoWindow) {
+        killProcessesForCommand(command);
+    }
 }
 
 void TaskBackend::closeApp(const QString &command, bool killProcessIfNoWindow)
@@ -659,6 +791,15 @@ int TaskBackend::windowCountForCommand(const QString &command)
         return handles.size();
     }
     return isAppRunning(command) ? 1 : 0;
+}
+
+void TaskBackend::focusWindowToken(const QString &token)
+{
+    if (token.isEmpty()) {
+        return;
+    }
+    DockWindowManagement::activateWindowToken(token, m_kdotoolAvailable);
+    emit windowsUpdated();
 }
 
 void TaskBackend::cycleAppWindows(const QString &command, bool forward)
@@ -709,6 +850,11 @@ bool TaskBackend::isAppRunning(const QString &command)
 {
     if (command.isEmpty()) {
         return false;
+    }
+
+    // Comando com pasta/URL (ex.: dolphin trash:/) — só conta se existir janela desse alvo.
+    if (DockWindowManagement::commandHasStrictPathTarget(command)) {
+        return !resolveAllWindowTokens(command).isEmpty();
     }
 
     const QString cmdLower = command.toLower();
@@ -833,9 +979,115 @@ bool TaskBackend::shouldHideFromDock(const QString &cmd, const QString &name) co
 {
     const QString c = cmd.toLower();
     const QString n = name.toLower();
-    // CORREÇÃO: Impede a doca de aparecer nela mesma
-    return c.contains(QStringLiteral("agildomonitor")) || n.contains(QStringLiteral("agildo monitor")) ||
-    c.contains(QStringLiteral("agildodock")) || n.contains(QStringLiteral("agildo dock"));
+    for (const QString &frag : m_userHiddenCmdFragments) {
+        const QString f = frag.trimmed().toLower();
+        if (!f.isEmpty() && (c.contains(f) || n.contains(f))) {
+            return true;
+        }
+    }
+    return c.contains(QStringLiteral("agildomonitor")) || n.contains(QStringLiteral("agildo monitor"))
+           || c.contains(QStringLiteral("agildodock")) || n.contains(QStringLiteral("agildo dock"));
+}
+
+void TaskBackend::setUserHiddenCommands(const QStringList &cmdFragments)
+{
+    m_userHiddenCmdFragments = cmdFragments;
+}
+
+QString TaskBackend::windowTitleForToken(const QString &token) const
+{
+    if (token.isEmpty() || !m_kdotoolAvailable) {
+        return {};
+    }
+    QProcess p;
+    QStringList args{QStringLiteral("getwindowname"), token};
+    if (token.startsWith(QLatin1String("x11:"))) {
+        bool ok = false;
+        const quint64 wid = token.sliced(4).toULongLong(&ok, 16);
+        if (ok) {
+            args = {QStringLiteral("getwindowname"), QStringLiteral("0x") + QString::number(wid, 16)};
+        }
+    }
+    p.start(QStringLiteral("kdotool"), args);
+    p.waitForFinished(350);
+    return QString::fromUtf8(p.readAllStandardOutput()).trimmed();
+}
+
+QVariantList TaskBackend::windowEntriesForCommand(const QString &command) const
+{
+    QVariantList out;
+    const QStringList handles = resolveAllWindowTokens(command);
+    int idx = 1;
+    for (const QString &tok : handles) {
+        QVariantMap row;
+        row.insert(QStringLiteral("token"), tok);
+        QString title = windowTitleForToken(tok);
+        if (title.isEmpty()) {
+            title = QObject::tr("Janela %1").arg(idx);
+        }
+        row.insert(QStringLiteral("title"), title);
+        out.append(row);
+        ++idx;
+    }
+    return out;
+}
+
+QString TaskBackend::plasmaCurrentActivityLabel() const
+{
+    QDBusInterface iface(QStringLiteral("org.kde.ActivityManager"),
+                         QStringLiteral("/ActivityManager/Activities"),
+                         QStringLiteral("org.kde.ActivityManager.Activities"),
+                         QDBusConnection::sessionBus());
+    if (!iface.isValid()) {
+        return {};
+    }
+    QDBusReply<QString> current = iface.call(QStringLiteral("currentActivity"));
+    if (!current.isValid() || current.value().isEmpty()) {
+        return {};
+    }
+    const QString actId = current.value();
+    QDBusInterface actIface(QStringLiteral("org.kde.ActivityManager"),
+                            QStringLiteral("/ActivityManager/Activities/") + actId,
+                            QStringLiteral("org.kde.ActivityManager.Activity"),
+                            QDBusConnection::sessionBus());
+    if (!actIface.isValid()) {
+        return actId;
+    }
+    QDBusReply<QString> name = actIface.call(QStringLiteral("name"));
+    return name.isValid() ? name.value() : actId;
+}
+
+void TaskBackend::setProcPollIntervalMs(int intervalMs)
+{
+    const int ms = qBound(400, intervalMs, 5000);
+    if (m_pollTimer) {
+        m_pollTimer->setInterval(ms);
+    }
+}
+
+bool TaskBackend::saveTextFile(const QString &path, const QString &utf8Text) const
+{
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+        return false;
+    }
+    f.write(utf8Text.toUtf8());
+    return true;
+}
+
+QString TaskBackend::loadTextFile(const QString &path) const
+{
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return {};
+    }
+    return QString::fromUtf8(f.readAll());
+}
+
+QString TaskBackend::defaultDockAppsExportPath() const
+{
+    return QStandardPaths::writableLocation(QStandardPaths::HomeLocation)
+           + QStringLiteral("/agildodock-apps.json");
 }
 
 

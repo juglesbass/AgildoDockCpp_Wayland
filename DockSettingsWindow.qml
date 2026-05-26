@@ -11,7 +11,7 @@ Window {
 
     visible: false
     width: 410
-    height: 920
+    height: 1080
     minimumWidth: 410
     maximumWidth: 410
     minimumHeight: 520
@@ -40,6 +40,13 @@ Window {
         dock.liveLauncherTitle = dock.appSettings.launcherTitle
         dock.liveLauncherIcon = dock.appSettings.launcherIcon
         dock.liveLauncherCommand = dock.appSettings.launcherCommand
+        dock.liveShowClockWidget = dock.appSettings.showClockWidget
+        dock.liveShowActivityLabel = dock.appSettings.showActivityLabel
+        dock.liveFollowPrimaryScreen = dock.appSettings.followPrimaryScreen
+        dock.liveTargetScreenIndex = dock.appSettings.targetScreenIndex
+        dock.liveGestureSwipeHide = dock.appSettings.gestureSwipeHide
+        dock.liveProcPollIntervalMs = dock.appSettings.procPollIntervalMs
+        dock.liveHiddenAppsJson = dock.appSettings.hiddenAppsJson
     }
 
     function cancelarValores() {
@@ -73,11 +80,21 @@ Window {
         dock.appSettings.launcherTitle = dock.liveLauncherTitle
         dock.appSettings.launcherIcon = dock.liveLauncherIcon
         dock.appSettings.launcherCommand = dock.liveLauncherCommand
+        dock.appSettings.hiddenAppsJson = dock.liveHiddenAppsJson
+        dock.appSettings.showClockWidget = dock.liveShowClockWidget
+        dock.appSettings.showActivityLabel = dock.liveShowActivityLabel
+        dock.appSettings.followPrimaryScreen = dock.liveFollowPrimaryScreen
+        dock.appSettings.targetScreenIndex = dock.liveTargetScreenIndex
+        dock.appSettings.gestureSwipeHide = dock.liveGestureSwipeHide
+        dock.appSettings.procPollIntervalMs = dock.liveProcPollIntervalMs
 
         if (typeof dock.appSettings.sync === "function") {
             dock.appSettings.sync()
         }
         dock.loadLauncherFromSettings()
+        dock.loadHiddenAppsRules()
+        taskBackend.setProcPollIntervalMs(dock.liveProcPollIntervalMs)
+        dock.applyScreenFromSettings()
         dock.saveApps()
         dock.saveSystemItems()
         dock.updateZone()
@@ -457,10 +474,17 @@ Window {
             }
         }
 
-        Button {
-            text: qsTr("Adicionar linha vazia (editar depois)")
+        RowLayout {
             Layout.fillWidth: true
-            onClicked: dock.appModel.append({ name: qsTr("Nova app"), icon: "application-x-executable", cmd: "konsole" })
+            Button {
+                text: qsTr("Nova app")
+                Layout.fillWidth: true
+                onClicked: dock.appModel.append({ name: qsTr("Nova app"), icon: "application-x-executable", cmd: "konsole" })
+            }
+            Button {
+                text: qsTr("Separador")
+                onClicked: dock.addSeparatorToPinned()
+            }
         }
 
         Label {
@@ -509,6 +533,107 @@ Window {
                 cmd: "dolphin",
                 isSystem: true
             })
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            height: 1
+            color: "#33FFFFFF"
+            Layout.topMargin: 8
+            Layout.bottomMargin: 8
+        }
+
+        Label {
+            text: qsTr("Avançado")
+            font.bold: true
+            font.pixelSize: 16
+            color: "#FFFFFF"
+            Layout.fillWidth: true
+        }
+
+        CheckBox {
+            text: qsTr("Relógio na barra")
+            checked: dock.liveShowClockWidget
+            onToggled: dock.liveShowClockWidget = checked
+            palette.text: "#DDDDDD"
+        }
+        CheckBox {
+            text: qsTr("Mostrar actividade Plasma actual")
+            checked: dock.liveShowActivityLabel
+            onToggled: dock.liveShowActivityLabel = checked
+            palette.text: "#DDDDDD"
+        }
+        CheckBox {
+            text: qsTr("Seguir ecrã primário")
+            checked: dock.liveFollowPrimaryScreen
+            onToggled: dock.liveFollowPrimaryScreen = checked
+            palette.text: "#DDDDDD"
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            visible: !dock.liveFollowPrimaryScreen
+            Label {
+                text: qsTr("Índice do ecrã: %1").arg(dock.liveTargetScreenIndex)
+                color: "#AAAAAA"
+            }
+            SpinBox {
+                from: 0
+                to: Math.max(0, Qt.application.screens.length - 1)
+                value: dock.liveTargetScreenIndex
+                onValueChanged: dock.liveTargetScreenIndex = value
+            }
+        }
+        CheckBox {
+            text: qsTr("Gesto: arrastar para baixo oculta a doca")
+            checked: dock.liveGestureSwipeHide
+            onToggled: dock.liveGestureSwipeHide = checked
+            palette.text: "#DDDDDD"
+        }
+        ColumnLayout {
+            Layout.fillWidth: true
+            Label {
+                text: qsTr("Intervalo de actualização (ms): %1").arg(dock.liveProcPollIntervalMs)
+                color: "#CCCCCC"
+            }
+            Slider {
+                Layout.fillWidth: true
+                from: 500
+                to: 3000
+                stepSize: 50
+                value: dock.liveProcPollIntervalMs
+                onMoved: dock.liveProcPollIntervalMs = Math.round(value)
+            }
+        }
+        Label {
+            text: qsTr("Ocultar da área dinâmica (JSON: lista de fragmentos de comando)")
+            color: "#CCCCCC"
+            wrapMode: Text.WordWrap
+            Layout.fillWidth: true
+        }
+        TextField {
+            Layout.fillWidth: true
+            text: dock.liveHiddenAppsJson
+            placeholderText: qsTr('Ex.: ["steam","discord"]')
+            onTextEdited: dock.liveHiddenAppsJson = text
+            color: "#EEEEEE"
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            Button {
+                text: qsTr("Exportar apps")
+                onClicked: dock.exportAppsToDefaultPath()
+            }
+            Button {
+                text: qsTr("Importar apps")
+                onClicked: dock.importAppsFromDefaultPath()
+            }
+        }
+
+        Button {
+            text: qsTr("Repor predefinições")
+            Layout.fillWidth: true
+            onClicked: dock.reporPredefinicoes()
         }
 
         Item {

@@ -27,6 +27,9 @@ bool commandMatchesForegroundHints(const QString &command,
                                    QStringView captionLower,
                                    const QHash<QString, QVariantMap> &knownApps);
 
+/// true quando o comando inclui pasta/URL além do executável (ex.: dolphin trash:/).
+bool commandHasStrictPathTarget(const QString &command);
+
 // true se temos pelo menos uma via completa para focar/minimizar/fechar janelas alheias.
 bool fullForeignWindowCtlAvailable(bool kdotoolOnPath);
 

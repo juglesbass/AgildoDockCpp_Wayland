@@ -85,7 +85,7 @@ int main(int argc, char *argv[]) {
     QCoreApplication::setOrganizationName("AgildoSoft");
     QCoreApplication::setOrganizationDomain("agildosoft.com");
     QCoreApplication::setApplicationName("AgildoDock");
-    QCoreApplication::setApplicationVersion(QStringLiteral("1.1.1"));
+    QCoreApplication::setApplicationVersion(QStringLiteral("1.2.0"));
 
     for (int i = 1; i < argc; ++i) {
         if (qstrcmp(argv[i], "--version") == 0 || qstrcmp(argv[i], "-v") == 0) {
