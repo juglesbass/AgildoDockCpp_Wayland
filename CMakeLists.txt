@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(agildodock VERSION 1.1 LANGUAGES CXX)
+project(agildodock VERSION 1.1.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -104,4 +104,4 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/metainfo/org.agildosoft.agildodo
 include(CTest)
 enable_testing()
 add_test(NAME agildodock_version COMMAND $<TARGET_FILE:agildodock> --version)
-set_tests_properties(agildodock_version PROPERTIES PASS_REGULAR_EXPRESSION "AgildoDock 1\\.1")
+set_tests_properties(agildodock_version PROPERTIES PASS_REGULAR_EXPRESSION "AgildoDock 1\\.1\\.1")

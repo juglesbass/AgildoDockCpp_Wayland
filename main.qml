@@ -246,8 +246,16 @@ Window {
     }
 
     function applyDockPositionFromSettings() {
+        // Só margem inferior por agora; repõe âncoras se uma versão antiga gravou posição lateral.
+        if (root.liveDockPosition !== 0) {
+            root.liveDockPosition = 0
+            dockSettings.dockPosition = 0
+            if (typeof dockSettings.sync === "function") {
+                dockSettings.sync()
+            }
+        }
         if (typeof dockBridge !== "undefined" && dockBridge) {
-            dockBridge.applyDockAnchor(root.liveDockPosition)
+            dockBridge.applyDockAnchor(0)
         }
     }
 

@@ -51,21 +51,20 @@ void DockBridge::applyDockAnchor(int anchorIndex)
     }
     using W = LayerShellQt::Window;
     const int clamped = qBound(0, anchorIndex, 3);
-    switch (clamped) {
-    case 1:
-        layer->setAnchors(W::Anchors(W::AnchorLeft | W::AnchorTop | W::AnchorBottom));
-        break;
-    case 2:
-        layer->setAnchors(W::Anchors(W::AnchorRight | W::AnchorTop | W::AnchorBottom));
-        break;
-    case 3:
-        layer->setAnchors(W::Anchors(W::AnchorTop | W::AnchorLeft | W::AnchorRight));
-        break;
-    case 0:
-    default:
-        layer->setAnchors(W::Anchors(W::AnchorBottom | W::AnchorLeft | W::AnchorRight));
-        break;
+
+    // Margem inferior: só AnchorBottom (igual ao main.cpp no arranque).
+    // Bottom|Left|Right no Plasma desloca a superfície para a esquerda — era o bug ao «Guardar».
+    if (clamped == 0) {
+        layer->setAnchors(W::AnchorBottom);
+        m_dock->requestUpdate();
+        emit dockAnchorChanged(0);
+        return;
     }
+
+    // Posições lateral/superior: layout QML ainda não adaptado — manter inferior.
+    qWarning() << "AgildoDock: posição da doca" << clamped
+               << "ainda não suportada; a manter margem inferior.";
+    layer->setAnchors(W::AnchorBottom);
     m_dock->requestUpdate();
     emit dockAnchorChanged(clamped);
 }

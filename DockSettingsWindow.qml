@@ -65,7 +65,9 @@ Window {
         dock.appSettings.behaviorAutoHideDelayMs = dock.liveBehaviorAutoHideDelayMs
 
         dock.appSettings.themeMode = dock.liveThemeMode
-        dock.appSettings.dockPosition = dock.liveDockPosition
+        // Posição lateral ainda não suportada — forçar inferior para não deslocar a doca.
+        dock.liveDockPosition = 0
+        dock.appSettings.dockPosition = 0
         dock.appSettings.middleClickCloses = dock.liveMiddleClickCloses
         dock.appSettings.showWindowBadge = dock.liveShowWindowBadge
         dock.appSettings.launcherTitle = dock.liveLauncherTitle
@@ -355,24 +357,6 @@ Window {
             model: [qsTr("Escuro"), qsTr("Claro"), qsTr("Seguir o sistema")]
             currentIndex: dock.liveThemeMode
             onActivated: dock.liveThemeMode = currentIndex
-        }
-
-        Label {
-            text: qsTr("Posição (âncora Layer Shell)")
-            color: "#CCCCCC"
-        }
-        ComboBox {
-            Layout.fillWidth: true
-            model: [qsTr("Inferior"), qsTr("Esquerda"), qsTr("Direita"), qsTr("Superior")]
-            currentIndex: dock.liveDockPosition
-            onActivated: dock.liveDockPosition = currentIndex
-        }
-        Label {
-            text: qsTr("A disposição dos ícones continua optimizada para a margem inferior; outras posições podem exigir ajustes visuais.")
-            wrapMode: Text.WordWrap
-            Layout.fillWidth: true
-            font.pixelSize: 11
-            color: "#888888"
         }
 
         CheckBox {
