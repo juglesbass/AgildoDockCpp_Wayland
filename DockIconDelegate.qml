@@ -105,15 +105,18 @@ Item {
             return minSize
         }
         var factor = Math.cos((dist / wRadius) * (Math.PI / 2))
-        var v = minSize + ((maxSize - minSize) * factor * dock.waveAmplitude)
-        // Passos de 0,5px no tamanho lógico: menos variação frame-a-frame do scale do ícone na onda.
-        if (dock.waveAmplitude > 0.02) {
-            return Math.round(v * 2) / 2
-        }
-        return v
+        return minSize + ((maxSize - minSize) * factor * dock.waveAmplitude)
     }
 
     width: isValid ? (isSeparator ? dock.dividerWidth : (targetIconSize + (15 * dock.liveScaleFactor))) : 0
+
+    Behavior on width {
+        enabled: dock.waveAmplitude > 0.02 && !mouseArea.drag.active
+        NumberAnimation {
+            duration: 90
+            easing.type: Easing.OutCubic
+        }
+    }
     height: isValid ? (dock.dockBarHeightPx * dock.liveScaleFactor) : 0
 
     Connections {
@@ -305,6 +308,14 @@ Item {
             scale: delegateRoot.targetIconSize / maxVisualSize
             smooth: true
             antialiasing: true
+
+            Behavior on scale {
+                enabled: dock.waveAmplitude > 0.02 && !mouseArea.drag.active
+                NumberAnimation {
+                    duration: 90
+                    easing.type: Easing.OutCubic
+                }
+            }
             transformOrigin: Item.Bottom
             x: Math.round((parent.width - maxVisualSize) / 2)
             anchors.bottom: parent.bottom
@@ -443,12 +454,23 @@ Item {
                 if (dock.dockContextMenuOpen) {
                     return
                 }
-                if (dock.dockHovered || dock.waveAmplitude > 0.02) {
-                    return
-                }
                 var logicalStart = delegateRoot.myLogicalX - (dock.baseSpacing / 2)
                 var logicalWidth = dock.baseItemWidth + dock.baseSpacing
-                dock.logicalMouseX = logicalStart + ((mx / width) * logicalWidth)
+                var lxRaw = logicalStart + ((mx / width) * logicalWidth)
+                if (dock.waveAmplitude > 0.02) {
+                    // Onda activa: posição por ícone (suave, sem quantizar).
+                    var beta = 0.14
+                    if (dock.logicalMouseX > -100) {
+                        dock.logicalMouseX = dock.logicalMouseX + (lxRaw - dock.logicalMouseX) * beta
+                    } else {
+                        dock.logicalMouseX = lxRaw
+                    }
+                    return
+                }
+                if (dock.dockHovered) {
+                    return
+                }
+                dock.logicalMouseX = lxRaw
             }
 
             onPositionChanged: (mouse) => {
