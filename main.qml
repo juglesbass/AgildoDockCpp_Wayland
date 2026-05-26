@@ -214,16 +214,15 @@ Window {
             var lxRaw = denom > 0 ? ((relX / denom) * root.baseRowWidth) : (root.baseRowWidth * 0.5)
             lxRaw = Math.max(0, Math.min(root.baseRowWidth, lxRaw))
 
-            // Com onda activa, o rato nos ícones actualiza logicalMouseX (mais preciso).
-            // Aqui só suavizamos a largura da barra e o rato antes da onda ligar.
-            if (!waveOn) {
-                var beta = 0.42
-                var lxOut = lxRaw
-                if (root.logicalMouseX > -100) {
-                    lxOut = root.logicalMouseX + (lxRaw - root.logicalMouseX) * beta
-                }
-                root.logicalMouseX = lxOut
+            var beta = waveOn ? 0.075 : 0.42
+            var lxOut = lxRaw
+            if (root.logicalMouseX > -100) {
+                lxOut = root.logicalMouseX + (lxRaw - root.logicalMouseX) * beta
             }
+            if (waveOn) {
+                lxOut = Math.round(lxOut)
+            }
+            root.logicalMouseX = lxOut
 
             if (root.dockRetracted && root.dockMouseY > root.height - root.dockRevealBandPx) {
                 root.dockAutoHideLatched = false
@@ -922,8 +921,7 @@ Window {
             anchors.bottomMargin: Math.round((root.liveDockMargin * root.liveScaleFactor) - dockContainer.startupOffsetY)
 
             property real waveExtraWidth: root.wavePeakDeltaPx * 3.15 * root.liveScaleFactor
-            // Segue a largura real da fila (suavizada) — a onda fica mais fluida que baseRowWidth fixo.
-            property real rawBgWidth: root.smoothedWaveRowWidth + (30 * root.liveScaleFactor)
+            property real rawBgWidth: root.baseRowWidth + (30 * root.liveScaleFactor) + (waveExtraWidth * root.waveAmplitude)
 
             width:  Math.round(rawBgWidth / 2) * 2
             height: Math.round(root.dockBarHeightPx * root.liveScaleFactor)
