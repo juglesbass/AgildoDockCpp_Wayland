@@ -1,7 +1,7 @@
 // Efeito KWin: “sugar” janela ao minimizar até o ícone na AgildoDock.
 //
 // No KWin 6, minimizedChanged existe por janela (não em effects.*).
-// Baseado no efeito oficial squash (/usr/share/kwin-wayland/effects/squash).
+// callDBus() é sempre assíncrono — a resposta chega no callback (ver API KWin).
 
 "use strict";
 
@@ -17,26 +17,18 @@ function log(msg) {
     }
 }
 
-function getIconRectForKey(appKey) {
-    if (!appKey) {
+function parseIconRectDBusReply(res) {
+    if (res === undefined || res === null) {
         return null;
     }
-    try {
-        const res = callDBus(DOCK_SERVICE, DOCK_PATH, DOCK_IFACE, "GetIconRect", String(appKey));
-        if (!res) {
-            return null;
-        }
-        const x = Number(res.x);
-        const y = Number(res.y);
-        const w = Number(res.w);
-        const h = Number(res.h);
-        if (!isFinite(x) || !isFinite(y) || !isFinite(w) || !isFinite(h) || w <= 0 || h <= 0) {
-            return null;
-        }
-        return { x: x, y: y, width: w, height: h };
-    } catch (e) {
+    const x = Number(res.x !== undefined ? res.x : res["x"]);
+    const y = Number(res.y !== undefined ? res.y : res["y"]);
+    const w = Number(res.w !== undefined ? res.w : res["w"]);
+    const h = Number(res.h !== undefined ? res.h : res["h"]);
+    if (!isFinite(x) || !isFinite(y) || !isFinite(w) || !isFinite(h) || w <= 0 || h <= 0) {
         return null;
     }
+    return { x: x, y: y, width: w, height: h };
 }
 
 function pushMatchKey(keys, value) {
@@ -85,24 +77,53 @@ function keysForWindow(window) {
     return keys;
 }
 
-function lookupIconRect(keys) {
-    for (let i = 0; i < keys.length; i++) {
-        const r = getIconRectForKey(keys[i]);
-        if (r) {
-            return r;
-        }
-    }
-    return null;
-}
-
-function bestIconRect(window) {
+function matchKeysForWindow(window) {
     const keys = window._agildoDockMatchKeys ? window._agildoDockMatchKeys.slice() : [];
     const fresh = keysForWindow(window);
     for (let i = 0; i < fresh.length; i++) {
         pushMatchKey(keys, fresh[i]);
     }
     window._agildoDockMatchKeys = keys;
-    return lookupIconRect(keys);
+    return keys;
+}
+
+// Consulta a doca via D-Bus (assíncrono). callback(iconRect|null).
+function requestIconRect(window, callback) {
+    const keys = matchKeysForWindow(window);
+    if (!keys.length) {
+        callback(null);
+        return;
+    }
+
+    const finish = function (res, methodName) {
+        const rect = parseIconRectDBusReply(res);
+        if (rect) {
+            callback(rect);
+            return;
+        }
+        if (res !== undefined && res !== null) {
+            log("dbus " + methodName + " resposta vazia/inválida para keys=" + keys.join(","));
+        } else {
+            log("dbus " + methodName + " sem resposta (doca parada?) keys=" + keys.join(","));
+        }
+        callback(null);
+    };
+
+    try {
+        callDBus(DOCK_SERVICE, DOCK_PATH, DOCK_IFACE, "GetIconRectForKeys", keys, function (res) {
+            finish(res, "GetIconRectForKeys");
+        });
+    } catch (e1) {
+        log("dbus GetIconRectForKeys falhou: " + e1 + "; tentando GetIconRect");
+        try {
+            callDBus(DOCK_SERVICE, DOCK_PATH, DOCK_IFACE, "GetIconRect", keys[0], function (res) {
+                finish(res, "GetIconRect");
+            });
+        } catch (e2) {
+            log("dbus GetIconRect falhou: " + e2);
+            callback(null);
+        }
+    }
 }
 
 function shouldAnimateWindow(window) {
@@ -132,19 +153,11 @@ var dockSuckEffect = {
         window.setData(Effect.WindowForceBlurRole, null);
     },
 
-    slotWindowMinimized: function (window) {
-        if (effects.hasActiveFullScreenEffect) {
+    runMinimizeAnimation: function (window, iconRect) {
+        if (!window || window.deleted || !window.minimized) {
             return;
         }
-        if (!shouldAnimateWindow(window)) {
-            return;
-        }
-
-        const iconRect = bestIconRect(window);
         if (!iconRect) {
-            const keys = window._agildoDockMatchKeys || [];
-            log("sem retângulo de ícone para windowClass=" + (window.windowClass || "") +
-                " keys=" + keys.join(","));
             return;
         }
 
@@ -212,15 +225,10 @@ var dockSuckEffect = {
         });
     },
 
-    slotWindowUnminimized: function (window) {
-        if (effects.hasActiveFullScreenEffect) {
+    runUnminimizeAnimation: function (window, iconRect) {
+        if (!window || window.deleted || window.minimized) {
             return;
         }
-        if (!shouldAnimateWindow(window)) {
-            return;
-        }
-
-        const iconRect = bestIconRect(window);
         if (!iconRect) {
             return;
         }
@@ -282,6 +290,41 @@ var dockSuckEffect = {
         });
     },
 
+    slotWindowMinimized: function (window) {
+        if (effects.hasActiveFullScreenEffect) {
+            return;
+        }
+        if (!shouldAnimateWindow(window)) {
+            return;
+        }
+
+        requestIconRect(window, function (iconRect) {
+            if (!iconRect) {
+                const keys = window._agildoDockMatchKeys || [];
+                log("sem retângulo de ícone para windowClass=" + (window.windowClass || "") +
+                    " keys=" + keys.join(","));
+                return;
+            }
+            dockSuckEffect.runMinimizeAnimation(window, iconRect);
+        });
+    },
+
+    slotWindowUnminimized: function (window) {
+        if (effects.hasActiveFullScreenEffect) {
+            return;
+        }
+        if (!shouldAnimateWindow(window)) {
+            return;
+        }
+
+        requestIconRect(window, function (iconRect) {
+            if (!iconRect) {
+                return;
+            }
+            dockSuckEffect.runUnminimizeAnimation(window, iconRect);
+        });
+    },
+
     slotWindowAdded: function (window) {
         window._agildoDockMatchKeys = keysForWindow(window);
 
@@ -304,7 +347,7 @@ var dockSuckEffect = {
         }
 
         dockSuckEffect.loadConfig();
-        log("inicializado (hook por janela: minimizedChanged)");
+        log("inicializado (dbus assíncrono + minimizedChanged)");
     }
 };
 

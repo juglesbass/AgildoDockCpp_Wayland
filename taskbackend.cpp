@@ -287,6 +287,22 @@ QVariantMap TaskBackend::GetIconRect(const QString &appKey) const
     return {};
 }
 
+QVariantMap TaskBackend::GetIconRectForKeys(const QStringList &appKeys) const
+{
+    for (const QString &raw : appKeys) {
+        const QVariantMap row = GetIconRect(raw);
+        if (row.isEmpty()) {
+            continue;
+        }
+        const int w = row.value(QStringLiteral("w")).toInt();
+        const int h = row.value(QStringLiteral("h")).toInt();
+        if (w > 0 && h > 0) {
+            return row;
+        }
+    }
+    return {};
+}
+
 void TaskBackend::setMainWindow(QWindow *win)
 {
     m_mainWindow = win;

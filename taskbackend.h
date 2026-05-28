@@ -76,6 +76,8 @@ public:
 public slots:
     /// D-Bus: obtém retângulo global do ícone por chave (appId/wmclass/exec).
     Q_SCRIPTABLE QVariantMap GetIconRect(const QString &appKey) const;
+    /// D-Bus: tenta várias chaves (windowClass, exec, etc.) numa única chamada.
+    Q_SCRIPTABLE QVariantMap GetIconRectForKeys(const QStringList &appKeys) const;
 
 signals:
     void windowsUpdated();

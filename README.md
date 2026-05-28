@@ -94,9 +94,10 @@ sudo cmake --install build
 
 ### Como funciona
 
-- O efeito do KWin consulta via D-Bus a posição do ícone na doca (`org.agildosoft.AgildoDock` → `GetIconRect`).  
+- O efeito do KWin consulta via D-Bus a posição do ícone na doca (`GetIconRectForKeys`, com fallback `GetIconRect`). A chamada é **assíncrona** (API do KWin).  
 - A doca publica o retângulo global do ícone enquanto estiver visível.  
-- Se não houver ícone correspondente, o efeito não anima (fallback padrão do KWin).
+- Se não houver ícone correspondente, o efeito não anima (fallback padrão do KWin).  
+- É preciso reinstalar **a doca e o efeito** após alterações no D-Bus (`cmake --build build && sudo cmake --install build`).
 
 ## Licença
 
