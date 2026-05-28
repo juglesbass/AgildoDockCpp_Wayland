@@ -1,23 +1,20 @@
 #include "taskbackend.h"
 #include "dock_window_management.h"
-#include "kwin_integration.h"
-
-#include <QDBusInterface>
-#include <QDBusReply>
-#include <QDBusConnection>
-#include <QDBusError>
-#include <QFile>
-#include <QStandardPaths>
 
 #include <QDirIterator>
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QGuiApplication>
+#include <QJsonDocument>
 #include <QMetaObject>
+#include <QSaveFile>
 #include <QStandardPaths>
 #include <QPainterPath>
 #include <QProcessEnvironment>
 #include <QRegularExpression>
 #include <QRegion>
+#include <QStringList>
 #include <QTextStream>
 #include <QTimer>
 #include <QUrl>
@@ -36,9 +33,34 @@ namespace {
     constexpr int kKdotoolGeometryKillMs = 800;
     constexpr int kKdotoolActiveWindowKillMs = 900;
     /// Intervalo do timer: escaneamento /proc é pesado em máquinas com muitos processos.
-    constexpr int kSystemPollIntervalMs = 1200;
-    constexpr int kSystemPollIntervalKwinMs = 750;
-    constexpr int kForegroundPollKwinMs = 380;
+    constexpr int kSystemPollIntervalMs = 1400;
+    constexpr int kWindowsUpdatedCoalesceMs = 45;
+
+    static bool debugEnabledFromEnv()
+    {
+        const QByteArray v = qgetenv("AGILDO_DOCK_DEBUG").trimmed();
+        if (v.isEmpty()) {
+            return false;
+        }
+        return v != "0" && v.toLower() != "false" && v.toLower() != "off";
+    }
+
+    static QStringList debugCategoriesFromEnv()
+    {
+        const QString raw = QString::fromUtf8(qgetenv("AGILDO_DOCK_DEBUG_CATS")).trimmed().toLower();
+        if (raw.isEmpty()) {
+            return {};
+        }
+        QStringList out;
+        const QStringList parts = raw.split(',', Qt::SkipEmptyParts);
+        for (const QString &p : parts) {
+            const QString cat = p.trimmed();
+            if (!cat.isEmpty()) {
+                out << cat;
+            }
+        }
+        return out;
+    }
 
     // Interpreta saída do kdotool getwindowgeometry (formato estilo xdotool / texto livre).
     static QSize parseWindowGeometryFromKdotool(const QString &text)
@@ -63,78 +85,154 @@ namespace {
         }
         return QSize();
     }
-} // namespace
 
-static QString shQuote(const QString &s)
-{
-    // Aspas simples para bash/sh; escapa single-quote interno (fechando/abrindo).
-    // Ex: abc'd -> 'abc'\''d'
-    QString escaped = s;
-    escaped.replace(QLatin1Char('\''), QStringLiteral("'\\''"));
-    return QStringLiteral("'") + escaped + QStringLiteral("'");
-}
-
-static bool tryOpenDolphinLocation(const QString &command)
-{
-    const QString trimmed = command.trimmed();
-    if (trimmed.isEmpty()) {
-        return false;
-    }
-
-    const QStringList parts =
-        trimmed.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
-    if (parts.isEmpty()) {
-        return false;
-    }
-
-    const QString execName = parts.first().split(QLatin1Char('/')).last().toLower();
-    if (execName != QLatin1String("dolphin")) {
-        return false;
-    }
-
-    if (parts.size() < 2) {
-        return false;
-    }
-
-    QString target = parts.mid(1).join(QLatin1Char(' ')).trimmed();
-    if (target.isEmpty()) {
-        return false;
-    }
-    target.remove(QStringLiteral("\"")).remove(QStringLiteral("'"));
-
-    // Expande ~/ para caminho absoluto.
-    if (target.startsWith(QStringLiteral("~/"))) {
-        const QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
-        if (!home.isEmpty()) {
-            target = home + target.mid(1);
+    // Atalhos de sistema que usam Dolphin com localização específica.
+    static bool isDolphinScopedCommand(const QString &commandLower)
+    {
+        if (!commandLower.startsWith(QStringLiteral("dolphin"))) {
+            return false;
         }
+        return commandLower.contains(QStringLiteral("trash:/"))
+            || commandLower.contains(QStringLiteral("~/downloads"))
+            || commandLower.contains(QStringLiteral("/downloads"));
     }
 
-    QUrl url;
-    // trash:/ é um esquema KIO.
-    if (target.startsWith(QStringLiteral("trash:/")) || target.startsWith(QStringLiteral("trash:"))) {
-        url = QUrl(target);
-    } else if (target.contains(QLatin1String("://"))) {
-        // Já é URL.
-        url = QUrl(target);
-    } else {
-        // Considera caminho local.
-        url = QUrl::fromLocalFile(target);
+    static bool titleLooksLikeDownloads(QStringView titleLower)
+    {
+        const QString t = titleLower.toString();
+        return t.contains(QStringLiteral("downloads"))
+            || t.contains(QStringLiteral("transfer")) // "Transferências"
+            || t.contains(QStringLiteral("download"));
     }
 
-    if (!url.isValid()) {
+    static bool titleLooksLikeTrash(QStringView titleLower)
+    {
+        const QString t = titleLower.toString();
+        return t.contains(QStringLiteral("trash"))
+            || t.contains(QStringLiteral("lixeira"))
+            || t.contains(QStringLiteral("reciclagem"));
+    }
+
+    static bool activeDolphinMatchesScopedTarget(const QString &commandLower,
+                                                 QStringView activeClassLower,
+                                                 QStringView activeTitleLower)
+    {
+        const QString cls = activeClassLower.toString();
+        if (!cls.contains(QStringLiteral("dolphin"))) {
+            return false;
+        }
+        if (commandLower.contains(QStringLiteral("trash:/"))) {
+            return titleLooksLikeTrash(activeTitleLower);
+        }
+        return titleLooksLikeDownloads(activeTitleLower);
+    }
+
+    static bool anyDolphinWindowMatchesScopedTarget(const QString &commandLower,
+                                                    bool kdotoolAvailable)
+    {
+        if (!kdotoolAvailable) {
+            return false;
+        }
+
+        QProcess search;
+        search.start(QStringLiteral("kdotool"),
+                     {QStringLiteral("search"), QStringLiteral("--class"), QStringLiteral("dolphin")});
+        if (!search.waitForFinished(220)) {
+            search.kill();
+            return false;
+        }
+
+        const QString out = QString::fromUtf8(search.readAllStandardOutput()).trimmed();
+        if (out.isEmpty()) {
+            return false;
+        }
+
+        const QStringList ids = out.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+        for (const QString &idRaw : ids) {
+            const QString id = idRaw.trimmed();
+            QProcess nameP;
+            nameP.start(QStringLiteral("kdotool"), {QStringLiteral("getwindowname"), id});
+            if (!nameP.waitForFinished(120)) {
+                nameP.kill();
+                continue;
+            }
+            const QString title = QString::fromUtf8(nameP.readAllStandardOutput()).trimmed().toLower();
+            if (title.isEmpty()) {
+                continue;
+            }
+            if (commandLower.contains(QStringLiteral("trash:/"))) {
+                if (titleLooksLikeTrash(title)) {
+                    return true;
+                }
+            } else {
+                if (titleLooksLikeDownloads(title)) {
+                    return true;
+                }
+            }
+        }
         return false;
     }
 
-    const QString urlStr = url.toString(QUrl::FullyEncoded);
+    static QString firstScopedDolphinWindowId(const QString &commandLower,
+                                              bool kdotoolAvailable)
+    {
+        if (!kdotoolAvailable) {
+            return {};
+        }
+        QProcess search;
+        search.start(QStringLiteral("kdotool"),
+                     {QStringLiteral("search"), QStringLiteral("--class"), QStringLiteral("dolphin")});
+        if (!search.waitForFinished(220)) {
+            search.kill();
+            return {};
+        }
+        const QString out = QString::fromUtf8(search.readAllStandardOutput()).trimmed();
+        if (out.isEmpty()) {
+            return {};
+        }
+        const QStringList ids = out.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+        for (const QString &idRaw : ids) {
+            const QString id = idRaw.trimmed();
+            QProcess nameP;
+            nameP.start(QStringLiteral("kdotool"), {QStringLiteral("getwindowname"), id});
+            if (!nameP.waitForFinished(120)) {
+                nameP.kill();
+                continue;
+            }
+            const QString title = QString::fromUtf8(nameP.readAllStandardOutput()).trimmed().toLower();
+            if (title.isEmpty()) {
+                continue;
+            }
+            if (commandLower.contains(QStringLiteral("trash:/"))) {
+                if (titleLooksLikeTrash(title)) {
+                    return id;
+                }
+            } else {
+                if (titleLooksLikeDownloads(title)) {
+                    return id;
+                }
+            }
+        }
+        return {};
+    }
 
-    // kfmclient costuma reutilizar a instância do Dolphin e abrir em tab.
-    // Se falhar (ex.: não instalado/erro), tentamos xdg-open e só depois fallback pro comando original.
-    const QString script = QStringLiteral("kfmclient openURL %1 >/dev/null 2>&1 || xdg-open %1 >/dev/null 2>&1 || sh -c %2")
-                                .arg(shQuote(urlStr), shQuote(command));
-    QProcess::startDetached(QStringLiteral("sh"), {QStringLiteral("-c"), script});
-    return true;
-}
+    static bool anyDolphinWindowExists(bool kdotoolAvailable)
+    {
+        if (!kdotoolAvailable) {
+            return false;
+        }
+
+        QProcess search;
+        search.start(QStringLiteral("kdotool"),
+                     {QStringLiteral("search"), QStringLiteral("--class"), QStringLiteral("dolphin")});
+        if (!search.waitForFinished(220)) {
+            search.kill();
+            return false;
+        }
+        const QString out = QString::fromUtf8(search.readAllStandardOutput()).trimmed();
+        return !out.isEmpty();
+    }
+} // namespace
 
 QString TaskBackend::readProcCmdlineFile(const QString &path)
 {
@@ -161,45 +259,21 @@ QString TaskBackend::execBasenameFromCommand(const QString &command)
 TaskBackend::TaskBackend(QObject *parent)
 : QObject(parent)
 {
-    // D-Bus: usado pelo efeito do KWin para obter a geometria do ícone-alvo.
-    {
-        const QString service = QStringLiteral("org.agildosoft.AgildoDock");
-        const QString path = QStringLiteral("/AgildoDock");
-        auto bus = QDBusConnection::sessionBus();
-        if (!bus.registerService(service)) {
-            qWarning() << "AgildoDock: falha ao registrar serviço D-Bus:" << service << bus.lastError().message();
-        }
-        if (!bus.registerObject(path, this, QDBusConnection::ExportScriptableSlots)) {
-            qWarning() << "AgildoDock: falha ao registrar object D-Bus:" << path << bus.lastError().message();
-        }
-    }
-
+    m_debugLogsEnabled = debugEnabledFromEnv();
     m_kdotoolAvailable = !QStandardPaths::findExecutable(QStringLiteral("kdotool")).isEmpty();
     if (!windowManagementAvailable()) {
         qWarning() << "AgildoDock: sem kdotool nem integração X11 (KF6/KX11Extras) disponível nesta sessão Qt — foco, minimizar,"
                       "fechar e o modo «desviar» dependem dessas vias.";
     }
+    if (m_debugLogsEnabled) {
+        qInfo() << "AgildoDock[debug]: logs de debug ativos (AGILDO_DOCK_DEBUG)";
+    }
 
     loadKnownApps();
 
-    m_pollTimer = new QTimer(this);
-    connect(m_pollTimer, &QTimer::timeout, this, &TaskBackend::updateSystemState);
-  m_pollTimer->start(KwinIntegration::isAvailable() ? kSystemPollIntervalKwinMs : kSystemPollIntervalMs);
-
-    if (KwinIntegration::isAvailable()) {
-        m_foregroundTimer = new QTimer(this);
-        connect(m_foregroundTimer, &QTimer::timeout, this, [this]() {
-            if (!m_procScanRunning) {
-                pollActiveForegroundHints();
-            }
-        });
-        m_foregroundTimer->start(kForegroundPollKwinMs);
-    }
-}
-
-bool TaskBackend::kwinIntegrationAvailable() const
-{
-    return KwinIntegration::isAvailable();
+    auto *timer = new QTimer(this);
+    connect(timer, &QTimer::timeout, this, &TaskBackend::updateSystemState);
+    timer->start(kSystemPollIntervalMs);
 }
 
 bool TaskBackend::windowManagementAvailable() const
@@ -207,105 +281,187 @@ bool TaskBackend::windowManagementAvailable() const
     return DockWindowManagement::fullForeignWindowCtlAvailable(m_kdotoolAvailable);
 }
 
-QStringList TaskBackend::appKeysForCommand(const QString &command) const
-{
-    QStringList keys;
-    if (command.trimmed().isEmpty()) {
-        return keys;
-    }
-    // Exec básico
-    const QString exec = execBasenameFromCommand(command);
-    if (!exec.isEmpty()) {
-        keys << exec.toLower();
-    }
-
-    // Se o comando estiver no índice de apps conhecidas, adiciona wmclass e/ou appId quando existir.
-    if (knownApps.contains(command)) {
-        const QVariantMap row = knownApps.value(command);
-        const QString wm = row.value(QStringLiteral("wmclass")).toString().trimmed().toLower();
-        if (!wm.isEmpty() && !keys.contains(wm)) {
-            keys << wm;
-        }
-        // Alguns .desktop podem guardar appId explicitamente (se existir no índice).
-        const QString appId = row.value(QStringLiteral("appid")).toString().trimmed().toLower();
-        if (!appId.isEmpty() && !keys.contains(appId)) {
-            keys << appId;
-        }
-    }
-    keys.removeAll(QString());
-    keys.removeDuplicates();
-    return keys;
-}
-
-void TaskBackend::setIconRectForKeys(const QStringList &keys, int x, int y, int w, int h, const QString &screenName)
-{
-    if (keys.isEmpty()) {
-        return;
-    }
-    const bool valid = (w > 0 && h > 0);
-    for (const QString &kRaw : keys) {
-        const QString k = kRaw.trimmed().toLower();
-        if (k.isEmpty()) {
-            continue;
-        }
-        if (!valid) {
-            m_iconRects.remove(k);
-            continue;
-        }
-        QVariantMap row;
-        row.insert(QStringLiteral("x"), x);
-        row.insert(QStringLiteral("y"), y);
-        row.insert(QStringLiteral("w"), w);
-        row.insert(QStringLiteral("h"), h);
-        row.insert(QStringLiteral("screen"), screenName);
-        m_iconRects.insert(k, row);
-    }
-}
-
-QVariantMap TaskBackend::GetIconRect(const QString &appKey) const
-{
-    const QString k = appKey.trimmed().toLower();
-    if (k.isEmpty()) {
-        return {};
-    }
-    if (m_iconRects.contains(k)) {
-        return m_iconRects.value(k);
-    }
-    // WM_CLASS / windowClass do KWin (ex.: "dolphin dolphin").
-    const QStringList tokens =
-        k.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
-    for (const QString &token : tokens) {
-        if (m_iconRects.contains(token)) {
-            return m_iconRects.value(token);
-        }
-    }
-    // Fallback: se vier algo como org.kde.dolphin, tenta o basename.
-    const QString tail = k.split(QLatin1Char('.')).last();
-    if (!tail.isEmpty() && m_iconRects.contains(tail)) {
-        return m_iconRects.value(tail);
-    }
-    return {};
-}
-
-QVariantMap TaskBackend::GetIconRectForKeys(const QStringList &appKeys) const
-{
-    for (const QString &raw : appKeys) {
-        const QVariantMap row = GetIconRect(raw);
-        if (row.isEmpty()) {
-            continue;
-        }
-        const int w = row.value(QStringLiteral("w")).toInt();
-        const int h = row.value(QStringLiteral("h")).toInt();
-        if (w > 0 && h > 0) {
-            return row;
-        }
-    }
-    return {};
-}
-
 void TaskBackend::setMainWindow(QWindow *win)
 {
     m_mainWindow = win;
+}
+
+QString TaskBackend::dockAppsSnapshotPath()
+{
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    return dir + QStringLiteral("/dock_apps_snapshot.json");
+}
+
+QString TaskBackend::dockAppsSnapshotBackupPath()
+{
+    return dockAppsSnapshotPath() + QStringLiteral(".bak");
+}
+
+bool TaskBackend::saveDockAppsSnapshot(const QString &dockAppsJson) const
+{
+    if (dockAppsJson.trimmed().isEmpty()) {
+        return false;
+    }
+
+    QJsonParseError jerr;
+    QJsonDocument::fromJson(dockAppsJson.toUtf8(), &jerr);
+    if (jerr.error != QJsonParseError::NoError) {
+        if (m_debugLogsEnabled) {
+            qWarning() << "AgildoDock[debug]: snapshot dockApps inválido, ignorando:"
+                       << jerr.errorString();
+        }
+        return false;
+    }
+
+    const QString targetPath = dockAppsSnapshotPath();
+    const QString backupPath = dockAppsSnapshotBackupPath();
+    const QString targetDir = QFileInfo(targetPath).absolutePath();
+    QDir().mkpath(targetDir);
+
+    if (QFile::exists(targetPath)) {
+        QFile::remove(backupPath);
+        QFile::copy(targetPath, backupPath);
+    }
+
+    QSaveFile out(targetPath);
+    if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        qWarning() << "AgildoDock: falha ao abrir snapshot dockApps para escrita:" << targetPath;
+        return false;
+    }
+    out.write(dockAppsJson.toUtf8());
+    if (!out.commit()) {
+        qWarning() << "AgildoDock: falha ao gravar snapshot dockApps:" << targetPath;
+        return false;
+    }
+
+    if (m_debugLogsEnabled) {
+        qInfo() << "AgildoDock[debug]: snapshot dockApps salvo em" << targetPath;
+    }
+    return true;
+}
+
+QString TaskBackend::loadDockAppsSnapshot() const
+{
+    const QStringList paths = {dockAppsSnapshotPath(), dockAppsSnapshotBackupPath()};
+    for (const QString &p : paths) {
+        QFile f(p);
+        if (!f.exists() || !f.open(QIODevice::ReadOnly)) {
+            continue;
+        }
+        const QByteArray raw = f.readAll();
+        f.close();
+        if (raw.trimmed().isEmpty()) {
+            continue;
+        }
+        QJsonParseError jerr;
+        QJsonDocument::fromJson(raw, &jerr);
+        if (jerr.error == QJsonParseError::NoError) {
+            if (m_debugLogsEnabled) {
+                qInfo() << "AgildoDock[debug]: snapshot dockApps carregado de" << p;
+            }
+            return QString::fromUtf8(raw);
+        }
+    }
+    return {};
+}
+
+QString TaskBackend::appDataPathForFile(const QString &relativeName)
+{
+    QString safe = relativeName;
+    safe.replace('\\', '/');
+    safe.remove(QStringLiteral(".."));
+    while (safe.startsWith('/')) {
+        safe.remove(0, 1);
+    }
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    return dir + QLatin1Char('/') + safe;
+}
+
+bool TaskBackend::debugCategoryEnabled(const QString &category) const
+{
+    if (!m_debugLogsEnabled) {
+        return false;
+    }
+    const QStringList cats = debugCategoriesFromEnv();
+    if (cats.isEmpty()) {
+        return true;
+    }
+    return cats.contains(category.trimmed().toLower());
+}
+
+bool TaskBackend::writeUserJsonFile(const QString &relativeName, const QString &jsonText) const
+{
+    if (relativeName.trimmed().isEmpty() || jsonText.trimmed().isEmpty()) {
+        return false;
+    }
+    QJsonParseError err;
+    QJsonDocument::fromJson(jsonText.toUtf8(), &err);
+    if (err.error != QJsonParseError::NoError) {
+        if (debugCategoryEnabled(QStringLiteral("persist"))) {
+            qWarning() << "AgildoDock[debug][persist]: JSON inválido para" << relativeName << err.errorString();
+        }
+        return false;
+    }
+    const QString outPath = appDataPathForFile(relativeName);
+    const QString outDir = QFileInfo(outPath).absolutePath();
+    QDir().mkpath(outDir);
+    QSaveFile out(outPath);
+    if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        return false;
+    }
+    out.write(jsonText.toUtf8());
+    const bool ok = out.commit();
+    if (ok && debugCategoryEnabled(QStringLiteral("persist"))) {
+        qInfo() << "AgildoDock[debug][persist]: arquivo salvo" << outPath;
+    }
+    return ok;
+}
+
+QString TaskBackend::readUserJsonFile(const QString &relativeName) const
+{
+    if (relativeName.trimmed().isEmpty()) {
+        return {};
+    }
+    const QString inPath = appDataPathForFile(relativeName);
+    QFile in(inPath);
+    if (!in.exists() || !in.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    const QByteArray raw = in.readAll();
+    in.close();
+    if (raw.trimmed().isEmpty()) {
+        return {};
+    }
+    QJsonParseError err;
+    QJsonDocument::fromJson(raw, &err);
+    if (err.error != QJsonParseError::NoError) {
+        if (debugCategoryEnabled(QStringLiteral("persist"))) {
+            qWarning() << "AgildoDock[debug][persist]: JSON inválido em" << inPath << err.errorString();
+        }
+        return {};
+    }
+    return QString::fromUtf8(raw);
+}
+
+void TaskBackend::debugLog(const QString &category, const QString &message) const
+{
+    const QString cat = category.trimmed().toLower();
+    if (!debugCategoryEnabled(cat)) {
+        return;
+    }
+    qInfo() << "AgildoDock[debug][" + cat + "]:" << message;
+}
+
+void TaskBackend::emitWindowsUpdatedCoalesced()
+{
+    if (m_windowsUpdatedPending) {
+        return;
+    }
+    m_windowsUpdatedPending = true;
+    QTimer::singleShot(kWindowsUpdatedCoalesceMs, this, [this]() {
+        m_windowsUpdatedPending = false;
+        emit windowsUpdated();
+    });
 }
 
 void TaskBackend::applyLayerShellKeyboardMode(int keyboardMode)
@@ -376,24 +532,6 @@ void TaskBackend::pollActiveForegroundHints()
     QString clsNative;
     QString ttlNative;
     QSize innerGeom;
-
-    if (KwinIntegration::pollActiveWindow(&clsNative, &ttlNative, &innerGeom)) {
-        m_activeAppClass = clsNative;
-        m_activeAppTitle = ttlNative;
-        if (m_mainWindow && m_mainWindow->screen()) {
-            const QRect sg = m_mainWindow->screen()->geometry();
-            const bool covers = DockWindowManagement::activeWindowProbablyCoversWorkArea(
-                innerGeom,
-                QSize(sg.width(), sg.height()));
-            if (covers != m_activeWindowCoversWorkArea) {
-                m_activeWindowCoversWorkArea = covers;
-                emit activeWindowCoversWorkAreaChanged();
-            }
-        }
-        emit windowsUpdated();
-        return;
-    }
-
     if (DockWindowManagement::fillActiveHintsFromNativeStacking(clsNative, ttlNative, &innerGeom, nullptr)) {
         m_activeAppClass = clsNative;
         m_activeAppTitle = ttlNative;
@@ -407,7 +545,7 @@ void TaskBackend::pollActiveForegroundHints()
                 emit activeWindowCoversWorkAreaChanged();
             }
         }
-        emit windowsUpdated();
+        emitWindowsUpdatedCoalesced();
         return;
     }
 
@@ -431,7 +569,7 @@ void TaskBackend::pollActiveForegroundHints()
                 }
                 p->deleteLater();
                 updateActiveWindowCoversWorkAreaHint();
-                emit windowsUpdated();
+                emitWindowsUpdatedCoalesced();
             });
 
     QTimer::singleShot(kKdotoolActiveWindowKillMs, p, [p]() {
@@ -474,7 +612,7 @@ void TaskBackend::updateSystemState()
                 m_procScanRunning = false;
                 m_runningCmdLines = next;
                 // Indicadores “a correr” baseiam-se em /proc — não esperar pelo kdotool.
-                emit windowsUpdated();
+                emitWindowsUpdatedCoalesced();
 
                 if (DockWindowManagement::fullForeignWindowCtlAvailable(m_kdotoolAvailable)) {
                     pollActiveForegroundHints();
@@ -738,9 +876,6 @@ void TaskBackend::forceLaunchApp(const QString &command)
     if (command.isEmpty()) {
         return;
     }
-    if (tryOpenDolphinLocation(command)) {
-        return;
-    }
 
     QString desktopPath;
     if (knownApps.contains(command) && knownApps[command].contains(QStringLiteral("desktopPath"))) {
@@ -785,7 +920,7 @@ void TaskBackend::completeLaunchApp(const QString &command, const QString &winTo
                 } else if (!wmGuess.isEmpty()) {
                     m_activeAppClass = wmGuess;
                 }
-                emit windowsUpdated();
+                emitWindowsUpdatedCoalesced();
             }
             return;
         }
@@ -794,11 +929,11 @@ void TaskBackend::completeLaunchApp(const QString &command, const QString &winTo
             QProcess::startDetached(QStringLiteral("kdotool"), {QStringLiteral("windowminimize"), winToken});
             m_activeAppClass.clear();
             m_activeAppTitle.clear();
-            emit windowsUpdated();
+            emitWindowsUpdatedCoalesced();
         } else {
             QProcess::startDetached(QStringLiteral("kdotool"), {QStringLiteral("windowactivate"), winToken});
             m_activeAppClass = execBasenameFromCommand(command);
-            emit windowsUpdated();
+            emitWindowsUpdatedCoalesced();
         }
     } else {
         forceLaunchApp(command);
@@ -810,7 +945,26 @@ void TaskBackend::launchApp(const QString &command)
     if (command.isEmpty()) {
         return;
     }
-    if (tryOpenDolphinLocation(command)) {
+    // Downloads/Lixeira: comportamento de atalho de pasta.
+    // - se já estiver em foco: minimiza (paridade com ícone normal do Dolphin)
+    // - caso contrário: abre nova janela nessa localização
+    if (isDolphinScopedCommand(command.toLower())) {
+        const QString scopedLower = command.toLower();
+        if (isAppFocused(command) && m_kdotoolAvailable) {
+            QProcess::startDetached(QStringLiteral("kdotool"),
+                                    {QStringLiteral("getactivewindow"), QStringLiteral("windowminimize")});
+            m_activeAppClass.clear();
+            m_activeAppTitle.clear();
+            emitWindowsUpdatedCoalesced();
+            return;
+        }
+        const QString existingWin = firstScopedDolphinWindowId(scopedLower, m_kdotoolAvailable);
+        if (!existingWin.isEmpty() && m_kdotoolAvailable) {
+            QProcess::startDetached(QStringLiteral("kdotool"),
+                                    {QStringLiteral("windowactivate"), existingWin});
+            return;
+        }
+        forceLaunchApp(command);
         return;
     }
     const QString cmdCopy = command;
@@ -830,7 +984,7 @@ void TaskBackend::launchApp(const QString &command)
     });
 }
 
-void TaskBackend::completeCloseApp(const QString &command, const QString &winToken, bool killIfNoWindow)
+void TaskBackend::completeCloseApp(const QString &command, const QString &winToken)
 {
     if (!winToken.isEmpty()) {
         if (winToken.startsWith(QLatin1String("x11:"))) {
@@ -841,120 +995,28 @@ void TaskBackend::completeCloseApp(const QString &command, const QString &winTok
                                 {QStringLiteral("windowclose"), winToken});
         return;
     }
-    if (killIfNoWindow) {
-        killProcessesForCommand(command);
-        return;
-    }
     qWarning() << "AgildoDock: não foi possível fechar app (janela não encontrada):" << command;
 }
 
-void TaskBackend::closeAllWindows(const QString &command, bool killProcessIfNoWindow)
-{
-    if (command.isEmpty()) {
-        return;
-    }
-    const QStringList handles = resolveAllWindowTokens(command);
-    for (const QString &tok : handles) {
-        completeCloseApp(command, tok, false);
-    }
-    if (handles.isEmpty() && killProcessIfNoWindow) {
-        killProcessesForCommand(command);
-    }
-}
-
-void TaskBackend::closeApp(const QString &command, bool killProcessIfNoWindow)
+void TaskBackend::closeApp(const QString &command)
 {
     if (command.isEmpty()) {
         return;
     }
     const QString cmdCopy = command;
     const quint64 seq = ++m_closeSeq[cmdCopy];
-    const bool killCopy = killProcessIfNoWindow;
-    (void)QtConcurrent::run([this, cmdCopy, seq, killCopy]() {
+    (void)QtConcurrent::run([this, cmdCopy, seq]() {
         const QString winId = resolveWindowTokenForLaunch(cmdCopy);
         QMetaObject::invokeMethod(
             this,
-            [this, cmdCopy, winId, seq, killCopy]() {
+            [this, cmdCopy, winId, seq]() {
                 if (m_closeSeq.value(cmdCopy) != seq) {
                     return;
                 }
-                completeCloseApp(cmdCopy, winId, killCopy);
+                completeCloseApp(cmdCopy, winId);
             },
             Qt::QueuedConnection);
     });
-}
-
-QStringList TaskBackend::resolveAllWindowTokens(const QString &command) const
-{
-    return DockWindowManagement::resolveAllWindowHandlesForCommand(command,
-                                                                   knownApps,
-                                                                   m_kdotoolAvailable,
-                                                                   kKdotoolTimeoutMs);
-}
-
-int TaskBackend::windowCountForCommand(const QString &command)
-{
-    if (command.isEmpty()) {
-        return 0;
-    }
-    const QStringList handles = resolveAllWindowTokens(command);
-    if (!handles.isEmpty()) {
-        return handles.size();
-    }
-    return isAppRunning(command) ? 1 : 0;
-}
-
-void TaskBackend::focusWindowToken(const QString &token)
-{
-    if (token.isEmpty()) {
-        return;
-    }
-    DockWindowManagement::activateWindowToken(token, m_kdotoolAvailable);
-    emit windowsUpdated();
-}
-
-void TaskBackend::cycleAppWindows(const QString &command, bool forward)
-{
-    if (command.isEmpty()) {
-        return;
-    }
-    QStringList handles = resolveAllWindowTokens(command);
-    if (handles.isEmpty()) {
-        if (isAppRunning(command)) {
-            launchApp(command);
-        }
-        return;
-    }
-    int idx = m_cycleWindowIndex.value(command, -1);
-    if (forward) {
-        idx = (idx + 1) % handles.size();
-    } else {
-        idx = (idx <= 0) ? (handles.size() - 1) : (idx - 1);
-    }
-    m_cycleWindowIndex.insert(command, idx);
-    DockWindowManagement::activateWindowToken(handles.at(idx), m_kdotoolAvailable);
-    m_activeAppClass = execBasenameFromCommand(command);
-    emit windowsUpdated();
-}
-
-void TaskBackend::killProcessesForCommand(const QString &command) const
-{
-    const QString exec = execBasenameFromCommand(command);
-    if (exec.isEmpty() || exec.size() < 2) {
-        return;
-    }
-    static const QSet<QString> bloqueados = {
-        QStringLiteral("python"),
-        QStringLiteral("python3"),
-        QStringLiteral("sh"),
-        QStringLiteral("bash"),
-        QStringLiteral("zsh"),
-    };
-    if (bloqueados.contains(exec)) {
-        qWarning() << "AgildoDock: encerramento por processo ignorado (interpretador genérico):" << command;
-        return;
-    }
-    QProcess::execute(QStringLiteral("pkill"), {QStringLiteral("-x"), exec});
 }
 
 bool TaskBackend::isAppRunning(const QString &command)
@@ -963,14 +1025,22 @@ bool TaskBackend::isAppRunning(const QString &command)
         return false;
     }
 
-    // Comando com pasta/URL (ex.: dolphin trash:/) — só conta se existir janela desse alvo.
-    if (DockWindowManagement::commandHasStrictPathTarget(command)) {
-        return !resolveAllWindowTokens(command).isEmpty();
+    const QString cmdLower = command.toLower();
+    // Downloads/Lixeira não devem acender com "qualquer Dolphin" aberto.
+    // Considera ativo quando existe janela do alvo específico (mesmo minimizada).
+    if (isDolphinScopedCommand(cmdLower)) {
+        return anyDolphinWindowMatchesScopedTarget(cmdLower, m_kdotoolAvailable);
     }
 
-    const QString cmdLower = command.toLower();
     QString execName = command.split(' ').first().split('/').last().toLower();
     execName.remove('"').remove('\'');
+
+    // Evita falso positivo: o processo do Dolphin pode continuar vivo sem janela aberta.
+    if (execName == QStringLiteral("dolphin")) {
+        if (m_kdotoolAvailable) {
+            return anyDolphinWindowExists(m_kdotoolAvailable);
+        }
+    }
 
     if (cmdLower.contains(QStringLiteral("--app-id"))) {
         QString appId;
@@ -1029,6 +1099,11 @@ bool TaskBackend::isAppFocused(const QString &command)
     }
     if (m_activeAppClass.trimmed().isEmpty() && m_activeAppTitle.trimmed().isEmpty()) {
         return false;
+    }
+
+    const QString cmdLower = command.toLower();
+    if (isDolphinScopedCommand(cmdLower)) {
+        return activeDolphinMatchesScopedTarget(cmdLower, m_activeAppClass, m_activeAppTitle);
     }
 
     return DockWindowManagement::commandMatchesForegroundHints(command,
@@ -1090,115 +1165,9 @@ bool TaskBackend::shouldHideFromDock(const QString &cmd, const QString &name) co
 {
     const QString c = cmd.toLower();
     const QString n = name.toLower();
-    for (const QString &frag : m_userHiddenCmdFragments) {
-        const QString f = frag.trimmed().toLower();
-        if (!f.isEmpty() && (c.contains(f) || n.contains(f))) {
-            return true;
-        }
-    }
-    return c.contains(QStringLiteral("agildomonitor")) || n.contains(QStringLiteral("agildo monitor"))
-           || c.contains(QStringLiteral("agildodock")) || n.contains(QStringLiteral("agildo dock"));
-}
-
-void TaskBackend::setUserHiddenCommands(const QStringList &cmdFragments)
-{
-    m_userHiddenCmdFragments = cmdFragments;
-}
-
-QString TaskBackend::windowTitleForToken(const QString &token) const
-{
-    if (token.isEmpty() || !m_kdotoolAvailable) {
-        return {};
-    }
-    QProcess p;
-    QStringList args{QStringLiteral("getwindowname"), token};
-    if (token.startsWith(QLatin1String("x11:"))) {
-        bool ok = false;
-        const quint64 wid = token.sliced(4).toULongLong(&ok, 16);
-        if (ok) {
-            args = {QStringLiteral("getwindowname"), QStringLiteral("0x") + QString::number(wid, 16)};
-        }
-    }
-    p.start(QStringLiteral("kdotool"), args);
-    p.waitForFinished(350);
-    return QString::fromUtf8(p.readAllStandardOutput()).trimmed();
-}
-
-QVariantList TaskBackend::windowEntriesForCommand(const QString &command) const
-{
-    QVariantList out;
-    const QStringList handles = resolveAllWindowTokens(command);
-    int idx = 1;
-    for (const QString &tok : handles) {
-        QVariantMap row;
-        row.insert(QStringLiteral("token"), tok);
-        QString title = windowTitleForToken(tok);
-        if (title.isEmpty()) {
-            title = QObject::tr("Janela %1").arg(idx);
-        }
-        row.insert(QStringLiteral("title"), title);
-        out.append(row);
-        ++idx;
-    }
-    return out;
-}
-
-QString TaskBackend::plasmaCurrentActivityLabel() const
-{
-    QDBusInterface iface(QStringLiteral("org.kde.ActivityManager"),
-                         QStringLiteral("/ActivityManager/Activities"),
-                         QStringLiteral("org.kde.ActivityManager.Activities"),
-                         QDBusConnection::sessionBus());
-    if (!iface.isValid()) {
-        return {};
-    }
-    QDBusReply<QString> current = iface.call(QStringLiteral("currentActivity"));
-    if (!current.isValid() || current.value().isEmpty()) {
-        return {};
-    }
-    const QString actId = current.value();
-    QDBusInterface actIface(QStringLiteral("org.kde.ActivityManager"),
-                            QStringLiteral("/ActivityManager/Activities/") + actId,
-                            QStringLiteral("org.kde.ActivityManager.Activity"),
-                            QDBusConnection::sessionBus());
-    if (!actIface.isValid()) {
-        return actId;
-    }
-    QDBusReply<QString> name = actIface.call(QStringLiteral("name"));
-    return name.isValid() ? name.value() : actId;
-}
-
-void TaskBackend::setProcPollIntervalMs(int intervalMs)
-{
-    const int ms = qBound(400, intervalMs, 5000);
-    if (m_pollTimer) {
-        m_pollTimer->setInterval(ms);
-    }
-}
-
-bool TaskBackend::saveTextFile(const QString &path, const QString &utf8Text) const
-{
-    QFile f(path);
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
-        return false;
-    }
-    f.write(utf8Text.toUtf8());
-    return true;
-}
-
-QString TaskBackend::loadTextFile(const QString &path) const
-{
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        return {};
-    }
-    return QString::fromUtf8(f.readAll());
-}
-
-QString TaskBackend::defaultDockAppsExportPath() const
-{
-    return QStandardPaths::writableLocation(QStandardPaths::HomeLocation)
-           + QStringLiteral("/agildodock-apps.json");
+    // CORREÇÃO: Impede a doca de aparecer nela mesma
+    return c.contains(QStringLiteral("agildomonitor")) || n.contains(QStringLiteral("agildo monitor")) ||
+    c.contains(QStringLiteral("agildodock")) || n.contains(QStringLiteral("agildo dock"));
 }
 
 

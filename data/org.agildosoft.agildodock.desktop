@@ -9,5 +9,3 @@ StartupNotify=false
 Terminal=false
 Categories=Utility;Qt;KDE;
 Keywords=dock;plasma;wayland;kde;
-X-KDE-Autostart=true
-X-KDE-autostart-phase=2

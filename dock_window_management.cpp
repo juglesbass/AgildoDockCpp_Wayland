@@ -1,12 +1,9 @@
 #include "dock_window_management.h"
 
 #include <QCoreApplication>
-#include <QFileInfo>
 #include <QGuiApplication>
 #include <QtGui/qguiapplication_platform.h>
 #include <QProcess>
-#include <QRegularExpression>
-#include <QStandardPaths>
 #include <QStringList>
 
 #include <KWindowSystem/kwindowsystem.h>
@@ -115,105 +112,6 @@ static QString combinedWmLower(const QByteArray &classNameBytes, const QByteArra
     return cn + QLatin1Char(' ') + cc;
 }
 
-/// Comandos como «dolphin ~/Downloads» ou «dolphin trash:/» — o alvo não é só o executável.
-static bool commandHasStrictTarget(const QString &command, QString *outTargetLower = nullptr)
-{
-    const QStringList parts =
-        command.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
-    if (parts.size() <= 1) {
-        return false;
-    }
-    QString target = parts.mid(1).join(QLatin1Char(' ')).trimmed().toLower();
-    target.remove(QLatin1Char('"')).remove(QLatin1Char('\''));
-    if (target.isEmpty() || target.startsWith(QLatin1Char('-'))) {
-        return false;
-    }
-    // Caminhos/URLs (pastas do Dolphin, trash:/, etc.)
-    if (!target.contains(QLatin1Char('/')) && !target.contains(QLatin1Char(':'))) {
-        return false;
-    }
-    if (outTargetLower) {
-        *outTargetLower = target;
-    }
-    return true;
-}
-
-static QString normalizeDockTarget(QString target)
-{
-    target = target.toLower();
-    target.remove(QLatin1Char('"')).remove(QLatin1Char('\''));
-    if (target.startsWith(QStringLiteral("~/"))) {
-        const QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
-        if (!home.isEmpty()) {
-            target = home + target.mid(1);
-        }
-    }
-    return target;
-}
-
-static bool windowTitleMatchesDockTarget(const QString &targetNorm, QStringView captionLower)
-{
-    const QString cap = QString(captionLower);
-    if (targetNorm.contains(QLatin1String("trash:"))) {
-        return cap.contains(QLatin1String("trash")) || cap.contains(QLatin1String("reciclagem"))
-            || cap.contains(QLatin1String("lixeira")) || cap.contains(QLatin1String("wastebasket"));
-    }
-    if (targetNorm.contains(QLatin1String("download"))) {
-        return cap.contains(QLatin1String("download")) || cap.contains(QLatin1String("transferência"))
-            || cap.contains(QLatin1String("transferencia"));
-    }
-    const QString base = QFileInfo(targetNorm).fileName();
-    if (!base.isEmpty() && base != QLatin1String(".") && base != QLatin1String("/")) {
-        return cap.contains(base, Qt::CaseInsensitive);
-    }
-    return false;
-}
-
-static bool finalizeStrictTargetMatch(const QString &command, const QString &captionLower, bool baseMatched)
-{
-    if (!baseMatched) {
-        return false;
-    }
-    QString target;
-    if (!commandHasStrictTarget(command, &target)) {
-        return true;
-    }
-    return windowTitleMatchesDockTarget(normalizeDockTarget(target), captionLower);
-}
-
-static QString kdotoolWindowTitle(const QString &winId, int timeoutMs)
-{
-    QProcess p;
-    p.start(QStringLiteral("kdotool"), {QStringLiteral("getwindowname"), winId});
-    p.waitForFinished(timeoutMs);
-    return QString::fromUtf8(p.readAllStandardOutput()).trimmed();
-}
-
-static QStringList filterHandlesByStrictTarget(const QString &command,
-                                               const QStringList &handles,
-                                               int timeoutMs)
-{
-    QString target;
-    if (!commandHasStrictTarget(command, &target)) {
-        return handles;
-    }
-    target = normalizeDockTarget(target);
-    QStringList filtered;
-    filtered.reserve(handles.size());
-    for (const QString &handle : handles) {
-        if (handle.startsWith(QLatin1String("x11:"))) {
-            // Já filtrado na varredura X11 (título conhecido).
-            filtered.append(handle);
-            continue;
-        }
-        const QString title = kdotoolWindowTitle(handle, timeoutMs).toLower();
-        if (windowTitleMatchesDockTarget(target, title)) {
-            filtered.append(handle);
-        }
-    }
-    return filtered;
-}
-
 // Mesma filosofia da antiga findWindowIdForCmd, mas usando metadados reais das janelas X11 visitadas.
 static bool stackingWindowBelongsToCommand(const QString &command,
                                            const QString &clsBlobLower,
@@ -247,10 +145,10 @@ static bool stackingWindowBelongsToCommand(const QString &command,
         const bool idHit = cls.contains(QLatin1String("crx_") + appIdCaptured)
                            || cls.contains(QLatin1String("chrome-") + appIdCaptured);
         if (idHit) {
-            return finalizeStrictTargetMatch(command, cap, true);
+            return true;
         }
         if (!appNameDesk.isEmpty() && cap.contains(appNameDesk)) {
-            return finalizeStrictTargetMatch(command, cap, true);
+            return true;
         }
         return false;
     }
@@ -259,43 +157,36 @@ static bool stackingWindowBelongsToCommand(const QString &command,
     const bool isBrowserWide = exeLooksLikeChromFamily(QStringView(execFull));
 
     if (execFull.contains(QLatin1String("agildomonitor"))) {
-        return finalizeStrictTargetMatch(command,
-                                         cap,
-                                         cls.contains(QLatin1String("agildomonitor"))
-                                             || cap.contains(QLatin1String("agildo monitor")));
+        return cls.contains(QLatin1String("agildomonitor")) || cap.contains(QLatin1String("agildo monitor"));
     }
     if (execFull.contains(QLatin1String("zen"))) {
-        return finalizeStrictTargetMatch(command, cap, cls.contains(QLatin1String("zen")));
+        return cls.contains(QLatin1String("zen"));
     }
     if (execFull.contains(QLatin1String("faugus"))) {
-        return finalizeStrictTargetMatch(command,
-                                         cap,
-                                         cls.contains(QLatin1String("faugus"))
-                                             || cls.contains(QLatin1String("faugus-launcher")));
+        return cls.contains(QLatin1String("faugus")) || cls.contains(QLatin1String("faugus-launcher"));
     }
     if (execFull.contains(QLatin1String("chrom"))) {
         const bool chromiumish = cls.contains(QLatin1String("chromium")) || cls.contains(QLatin1String("google-chrome"))
                                  || cls.contains(QLatin1String("chrome"));
         const bool edged = execFull.contains(QLatin1String("edge")) && cls.contains(QLatin1String("edge"));
-        return finalizeStrictTargetMatch(command, cap, chromiumish || edged);
+        return chromiumish || edged;
     }
 
     if (!wmClassDesk.isEmpty() && cls.contains(wmClassDesk)) {
-        return finalizeStrictTargetMatch(command, cap, true);
+        return true;
     }
     if (!appNameDesk.isEmpty() && cap.contains(appNameDesk)) {
-        return finalizeStrictTargetMatch(command, cap, true);
+        return true;
     }
     if (!isBrowserWide && cls.contains(execFull)) {
-        return finalizeStrictTargetMatch(command, cap, true);
+        return true;
     }
     return false;
 }
 
 #if defined(KWINDOWSYSTEM_HAVE_X11) && QT_CONFIG(xcb)
-static QList<WId> allOwnedX11Windows(const QString &command, const QHash<QString, QVariantMap> &knownApps)
+static WId topmostOwnedX11Window(const QString &command, const QHash<QString, QVariantMap> &knownApps)
 {
-    QList<WId> matches;
     const QList<WId> order = KX11Extras::stackingOrder();
     for (qsizetype i = order.size() - 1; i >= 0; --i) {
         const WId wid = order.at(i);
@@ -306,30 +197,12 @@ static QList<WId> allOwnedX11Windows(const QString &command, const QHash<QString
         const QString clsBlob = combinedWmLower(iw.windowClassName(), iw.windowClassClass());
         const QString caption = iw.visibleName().toLower();
         if (stackingWindowBelongsToCommand(command, clsBlob, caption, knownApps)) {
-            matches.append(wid);
+            return wid;
         }
     }
-    return matches;
-}
-
-static WId topmostOwnedX11Window(const QString &command, const QHash<QString, QVariantMap> &knownApps)
-{
-    const QList<WId> all = allOwnedX11Windows(command, knownApps);
-    return all.isEmpty() ? 0 : all.constFirst();
+    return 0;
 }
 #endif
-
-static QStringList allKdotoolSearchHits(const QStringList &args, int timeoutMs)
-{
-    QProcess p;
-    p.start(QStringLiteral("kdotool"), args);
-    p.waitForFinished(timeoutMs);
-    const QString raw = QString::fromUtf8(p.readAllStandardOutput()).trimmed();
-    if (raw.isEmpty()) {
-        return {};
-    }
-    return raw.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
-}
 
 } // namespace
 
@@ -349,11 +222,6 @@ bool nativeX11ClientUsable()
 bool fullForeignWindowCtlAvailable(bool kdotoolOnPath)
 {
     return nativeX11ClientUsable() || kdotoolOnPath;
-}
-
-bool commandHasStrictPathTarget(const QString &command)
-{
-    return commandHasStrictTarget(command, nullptr);
 }
 
 bool commandMatchesForegroundHints(const QString &command,
@@ -426,11 +294,10 @@ bool commandMatchesForegroundHints(const QString &command,
                 }
             }
         }
-        return finalizeStrictTargetMatch(command, cap, true);
+        return true;
     }
 
-    const bool baseMatch = cls.contains(execName) || (!wmClass.isEmpty() && cls.contains(wmClass));
-    return finalizeStrictTargetMatch(command, cap, baseMatch);
+    return cls.contains(execName) || (!wmClass.isEmpty() && cls.contains(wmClass));
 }
 
 QString encodeX11WId(WId wid)
@@ -588,96 +455,6 @@ bool activatePackedOrMinimize(const QString &packedWin,
     Q_UNUSED(commandForHints);
     return false;
 #endif
-}
-
-QStringList resolveAllWindowHandlesForCommand(const QString &command,
-                                              const QHash<QString, QVariantMap> &knownApps,
-                                              bool kdotoolAvailable,
-                                              int kdotoolTimeoutMs)
-{
-    QStringList handles;
-    if (command.isEmpty()) {
-        return handles;
-    }
-
-#if defined(KWINDOWSYSTEM_HAVE_X11) && QT_CONFIG(xcb)
-    if (nativeX11ClientUsable()) {
-        const QList<WId> xids = allOwnedX11Windows(command, knownApps);
-        handles.reserve(xids.size());
-        for (const WId wid : xids) {
-            const QString packed = encodeX11WId(wid);
-            if (!handles.contains(packed)) {
-                handles.append(packed);
-            }
-        }
-        if (!handles.isEmpty()) {
-            return filterHandlesByStrictTarget(command, handles, kdotoolTimeoutMs);
-        }
-    }
-#else
-    Q_UNUSED(knownApps);
-#endif
-
-    if (!kdotoolAvailable) {
-        return handles;
-    }
-
-    QString wmDesk = knownApps.value(command)[QStringLiteral("wmclass")].toString().toLower();
-    QString nameDesk = knownApps.value(command)[QStringLiteral("name")].toString();
-
-    QString appIdDummy;
-    const QVector<KdotoolSearchFilter> chain =
-        buildKdotoolSearchChain(command, strippedExecBasename(command), wmDesk, nameDesk, &appIdDummy);
-    Q_UNUSED(appIdDummy);
-
-    for (const KdotoolSearchFilter &f : chain) {
-        QStringList args{QStringLiteral("search")};
-        if (f.byName) {
-            args << QStringLiteral("--name") << f.needle;
-        } else {
-            args << QStringLiteral("--class") << f.needle;
-        }
-        const QStringList hits = allKdotoolSearchHits(args, kdotoolTimeoutMs);
-        for (const QString &hit : hits) {
-            const QString trimmed = hit.trimmed();
-            if (!trimmed.isEmpty() && !handles.contains(trimmed)) {
-                handles.append(trimmed);
-            }
-        }
-    }
-    return filterHandlesByStrictTarget(command, handles, kdotoolTimeoutMs);
-}
-
-bool activateWindowToken(const QString &packedOrDecimalWin, bool kdotoolAvailable)
-{
-    if (packedOrDecimalWin.isEmpty()) {
-        return false;
-    }
-    if (packedOrDecimalWin.startsWith(QLatin1String("x11:"))) {
-        WId wid = 0;
-        if (!decodeX11WId(packedOrDecimalWin, &wid)) {
-            return false;
-        }
-#if defined(KWINDOWSYSTEM_HAVE_X11) && QT_CONFIG(xcb)
-        if (nativeX11ClientUsable()) {
-            KX11Extras::forceActiveWindow(wid);
-            return true;
-        }
-#endif
-        if (kdotoolAvailable) {
-            QProcess::startDetached(QStringLiteral("kdotool"),
-                                    {QStringLiteral("windowactivate"),
-                                     QStringLiteral("0x") + QString::number(static_cast<quintptr>(wid), 16)});
-            return true;
-        }
-        return false;
-    }
-    if (kdotoolAvailable) {
-        QProcess::startDetached(QStringLiteral("kdotool"),
-                                {QStringLiteral("windowactivate"), packedOrDecimalWin});
-        return true;
-    }
-    return false;
 }
 
 bool closePackedWindow(const QString &packedWin, bool kdotoolAvailable)

@@ -27,9 +27,6 @@ bool commandMatchesForegroundHints(const QString &command,
                                    QStringView captionLower,
                                    const QHash<QString, QVariantMap> &knownApps);
 
-/// true quando o comando inclui pasta/URL além do executável (ex.: dolphin trash:/).
-bool commandHasStrictPathTarget(const QString &command);
-
 // true se temos pelo menos uma via completa para focar/minimizar/fechar janelas alheias.
 bool fullForeignWindowCtlAvailable(bool kdotoolOnPath);
 
@@ -64,14 +61,6 @@ bool activatePackedOrMinimize(const QString &packedWin,
                               QString &outActiveAppClassGuess);
 
 bool closePackedWindow(const QString &packedWin, bool kdotoolAvailable);
-
-/// Todas as janelas que correspondem ao comando (ordem: topo do stacking primeiro).
-QStringList resolveAllWindowHandlesForCommand(const QString &command,
-                                              const QHash<QString, QVariantMap> &knownApps,
-                                              bool kdotoolAvailable,
-                                              int kdotoolTimeoutMs);
-
-bool activateWindowToken(const QString &packedOrDecimalWin, bool kdotoolAvailable);
 
 } // namespace DockWindowManagement
 

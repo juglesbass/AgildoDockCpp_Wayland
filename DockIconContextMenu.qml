@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Window
 
-// Janela popup à parte da doca (estilo macOS): cliques não passam pela máscara Wayland da superfície layer-shell.
+// Menu flutuante em janela separada: cliques estáveis no Wayland (layer-shell da doca).
 Window {
     id: menuWin
 
@@ -18,23 +18,34 @@ Window {
     property bool ctxIsDynamic: false
     property bool ctxIsRunning: false
     property bool ctxIsFocused: false
-    property int ctxWindowCount: 0
     property int ctxItemIndex: -1
     property var ctxDelegate: null
-    property var ctxWindowList: []
+    property var ctxCustomCommands: []
 
     property Item _anchorItem: null
 
     readonly property bool ctxIsAppItem: !ctxIsLauncher && !ctxIsSystem && !ctxIsSeparator
-    readonly property bool ctxHasWindows: ctxWindowList.length > 0
 
-    // Tamanho vem da coluna — evita usar height antigo de um menu anterior (saltava para o topo).
-    readonly property real menuPadW: 16
+    readonly property real menuPadW: 12
     readonly property real menuPadH: 12
-    readonly property real menuGap: 10 * dock.liveScaleFactor
+    readonly property real menuGap: 18 * dock.liveScaleFactor
+    readonly property real rowHeight: Math.round(34 * dock.liveScaleFactor)
+    readonly property real rowSpacing: 2
 
-    width: Math.max(column.implicitWidth + menuPadW, 80)
-    height: Math.max(column.implicitHeight + menuPadH, 40)
+    readonly property int visibleRows: (ctxIsAppItem ? 1 : 0) // Nova janela
+                                     + ((ctxIsAppItem && !ctxIsRunning) ? 1 : 0) // Abrir
+                                     + ((ctxIsAppItem && ctxIsRunning) ? 1 : 0) // Minimizar/Restaurar
+                                     + (ctxIsAppItem ? 1 : 0) // Fixar/Desafixar
+                                     + ((ctxIsAppItem && ctxIsRunning) ? 1 : 0) // Fechar
+                                     + ((ctxIsAppItem && ctxCustomCommands.length > 0) ? 1 : 0) // Comando custom 1
+                                     + ((ctxIsAppItem && ctxCustomCommands.length > 1) ? 1 : 0) // Comando custom 2
+                                     + ((ctxIsSystem || ctxIsLauncher) ? 1 : 0) // Abrir (sistema/launcher)
+
+    // Tamanho determinístico: evita loops de implicitHeight/polish em algumas versões de Qt.
+    width: Math.round(228 * dock.liveScaleFactor) + (menuPadW * 2)
+    height: Math.max(40, (menuPadH * 2)
+                     + (visibleRows * rowHeight)
+                     + (Math.max(0, visibleRows - 1) * rowSpacing))
     flags: Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint
     color: "transparent"
     transientParent: dock
@@ -54,22 +65,11 @@ Window {
         ctxIsDynamic = data.isDynamic === true
         ctxIsRunning = data.isRunning === true
         ctxIsFocused = data.isFocused === true
-        ctxWindowCount = data.windowCount !== undefined ? data.windowCount : 0
         ctxItemIndex = data.itemIndex !== undefined ? data.itemIndex : -1
         ctxDelegate = data.delegate || null
         ctxLogicalCenter = data.logicalCenter !== undefined ? data.logicalCenter : -1
+        ctxCustomCommands = dock.customCommandsFor(ctxCmd)
 
-        if (ctxIsRunning && menuWin.ctxIsAppItem) {
-            ctxWindowList = taskBackend.windowEntriesForCommand(ctxCmd)
-            if (ctxWindowCount < ctxWindowList.length) {
-                ctxWindowCount = ctxWindowList.length
-            }
-        } else {
-            ctxWindowList = []
-        }
-
-        // Posiciona antes de mostrar para evitar “saltos”/frames
-        // sem superfície com tamanho correto.
         repositionAboveIcon()
         menuWin.show()
         scheduleReposition()
@@ -84,9 +84,9 @@ Window {
         if (!_anchorItem) {
             return
         }
-        var menuW = Math.max(column.implicitWidth + menuPadW, 80)
-        var menuH = Math.max(column.implicitHeight + menuPadH, 40)
-        // Centro inferior do ícone (não o topo da MouseArea expandida para cima).
+        // Usa tamanho já calculado da janela; evita ler implicitHeight durante polish().
+        var menuW = menuWin.width
+        var menuH = menuWin.height
         var g = _anchorItem.mapToGlobal(_anchorItem.width / 2, _anchorItem.height)
         var targetX = Math.round(g.x - menuW / 2)
         var targetY = Math.round(g.y - menuH - menuGap)
@@ -120,17 +120,7 @@ Window {
             dock.lockDockForContextMenu(false)
             dock.applyLayerShellFromSettings()
             ctxDelegate = null
-            ctxWindowList = []
             _anchorItem = null
-        }
-    }
-
-    Connections {
-        target: column
-        function onImplicitHeightChanged() {
-            if (menuWin.visible) {
-                menuWin.repositionAboveIcon()
-            }
         }
     }
 
@@ -152,229 +142,159 @@ Window {
         id: menuBody
         anchors.fill: parent
         radius: 10 * menuWin.dock.liveScaleFactor
-        color: Qt.rgba(0.10, 0.11, 0.13, 0.98)
-        border.color: Qt.rgba(1, 1, 1, 0.14)
+        color: menuWin.dock.themeMenuBg
+        border.color: menuWin.dock.themeMenuBorder
         border.width: 1
         clip: true
 
-        Flickable {
-            id: menuScroll
-            anchors.fill: parent
-            anchors.margins: 6
-            contentWidth: column.width
-            contentHeight: column.height
-            boundsBehavior: Flickable.StopAtBounds
-            interactive: column.height > menuBody.height - 12
+        Column {
+            id: column
+            width: Math.round(228 * menuWin.dock.liveScaleFactor)
+            x: menuWin.menuPadW
+            y: menuWin.menuPadH
+            spacing: menuWin.rowSpacing
 
-            Column {
-                id: column
-                width: Math.round(228 * menuWin.dock.liveScaleFactor)
-                spacing: 2
-
-                ContextMenuRow {
-                    label: qsTr("Nova janela")
-                    labelColor: "#00E5FF"
-                    rowVisible: menuWin.ctxIsAppItem
-                    onRowClicked: {
-                        if (menuWin.ctxDelegate && !menuWin.ctxDelegate.isLaunching) {
-                            taskBackend.forceLaunchApp(menuWin.ctxCmd)
-                        }
-                        menuWin.closeMenu()
+            ContextMenuRow {
+                label: qsTr("Nova janela")
+                labelColor: menuWin.dock.accentIdle
+                rowVisible: menuWin.ctxIsAppItem
+                onRowClicked: {
+                    if (menuWin.ctxDelegate && !menuWin.ctxDelegate.isLaunching) {
+                        taskBackend.forceLaunchApp(menuWin.ctxCmd)
                     }
+                    menuWin.closeMenu()
                 }
+            }
 
-                ContextMenuRow {
-                    label: qsTr("Abrir")
-                    rowVisible: menuWin.ctxIsAppItem && !menuWin.ctxIsRunning
-                    onRowClicked: {
-                        taskBackend.launchApp(menuWin.ctxCmd)
-                        menuWin.closeMenu()
+            ContextMenuRow {
+                label: qsTr("Abrir")
+                rowVisible: menuWin.ctxIsAppItem && !menuWin.ctxIsRunning
+                onRowClicked: {
+                    taskBackend.launchApp(menuWin.ctxCmd)
+                    menuWin.closeMenu()
+                }
+            }
+
+            ContextMenuRow {
+                label: menuWin.ctxIsFocused ? qsTr("Minimizar") : qsTr("Restaurar")
+                rowVisible: menuWin.ctxIsAppItem && menuWin.ctxIsRunning
+                onRowClicked: {
+                    if (menuWin.ctxIsFocused && menuWin._anchorItem) {
+                        menuWin.dock.playMinimizeSuckAt(menuWin._anchorItem)
                     }
-                }
-
-                ContextMenuRow {
-                    label: menuWin.ctxIsFocused ? qsTr("Minimizar") : qsTr("Mostrar janela")
-                    rowVisible: menuWin.ctxIsAppItem && menuWin.ctxIsRunning
-                    onRowClicked: {
-                        taskBackend.launchApp(menuWin.ctxCmd)
-                        menuWin.closeMenu()
+                    if (menuWin.ctxDelegate) {
+                        menuWin.ctxDelegate.playFocusBounce()
                     }
+                    taskBackend.launchApp(menuWin.ctxCmd)
+                    menuWin.closeMenu()
                 }
+            }
 
-                ContextMenuRow {
-                    label: qsTr("Próxima janela")
-                    rowVisible: menuWin.ctxIsAppItem && menuWin.ctxWindowCount > 1
-                    onRowClicked: {
-                        taskBackend.cycleAppWindows(menuWin.ctxCmd, true)
-                        menuWin.closeMenu()
+            ContextMenuRow {
+                label: menuWin.ctxIsDynamic ? qsTr("Fixar na doca") : qsTr("Desafixar da doca")
+                rowVisible: menuWin.ctxIsAppItem
+                onRowClicked: {
+                    if (menuWin.ctxIsDynamic) {
+                        menuWin.dock.appModel.append({
+                            name: menuWin.ctxName,
+                            icon: menuWin.ctxIcon,
+                            cmd: menuWin.ctxCmd
+                        })
+                        menuWin.dock.saveApps()
+                    } else if (menuWin.ctxItemIndex >= 0) {
+                        menuWin.dock.unpinApp(menuWin.ctxItemIndex)
                     }
+                    menuWin.closeMenu()
                 }
+            }
 
-                ContextMenuSeparator {
-                    sepVisible: menuWin.ctxHasWindows
-                }
-
-                Repeater {
-                    model: menuWin.ctxWindowList
-                    delegate: ContextMenuRow {
-                        label: {
-                            var t = modelData.title
-                            if (t === undefined || t === "") {
-                                return qsTr("Janela %1").arg(index + 1)
-                            }
-                            return t
-                        }
-                        labelColor: "#BBBBBB"
-                        rowVisible: true
-                        onRowClicked: {
-                            var tok = modelData.token
-                            if (tok !== undefined && tok !== "") {
-                                taskBackend.focusWindowToken(tok)
-                            }
-                            menuWin.closeMenu()
-                        }
+            ContextMenuRow {
+                label: qsTr("Fechar programa")
+                labelColor: "#FF5555"
+                labelBold: true
+                rowVisible: menuWin.ctxIsAppItem && menuWin.ctxIsRunning
+                onRowClicked: {
+                    taskBackend.closeApp(menuWin.ctxCmd)
+                    if (menuWin.ctxDelegate) {
+                        menuWin.ctxDelegate.isRunning = false
+                        menuWin.ctxDelegate.isFocused = false
                     }
+                    menuWin.closeMenu()
                 }
+            }
 
-                ContextMenuSeparator {
-                    sepVisible: menuWin.ctxIsAppItem
-                }
-
-                ContextMenuRow {
-                    label: menuWin.ctxIsDynamic ? qsTr("Fixar na doca") : qsTr("Desafixar da doca")
-                    rowVisible: menuWin.ctxIsAppItem
-                    onRowClicked: {
-                        if (menuWin.ctxIsDynamic) {
-                            menuWin.dock.appModel.append({
-                                name: menuWin.ctxName,
-                                icon: menuWin.ctxIcon,
-                                cmd: menuWin.ctxCmd
-                            })
-                            menuWin.dock.saveApps()
-                        } else if (menuWin.ctxItemIndex >= 0) {
-                            menuWin.dock.unpinApp(menuWin.ctxItemIndex)
-                        }
-                        menuWin.closeMenu()
+            ContextMenuRow {
+                label: menuWin.ctxCustomCommands.length > 0 ? String(menuWin.ctxCustomCommands[0].label || qsTr("Comando custom")) : ""
+                labelColor: menuWin.dock.accentIdle
+                rowVisible: menuWin.ctxIsAppItem && menuWin.ctxCustomCommands.length > 0
+                onRowClicked: {
+                    const customCmd = String(menuWin.ctxCustomCommands[0].command || "")
+                    if (customCmd.length > 0) {
+                        taskBackend.forceLaunchApp(customCmd)
                     }
+                    menuWin.closeMenu()
                 }
+            }
 
-                ContextMenuRow {
-                    label: qsTr("Ocultar da área dinâmica")
-                    rowVisible: menuWin.ctxIsAppItem
-                    onRowClicked: {
-                        menuWin.dock.hideAppFromDynamicArea(menuWin.ctxCmd)
-                        menuWin.closeMenu()
+            ContextMenuRow {
+                label: menuWin.ctxCustomCommands.length > 1 ? String(menuWin.ctxCustomCommands[1].label || qsTr("Comando custom")) : ""
+                labelColor: menuWin.dock.accentFocus
+                rowVisible: menuWin.ctxIsAppItem && menuWin.ctxCustomCommands.length > 1
+                onRowClicked: {
+                    const customCmd = String(menuWin.ctxCustomCommands[1].command || "")
+                    if (customCmd.length > 0) {
+                        taskBackend.forceLaunchApp(customCmd)
                     }
+                    menuWin.closeMenu()
                 }
+            }
 
-                ContextMenuSeparator {
-                    sepVisible: menuWin.ctxIsAppItem && menuWin.ctxIsRunning
-                }
-
-                ContextMenuRow {
-                    label: qsTr("Fechar todas as janelas")
-                    rowVisible: menuWin.ctxIsAppItem && menuWin.ctxWindowCount > 1
-                    onRowClicked: {
-                        taskBackend.closeAllWindows(menuWin.ctxCmd, false)
-                        if (menuWin.ctxDelegate) {
-                            menuWin.ctxDelegate.isRunning = false
-                            menuWin.ctxDelegate.isFocused = false
-                        }
-                        menuWin.closeMenu()
-                    }
-                }
-
-                ContextMenuRow {
-                    label: qsTr("Fechar janela")
-                    labelColor: "#FF8888"
-                    rowVisible: menuWin.ctxIsAppItem && menuWin.ctxIsRunning
-                    onRowClicked: {
-                        taskBackend.closeApp(menuWin.ctxCmd, false)
-                        if (menuWin.ctxDelegate) {
-                            menuWin.ctxDelegate.isRunning = false
-                            menuWin.ctxDelegate.isFocused = false
-                        }
-                        menuWin.closeMenu()
-                    }
-                }
-
-                ContextMenuRow {
-                    label: qsTr("Forçar encerrar")
-                    labelColor: "#FF5555"
-                    labelBold: true
-                    rowVisible: menuWin.ctxIsAppItem && menuWin.ctxIsRunning
-                    onRowClicked: {
-                        taskBackend.closeApp(menuWin.ctxCmd, true)
-                        if (menuWin.ctxDelegate) {
-                            menuWin.ctxDelegate.isRunning = false
-                            menuWin.ctxDelegate.isFocused = false
-                        }
-                        menuWin.closeMenu()
-                    }
-                }
-
-                // Itens de sistema (Transferências, Lixeira): menu curto.
-                ContextMenuRow {
-                    label: qsTr("Abrir")
-                    rowVisible: menuWin.ctxIsSystem
-                    onRowClicked: {
-                        taskBackend.launchApp(menuWin.ctxCmd)
-                        menuWin.closeMenu()
-                    }
+            ContextMenuRow {
+                label: qsTr("Abrir")
+                rowVisible: menuWin.ctxIsSystem || menuWin.ctxIsLauncher
+                onRowClicked: {
+                    taskBackend.launchApp(menuWin.ctxCmd)
+                    menuWin.closeMenu()
                 }
             }
         }
     }
 
     component ContextMenuRow: Rectangle {
-        id: rowRoot
-
-        property string label: ""
-        property color labelColor: "#EEEEEE"
+        id: row
+        required property string label
+        property color labelColor: menuWin.dock.themeTextPrimary
         property bool labelBold: false
         property bool rowVisible: true
-
         signal rowClicked()
 
-        width: Math.round(228 * menuWin.dock.liveScaleFactor)
-        height: rowVisible ? Math.round(34 * menuWin.dock.liveScaleFactor) : 0
+        width: column.width
+        height: rowVisible ? menuWin.rowHeight : 0
         visible: rowVisible
-        radius: 6 * menuWin.dock.liveScaleFactor
-        color: rowMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : "transparent"
+        opacity: rowVisible ? 1 : 0
+        color: rowMouse.containsMouse ? menuWin.dock.themeMenuHover : "transparent"
+        radius: 6
 
         Text {
-            anchors.fill: parent
-            anchors.leftMargin: 14
-            anchors.rightMargin: 14
-            text: rowRoot.label
-            color: rowRoot.labelColor
-            font.bold: rowRoot.labelBold
-            font.pixelSize: 13 * menuWin.dock.liveScaleFactor
-            verticalAlignment: Text.AlignVCenter
+            id: rowLabel
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.leftMargin: 10
+            anchors.rightMargin: 10
+            text: row.label
+            color: row.labelColor
+            font.pixelSize: 14 * menuWin.dock.liveScaleFactor
+            font.bold: row.labelBold
             elide: Text.ElideRight
         }
 
         MouseArea {
             id: rowMouse
             anchors.fill: parent
+            enabled: row.rowVisible
             hoverEnabled: true
-            onClicked: rowRoot.rowClicked()
-        }
-    }
-
-    component ContextMenuSeparator: Rectangle {
-        property bool sepVisible: true
-
-        width: Math.round(228 * menuWin.dock.liveScaleFactor)
-        height: sepVisible ? 9 : 0
-        visible: sepVisible && height > 0
-        color: "transparent"
-
-        Rectangle {
-            anchors.centerIn: parent
-            width: parent.width - 20
-            height: 1
-            color: Qt.rgba(1, 1, 1, 0.12)
+            onClicked: row.rowClicked()
         }
     }
 }
