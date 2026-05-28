@@ -4,6 +4,8 @@
 
 #include <QDBusInterface>
 #include <QDBusReply>
+#include <QDBusConnection>
+#include <QDBusError>
 #include <QFile>
 #include <QStandardPaths>
 
@@ -159,6 +161,19 @@ QString TaskBackend::execBasenameFromCommand(const QString &command)
 TaskBackend::TaskBackend(QObject *parent)
 : QObject(parent)
 {
+    // D-Bus: usado pelo efeito do KWin para obter a geometria do ícone-alvo.
+    {
+        const QString service = QStringLiteral("org.agildosoft.AgildoDock");
+        const QString path = QStringLiteral("/AgildoDock");
+        auto bus = QDBusConnection::sessionBus();
+        if (!bus.registerService(service)) {
+            qWarning() << "AgildoDock: falha ao registrar serviço D-Bus:" << service << bus.lastError().message();
+        }
+        if (!bus.registerObject(path, this, QDBusConnection::ExportScriptableSlots)) {
+            qWarning() << "AgildoDock: falha ao registrar object D-Bus:" << path << bus.lastError().message();
+        }
+    }
+
     m_kdotoolAvailable = !QStandardPaths::findExecutable(QStringLiteral("kdotool")).isEmpty();
     if (!windowManagementAvailable()) {
         qWarning() << "AgildoDock: sem kdotool nem integração X11 (KF6/KX11Extras) disponível nesta sessão Qt — foco, minimizar,"
@@ -190,6 +205,86 @@ bool TaskBackend::kwinIntegrationAvailable() const
 bool TaskBackend::windowManagementAvailable() const
 {
     return DockWindowManagement::fullForeignWindowCtlAvailable(m_kdotoolAvailable);
+}
+
+QStringList TaskBackend::appKeysForCommand(const QString &command) const
+{
+    QStringList keys;
+    if (command.trimmed().isEmpty()) {
+        return keys;
+    }
+    // Exec básico
+    const QString exec = execBasenameFromCommand(command);
+    if (!exec.isEmpty()) {
+        keys << exec.toLower();
+    }
+
+    // Se o comando estiver no índice de apps conhecidas, adiciona wmclass e/ou appId quando existir.
+    if (knownApps.contains(command)) {
+        const QVariantMap row = knownApps.value(command);
+        const QString wm = row.value(QStringLiteral("wmclass")).toString().trimmed().toLower();
+        if (!wm.isEmpty() && !keys.contains(wm)) {
+            keys << wm;
+        }
+        // Alguns .desktop podem guardar appId explicitamente (se existir no índice).
+        const QString appId = row.value(QStringLiteral("appid")).toString().trimmed().toLower();
+        if (!appId.isEmpty() && !keys.contains(appId)) {
+            keys << appId;
+        }
+    }
+    keys.removeAll(QString());
+    keys.removeDuplicates();
+    return keys;
+}
+
+void TaskBackend::setIconRectForKeys(const QStringList &keys, int x, int y, int w, int h, const QString &screenName)
+{
+    if (keys.isEmpty()) {
+        return;
+    }
+    const bool valid = (w > 0 && h > 0);
+    for (const QString &kRaw : keys) {
+        const QString k = kRaw.trimmed().toLower();
+        if (k.isEmpty()) {
+            continue;
+        }
+        if (!valid) {
+            m_iconRects.remove(k);
+            continue;
+        }
+        QVariantMap row;
+        row.insert(QStringLiteral("x"), x);
+        row.insert(QStringLiteral("y"), y);
+        row.insert(QStringLiteral("w"), w);
+        row.insert(QStringLiteral("h"), h);
+        row.insert(QStringLiteral("screen"), screenName);
+        m_iconRects.insert(k, row);
+    }
+}
+
+QVariantMap TaskBackend::GetIconRect(const QString &appKey) const
+{
+    const QString k = appKey.trimmed().toLower();
+    if (k.isEmpty()) {
+        return {};
+    }
+    if (m_iconRects.contains(k)) {
+        return m_iconRects.value(k);
+    }
+    // WM_CLASS / windowClass do KWin (ex.: "dolphin dolphin").
+    const QStringList tokens =
+        k.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+    for (const QString &token : tokens) {
+        if (m_iconRects.contains(token)) {
+            return m_iconRects.value(token);
+        }
+    }
+    // Fallback: se vier algo como org.kde.dolphin, tenta o basename.
+    const QString tail = k.split(QLatin1Char('.')).last();
+    if (!tail.isEmpty() && m_iconRects.contains(tail)) {
+        return m_iconRects.value(tail);
+    }
+    return {};
 }
 
 void TaskBackend::setMainWindow(QWindow *win)

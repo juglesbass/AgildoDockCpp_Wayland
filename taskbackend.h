@@ -17,6 +17,7 @@
 class TaskBackend : public QObject
 {
     Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "org.agildosoft.AgildoDock")
     Q_PROPERTY(bool activeWindowCoversWorkArea READ activeWindowCoversWorkArea NOTIFY activeWindowCoversWorkAreaChanged)
     Q_PROPERTY(bool kdotoolAvailable READ kdotoolAvailable CONSTANT)
     Q_PROPERTY(bool windowManagementAvailable READ windowManagementAvailable CONSTANT)
@@ -61,6 +62,20 @@ public:
     Q_INVOKABLE bool saveTextFile(const QString &path, const QString &utf8Text) const;
     Q_INVOKABLE QString loadTextFile(const QString &path) const;
     Q_INVOKABLE QString defaultDockAppsExportPath() const;
+
+    /// Retorna chaves de mapeamento para ícone (appId/wmclass/exec) a partir do comando.
+    Q_INVOKABLE QStringList appKeysForCommand(const QString &command) const;
+    /// Atualiza o retângulo global do ícone para um conjunto de chaves.
+    Q_INVOKABLE void setIconRectForKeys(const QStringList &keys,
+                                        int x,
+                                        int y,
+                                        int w,
+                                        int h,
+                                        const QString &screenName);
+
+public slots:
+    /// D-Bus: obtém retângulo global do ícone por chave (appId/wmclass/exec).
+    Q_SCRIPTABLE QVariantMap GetIconRect(const QString &appKey) const;
 
 signals:
     void windowsUpdated();
@@ -123,6 +138,9 @@ private:
     QStringList resolveAllWindowTokens(const QString &command) const;
     QString windowTitleForToken(const QString &token) const;
     void killProcessesForCommand(const QString &command) const;
+
+    // appKey (lower) -> {x,y,w,h,screen}
+    QHash<QString, QVariantMap> m_iconRects;
 };
 
 #endif // TASKBACKEND_H

@@ -83,6 +83,21 @@ Window {
         iconContextMenu.openForIcon(anchorItem, data)
     }
 
+    function publishIconRect(iconItem, cmd) {
+        if (!iconItem || !cmd || cmd === "") {
+            return
+        }
+        const keys = taskBackend.appKeysForCommand(cmd)
+        if (!keys || keys.length === 0) {
+            return
+        }
+        const g = iconItem.mapToGlobal(0, 0)
+        const w = Math.round(iconItem.width)
+        const h = Math.round(iconItem.height)
+        taskBackend.setIconRectForKeys(keys, Math.round(g.x), Math.round(g.y), w, h,
+                                      (root.screen && root.screen.name) ? root.screen.name : "")
+    }
+
     function lockDockForContextMenu(locked, anchorLogicalX) {
         dockContextMenuOpen = locked
         if (locked) {

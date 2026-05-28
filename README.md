@@ -72,6 +72,32 @@ cmake --build build --target agildodock_lupdate
 - Pré-visualização gráfica de janelas (miniaturas KWin): não implementada; usa lista de títulos no menu  
 - Gestos multi-toque (pinch): não implementados  
 
+## Efeito KWin: “sugar” ao minimizar (opcional)
+
+Para ter uma animação tipo macOS (a janela “vai” até o ícone na doca), é necessário um **efeito do KWin**.
+No Wayland, a doca não consegue animar janelas de terceiros sozinha.
+
+### Compilar e instalar com o efeito
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_KWIN_EFFECT=ON
+cmake --build build
+sudo cmake --install build
+```
+
+### Activar no Plasma
+
+1. Abrir **Configurações do Sistema → Área de Trabalho → Efeitos da Área de Trabalho**  
+2. Desactivar outros efeitos de **minimizar** (ex.: *Squash*, *Lâmpada mágica*) — só um pode estar activo por vez  
+3. Procurar por **“AgildoDock: Sugar ao minimizar”** e activar  
+4. Reiniciar o KWin (`kwin_wayland --replace` ou terminar sessão) e minimizar uma janela
+
+### Como funciona
+
+- O efeito do KWin consulta via D-Bus a posição do ícone na doca (`org.agildosoft.AgildoDock` → `GetIconRect`).  
+- A doca publica o retângulo global do ícone enquanto estiver visível.  
+- Se não houver ícone correspondente, o efeito não anima (fallback padrão do KWin).
+
 ## Licença
 
 Ver `packaging/aur/LICENSE` e campo `license` no PKGBUILD (GPL-3.0-or-later).

@@ -15,6 +15,8 @@ find_package(KF6Kirigami REQUIRED)
 find_package(LayerShellQt REQUIRED)
 find_package(KF6GlobalAccel QUIET COMPONENTS GlobalAccel)
 
+option(ENABLE_KWIN_EFFECT "Instalar efeito KWin (sugar ao minimizar)" OFF)
+
 add_executable(agildodock
     main.cpp
     taskbackend.cpp
@@ -112,6 +114,12 @@ install(FILES
 
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/metainfo/org.agildosoft.agildodock.metainfo.xml"
     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/metainfo")
+
+if(ENABLE_KWIN_EFFECT)
+    # Efeito do KWin (JS). Instala em share/kwin/effects/<id>/...
+    install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/kwin-effect-suck-minimize/"
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/kwin/effects/agildodock_suck_minimize")
+endif()
 
 include(CTest)
 enable_testing()

@@ -310,6 +310,32 @@ Item {
             anchors.bottom: parent.bottom
             anchors.bottomMargin: 10 * dock.liveScaleFactor
 
+            // Publica o retângulo global do ícone (para o efeito do KWin).
+            Timer {
+                id: rectPublishTimer
+                interval: 60
+                repeat: false
+                onTriggered: {
+                    if (!delegateRoot.isValid || isSeparator || isLauncherItem) return
+                    if (delegateRoot.itemCmd === "") return
+                    if (!delegateRoot.visible || delegateRoot.opacity <= 0.02) return
+                    dock.publishIconRect(appIcon, delegateRoot.itemCmd)
+                }
+            }
+
+            function schedulePublish() {
+                if (dock && dock.publishIconRect) {
+                    rectPublishTimer.restart()
+                }
+            }
+
+            onXChanged: schedulePublish()
+            onYChanged: schedulePublish()
+            onWidthChanged: schedulePublish()
+            onHeightChanged: schedulePublish()
+            onScaleChanged: schedulePublish()
+            Component.onCompleted: schedulePublish()
+
             transform: Translate {
                 id: bounceTranslate
                 y: 0
