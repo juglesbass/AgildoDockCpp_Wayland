@@ -62,14 +62,6 @@ bool activatePackedOrMinimize(const QString &packedWin,
 
 bool closePackedWindow(const QString &packedWin, bool kdotoolAvailable);
 
-/// Todas as janelas que correspondem ao comando (ordem: topo do stacking primeiro).
-QStringList resolveAllWindowHandlesForCommand(const QString &command,
-                                              const QHash<QString, QVariantMap> &knownApps,
-                                              bool kdotoolAvailable,
-                                              int kdotoolTimeoutMs);
-
-bool activateWindowToken(const QString &packedOrDecimalWin, bool kdotoolAvailable);
-
 } // namespace DockWindowManagement
 
 #endif

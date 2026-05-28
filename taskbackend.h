@@ -42,14 +42,21 @@ public:
     Q_INVOKABLE QVariantList getUnpinnedApps(const QVariantList &pinnedCmdsVar);
     Q_INVOKABLE void forceLaunchApp(const QString &command);
     Q_INVOKABLE void launchApp(const QString &command);
-    Q_INVOKABLE void closeApp(const QString &command, bool killProcessIfNoWindow = false);
-    Q_INVOKABLE int windowCountForCommand(const QString &command);
-    Q_INVOKABLE void cycleAppWindows(const QString &command, bool forward);
+    Q_INVOKABLE void closeApp(const QString &command);
     Q_INVOKABLE bool isAppRunning(const QString &command);
     Q_INVOKABLE bool isAppFocused(const QString &command);
     Q_INVOKABLE QVariantMap parseDropInfo(const QString &urlStr);
     /// Centraliza filtro de apps que não devem aparecer na área dinâmica (ex.: Agildo Monitor).
     Q_INVOKABLE bool shouldHideFromDock(const QString &cmd, const QString &name) const;
+    /// Persiste snapshot da lista de apps fixadas com escrita atômica.
+    Q_INVOKABLE bool saveDockAppsSnapshot(const QString &dockAppsJson) const;
+    /// Recupera snapshot salvo (fallback para .bak se necessário).
+    Q_INVOKABLE QString loadDockAppsSnapshot() const;
+    /// Persistência genérica para presets/perfis/widgets (JSON).
+    Q_INVOKABLE bool writeUserJsonFile(const QString &relativeName, const QString &jsonText) const;
+    Q_INVOKABLE QString readUserJsonFile(const QString &relativeName) const;
+    /// Log de debug com categoria (respeita AGILDO_DOCK_DEBUG e AGILDO_DOCK_DEBUG_CATS).
+    Q_INVOKABLE void debugLog(const QString &category, const QString &message) const;
 
 signals:
     void windowsUpdated();
@@ -57,7 +64,7 @@ signals:
 
 private slots:
     void completeLaunchApp(const QString &command, const QString &winId);
-    void completeCloseApp(const QString &command, const QString &winId, bool killIfNoWindow = false);
+    void completeCloseApp(const QString &command, const QString &winId);
     void flushBlurRegion();
 
 private:
@@ -74,6 +81,11 @@ private:
     static QString execBasenameFromCommand(const QString &command);
 
     void updateActiveWindowCoversWorkAreaHint();
+    void emitWindowsUpdatedCoalesced();
+    static QString dockAppsSnapshotPath();
+    static QString dockAppsSnapshotBackupPath();
+    static QString appDataPathForFile(const QString &relativeName);
+    bool debugCategoryEnabled(const QString &category) const;
 
     QHash<QString, QVariantMap> knownApps;
     QMultiHash<QString, QVariantMap> m_appsByExec;
@@ -104,10 +116,8 @@ private:
     /// Descarta conclusões antigas quando há vários cliques rápidos no mesmo comando.
     QHash<QString, quint64> m_launchSeq;
     QHash<QString, quint64> m_closeSeq;
-    QHash<QString, int> m_cycleWindowIndex;
-
-    QStringList resolveAllWindowTokens(const QString &command) const;
-    void killProcessesForCommand(const QString &command) const;
+    bool m_debugLogsEnabled = false;
+    bool m_windowsUpdatedPending = false;
 };
 
 #endif // TASKBACKEND_H

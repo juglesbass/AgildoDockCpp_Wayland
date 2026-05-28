@@ -13,12 +13,6 @@
   <launchable type="desktop-id">org.agildosoft.agildodock.desktop</launchable>
   <url type="homepage">https://agildosoft.com</url>
   <releases>
-    <release version="1.1.1" date="2026-05-26">
-      <description>
-        <p>Correção: a doca permanece centrada na margem inferior ao guardar configurações.</p>
-      </description>
-    </release>
-    <release version="1.1" date="2026-05-19"/>
     <release version="1.0.0" date="2026-05-15"/>
   </releases>
   <content_rating type="oars-1.1"/>

@@ -185,9 +185,8 @@ static bool stackingWindowBelongsToCommand(const QString &command,
 }
 
 #if defined(KWINDOWSYSTEM_HAVE_X11) && QT_CONFIG(xcb)
-static QList<WId> allOwnedX11Windows(const QString &command, const QHash<QString, QVariantMap> &knownApps)
+static WId topmostOwnedX11Window(const QString &command, const QHash<QString, QVariantMap> &knownApps)
 {
-    QList<WId> matches;
     const QList<WId> order = KX11Extras::stackingOrder();
     for (qsizetype i = order.size() - 1; i >= 0; --i) {
         const WId wid = order.at(i);
@@ -198,30 +197,12 @@ static QList<WId> allOwnedX11Windows(const QString &command, const QHash<QString
         const QString clsBlob = combinedWmLower(iw.windowClassName(), iw.windowClassClass());
         const QString caption = iw.visibleName().toLower();
         if (stackingWindowBelongsToCommand(command, clsBlob, caption, knownApps)) {
-            matches.append(wid);
+            return wid;
         }
     }
-    return matches;
-}
-
-static WId topmostOwnedX11Window(const QString &command, const QHash<QString, QVariantMap> &knownApps)
-{
-    const QList<WId> all = allOwnedX11Windows(command, knownApps);
-    return all.isEmpty() ? 0 : all.constFirst();
+    return 0;
 }
 #endif
-
-static QStringList allKdotoolSearchHits(const QStringList &args, int timeoutMs)
-{
-    QProcess p;
-    p.start(QStringLiteral("kdotool"), args);
-    p.waitForFinished(timeoutMs);
-    const QString raw = QString::fromUtf8(p.readAllStandardOutput()).trimmed();
-    if (raw.isEmpty()) {
-        return {};
-    }
-    return raw.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
-}
 
 } // namespace
 
@@ -474,96 +455,6 @@ bool activatePackedOrMinimize(const QString &packedWin,
     Q_UNUSED(commandForHints);
     return false;
 #endif
-}
-
-QStringList resolveAllWindowHandlesForCommand(const QString &command,
-                                              const QHash<QString, QVariantMap> &knownApps,
-                                              bool kdotoolAvailable,
-                                              int kdotoolTimeoutMs)
-{
-    QStringList handles;
-    if (command.isEmpty()) {
-        return handles;
-    }
-
-#if defined(KWINDOWSYSTEM_HAVE_X11) && QT_CONFIG(xcb)
-    if (nativeX11ClientUsable()) {
-        const QList<WId> xids = allOwnedX11Windows(command, knownApps);
-        handles.reserve(xids.size());
-        for (const WId wid : xids) {
-            const QString packed = encodeX11WId(wid);
-            if (!handles.contains(packed)) {
-                handles.append(packed);
-            }
-        }
-        if (!handles.isEmpty()) {
-            return handles;
-        }
-    }
-#else
-    Q_UNUSED(knownApps);
-#endif
-
-    if (!kdotoolAvailable) {
-        return handles;
-    }
-
-    QString wmDesk = knownApps.value(command)[QStringLiteral("wmclass")].toString().toLower();
-    QString nameDesk = knownApps.value(command)[QStringLiteral("name")].toString();
-
-    QString appIdDummy;
-    const QVector<KdotoolSearchFilter> chain =
-        buildKdotoolSearchChain(command, strippedExecBasename(command), wmDesk, nameDesk, &appIdDummy);
-    Q_UNUSED(appIdDummy);
-
-    for (const KdotoolSearchFilter &f : chain) {
-        QStringList args{QStringLiteral("search")};
-        if (f.byName) {
-            args << QStringLiteral("--name") << f.needle;
-        } else {
-            args << QStringLiteral("--class") << f.needle;
-        }
-        const QStringList hits = allKdotoolSearchHits(args, kdotoolTimeoutMs);
-        for (const QString &hit : hits) {
-            const QString trimmed = hit.trimmed();
-            if (!trimmed.isEmpty() && !handles.contains(trimmed)) {
-                handles.append(trimmed);
-            }
-        }
-    }
-    return handles;
-}
-
-bool activateWindowToken(const QString &packedOrDecimalWin, bool kdotoolAvailable)
-{
-    if (packedOrDecimalWin.isEmpty()) {
-        return false;
-    }
-    if (packedOrDecimalWin.startsWith(QLatin1String("x11:"))) {
-        WId wid = 0;
-        if (!decodeX11WId(packedOrDecimalWin, &wid)) {
-            return false;
-        }
-#if defined(KWINDOWSYSTEM_HAVE_X11) && QT_CONFIG(xcb)
-        if (nativeX11ClientUsable()) {
-            KX11Extras::forceActiveWindow(wid);
-            return true;
-        }
-#endif
-        if (kdotoolAvailable) {
-            QProcess::startDetached(QStringLiteral("kdotool"),
-                                    {QStringLiteral("windowactivate"),
-                                     QStringLiteral("0x") + QString::number(static_cast<quintptr>(wid), 16)});
-            return true;
-        }
-        return false;
-    }
-    if (kdotoolAvailable) {
-        QProcess::startDetached(QStringLiteral("kdotool"),
-                                {QStringLiteral("windowactivate"), packedOrDecimalWin});
-        return true;
-    }
-    return false;
 }
 
 bool closePackedWindow(const QString &packedWin, bool kdotoolAvailable)
