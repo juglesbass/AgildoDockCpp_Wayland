@@ -11,6 +11,7 @@
 #include <QMetaObject>
 #include <QSaveFile>
 #include <QStandardPaths>
+#include <QPainterPath>
 #include <QProcessEnvironment>
 #include <QRegularExpression>
 #include <QRegion>
@@ -816,12 +817,14 @@ void TaskBackend::flushBlurRegion()
     int safeW = qBound(0, adjW, m_mainWindow->width() - safeX);
     int safeH = qBound(0, adjH, m_mainWindow->height() - safeY);
 
+    const int radius = m_pendingBlurRadius;
+
     if (safeW < 10 || safeH < 10) {
         return;
     }
 
     if (m_hasLastBlur && m_lastBlurX == safeX && m_lastBlurY == safeY
-        && m_lastBlurW == safeW && m_lastBlurH == safeH) {
+        && m_lastBlurW == safeW && m_lastBlurH == safeH && m_lastBlurRadius == radius) {
         return;
     }
 
@@ -830,9 +833,11 @@ void TaskBackend::flushBlurRegion()
     m_lastBlurY = safeY;
     m_lastBlurW = safeW;
     m_lastBlurH = safeH;
+    m_lastBlurRadius = radius;
 
-    // Wayland: um único retângulo — regiões complexas causam flash na janela inteira
-    QRegion blurRegion(safeX, safeY, safeW, safeH);
+    QPainterPath path;
+    path.addRoundedRect(safeX, safeY, safeW, safeH, radius, radius);
+    const QRegion blurRegion(path.toFillPolygon().toPolygon());
     KWindowEffects::enableBlurBehind(m_mainWindow, true, blurRegion);
 }
 

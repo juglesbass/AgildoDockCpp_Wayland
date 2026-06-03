@@ -1495,7 +1495,7 @@ Window {
                     Math.round(realY),
                     Math.round(dockBg.width),
                     Math.round(dockBg.height),
-                    0 // Um único retângulo no KWin Wayland
+                    Math.round(dockBg.radius)
                 )
             }
 
