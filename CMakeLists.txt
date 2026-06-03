@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(agildodock VERSION 1.3.1 LANGUAGES CXX)
+project(agildodock VERSION 1.3.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -21,6 +21,8 @@ add_executable(agildodock
     dock_window_management.cpp
     dock_global_shortcuts.cpp
 )
+
+target_compile_definitions(agildodock PRIVATE AGILDO_DOCK_VERSION="${PROJECT_VERSION}")
 
 qt6_add_qml_module(agildodock
     URI AgildoDock
@@ -123,4 +125,5 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/metainfo/org.agildosoft.agildodo
 include(CTest)
 enable_testing()
 add_test(NAME agildodock_version COMMAND $<TARGET_FILE:agildodock> --version)
-set_tests_properties(agildodock_version PROPERTIES PASS_REGULAR_EXPRESSION "AgildoDock 1\\.0")
+set_tests_properties(agildodock_version PROPERTIES
+    PASS_REGULAR_EXPRESSION "AgildoDock ${PROJECT_VERSION}")
