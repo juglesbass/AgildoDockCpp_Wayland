@@ -13,6 +13,7 @@
 #include <QtGlobal>
 #include <LayerShellQt/Window>
 #include "taskbackend.h"
+#include "dock_global_shortcuts.h"
 
 namespace {
 
@@ -83,7 +84,7 @@ int main(int argc, char *argv[]) {
     QCoreApplication::setOrganizationName("AgildoSoft");
     QCoreApplication::setOrganizationDomain("agildosoft.com");
     QCoreApplication::setApplicationName("AgildoDock");
-    QCoreApplication::setApplicationVersion(QStringLiteral("1.0"));
+    QCoreApplication::setApplicationVersion(QStringLiteral("1.3"));
 
     for (int i = 1; i < argc; ++i) {
         if (qstrcmp(argv[i], "--version") == 0 || qstrcmp(argv[i], "-v") == 0) {
@@ -109,6 +110,9 @@ int main(int argc, char *argv[]) {
 
     TaskBackend *taskBackend = new TaskBackend(&app);
     engine.rootContext()->setContextProperty("taskBackend", taskBackend);
+
+    // Atalhos globais (KGlobalAccel) — independentes do foco na doca.
+    DockGlobalShortcuts *globalShortcuts = nullptr;
 
     // Com QTP0001 o QML fica em :/qt/qml/<URI>/ (não :/AgildoDock/). main.qml não é tipo no qmldir — carregar por URL.
     const QUrl url(QStringLiteral("qrc:/qt/qml/AgildoDock/main.qml"));
@@ -139,13 +143,14 @@ int main(int argc, char *argv[]) {
     auto layerWindow = LayerShellQt::Window::get(window);
     if (layerWindow) {
         layerWindow->setLayer(LayerShellQt::Window::LayerTop);
+        // Âncora default segura: o protocolo Layer Shell exige âncora antes de mapear a superfície.
+        // applyLayerShellFromSettings (abaixo) sobrescreve com a borda correta salva pelo utilizador.
         layerWindow->setAnchors(LayerShellQt::Window::AnchorBottom);
-        // Teclado e activateOnShow: preferências vêm do QML (applyLayerShellFromSettings), chamado
-        // depois de setMainWindow — Component.onCompleted corre antes e taskBackend ainda não tinha janela.
-        // Zona exclusiva: updateZone → taskBackend.updateExclusiveZone.
     }
 
     QObject *rootObject = engine.rootObjects().first();
+    globalShortcuts = new DockGlobalShortcuts(rootObject, &app);
+    engine.rootContext()->setContextProperty("globalShortcuts", globalShortcuts);
     QMetaObject::invokeMethod(rootObject, "applyLayerShellFromSettings", Qt::DirectConnection);
     QMetaObject::invokeMethod(rootObject, "updateZone", Qt::DirectConnection);
     QMetaObject::invokeMethod(rootObject, "applyDockRetractedState", Qt::DirectConnection);

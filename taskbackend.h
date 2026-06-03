@@ -20,6 +20,8 @@ class TaskBackend : public QObject
     Q_PROPERTY(bool activeWindowCoversWorkArea READ activeWindowCoversWorkArea NOTIFY activeWindowCoversWorkAreaChanged)
     Q_PROPERTY(bool kdotoolAvailable READ kdotoolAvailable CONSTANT)
     Q_PROPERTY(bool windowManagementAvailable READ windowManagementAvailable CONSTANT)
+    Q_PROPERTY(bool windowOverviewOnRefocus READ windowOverviewOnRefocus WRITE setWindowOverviewOnRefocus NOTIFY windowOverviewOnRefocusChanged)
+    Q_PROPERTY(QVariantMap notificationBadges READ notificationBadges NOTIFY notificationBadgesChanged)
 
 public:
     explicit TaskBackend(QObject *parent = nullptr);
@@ -35,6 +37,8 @@ public:
     Q_INVOKABLE void applyLayerShellKeyboardMode(int keyboardMode);
     /// Se false, a doca não pede ativação ao aparecer (menos interferência nas outras janelas).
     Q_INVOKABLE void setLayerShellActivateOnShow(bool activate);
+    /// Define a borda Layer Shell: 0 baixo, 1 topo, 2 esquerda, 3 direita.
+    Q_INVOKABLE void applyLayerShellEdge(int edge);
     Q_INVOKABLE void setBlurRegion(int x, int y, int w, int h, int radius);
     /// Wayland: remove a faixa superior (em px) da região que recebe ponteiro — cliques passam atrás.
     /// excludeTopPixels <= 0 repõe a superfície completa. Não altera o layout nem os tooltips.
@@ -45,7 +49,16 @@ public:
     Q_INVOKABLE void closeApp(const QString &command);
     Q_INVOKABLE bool isAppRunning(const QString &command);
     Q_INVOKABLE bool isAppFocused(const QString &command);
+    Q_INVOKABLE int appWindowCount(const QString &command);
+    Q_INVOKABLE void cycleAppWindows(const QString &command, int direction);
+    Q_INVOKABLE void adjustVolume(int deltaSteps);
+    Q_INVOKABLE void adjustBrightness(int deltaSteps);
+    Q_INVOKABLE QVariantList recentItemsForCommand(const QString &command, int maxItems = 5);
     Q_INVOKABLE QVariantMap parseDropInfo(const QString &urlStr);
+
+    bool windowOverviewOnRefocus() const { return m_windowOverviewOnRefocus; }
+    void setWindowOverviewOnRefocus(bool enabled);
+    QVariantMap notificationBadges() const { return m_notificationBadges; }
     /// Centraliza filtro de apps que não devem aparecer na área dinâmica (ex.: Agildo Monitor).
     Q_INVOKABLE bool shouldHideFromDock(const QString &cmd, const QString &name) const;
     /// Persiste snapshot da lista de apps fixadas com escrita atômica.
@@ -61,6 +74,8 @@ public:
 signals:
     void windowsUpdated();
     void activeWindowCoversWorkAreaChanged();
+    void windowOverviewOnRefocusChanged();
+    void notificationBadgesChanged();
 
 private slots:
     void completeLaunchApp(const QString &command, const QString &winId);
@@ -74,6 +89,8 @@ private:
     void rebuildExecIndex();
 
     QString resolveWindowTokenForLaunch(const QString &command);
+    bool tryShowAppWindowOverview(const QString &command);
+    QStringList windowHandlesForCommand(const QString &command);
     QVariantMap matchRunningLineToApp(const QString &cmdLineLower) const;
     static bool appMatchesRunningCmdLine(const QString &cmdLineLower, const QVariantMap &app);
 
@@ -82,6 +99,8 @@ private:
 
     void updateActiveWindowCoversWorkAreaHint();
     void emitWindowsUpdatedCoalesced();
+    void setupNotificationBadgeWatcher();
+    void refreshNotificationBadgesFromSni();
     static QString dockAppsSnapshotPath();
     static QString dockAppsSnapshotBackupPath();
     static QString appDataPathForFile(const QString &relativeName);
@@ -118,6 +137,9 @@ private:
     QHash<QString, quint64> m_closeSeq;
     bool m_debugLogsEnabled = false;
     bool m_windowsUpdatedPending = false;
+    bool m_windowOverviewOnRefocus = true;
+    QVariantMap m_notificationBadges;
+    QTimer *m_sniBadgeTimer = nullptr;
 };
 
 #endif // TASKBACKEND_H

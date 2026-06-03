@@ -11,14 +11,17 @@ Item {
 
     property bool isRunning: false
     property bool isFocused: false
+    readonly property bool isGhost: model.isGhost === true
     property bool isDynamicItem: model.isDynamic === true
     property bool isSystemItem: model.isSystem === true
     property bool isLauncherItem: model.isLauncher === true
     property bool isPinned: !isDynamicItem && !isSystemItem && !isLauncherItem
     property int itemIndex: index
     property bool isLaunching: false
+    property int windowCount: 0
     property bool isValid: model.name !== undefined && model.icon !== ""
     property bool scheduledRemove: model.removing === true
+    property bool reorderDragging: false
     property var appRule: dock.appRuleForCommand(model.cmd)
 
     Accessible.role: Accessible.Button
@@ -43,6 +46,11 @@ Item {
     }
 
     onIsRunningChanged: {
+        if (isRunning) {
+            refreshWindowCount()
+        } else {
+            windowCount = 0
+        }
         if (isRunning && isLaunching) {
             delegateRoot.isLaunching = false
             launchAnim.stop()
@@ -59,6 +67,26 @@ Item {
         }
         if (mouseArea.containsMouse && !hoverDelay.running) {
             refreshNameTip()
+        }
+    }
+
+    function refreshWindowCount() {
+        if (!delegateRoot.isRunning || !model.cmd) {
+            delegateRoot.windowCount = 0
+            return
+        }
+        delegateRoot.windowCount = taskBackend.appWindowCount(model.cmd)
+    }
+
+    Connections {
+        target: taskBackend
+        function onWindowsUpdated() {
+            if (delegateRoot.isRunning) {
+                delegateRoot.refreshWindowCount()
+            }
+        }
+        function onNotificationBadgesChanged() {
+            // força reavaliação de appRule (badge de notificação)
         }
     }
 
@@ -115,6 +143,7 @@ Item {
 
     width: isValid ? (targetIconSize + (15 * dock.liveScaleFactor)) : 0
     height: isValid ? (dock.dockBarHeightPx * dock.liveScaleFactor) : 0
+    z: reorderDragging ? 5000 : 0
 
     Connections {
         target: taskBackend
@@ -138,7 +167,7 @@ Item {
     }
 
     function refreshNameTip() {
-        if (!mouseArea.containsMouse || dock.dockContextMenuOpen || mouseArea.drag.active) {
+        if (!mouseArea.containsMouse || dock.dockContextMenuOpen || delegateRoot.reorderDragging) {
             dock.hideDockIconTip()
             return
         }
@@ -162,16 +191,36 @@ Item {
         id: visualItem
         width: parent.width
         height: parent.height
-        z: mouseArea.drag.active ? 10 : 0
+        z: delegateRoot.reorderDragging ? 10 : 0
 
-        transform: Translate {
-            id: visualEntrySlide
-            y: 0
-        }
-
-        // Sem Behavior em visualItem.y: OutBack + y=0 após drag lutava com visualEntrySlide / entrada dinâmica.
+        property real entryOpacity: delegateRoot.isGhost ? 0.35 : 1.0
+        opacity: entryOpacity
         scale: 0.0
-        opacity: 0.0
+
+        transform: [
+            Translate {
+                id: visualEntrySlide
+                y: 0
+            },
+            Scale {
+                id: dragLift
+                origin.x: visualItem.width / 2
+                origin.y: visualItem.height - (12 * dock.liveScaleFactor)
+                xScale: delegateRoot.reorderDragging ? 1.14 : 1.0
+                yScale: delegateRoot.reorderDragging ? 1.14 : 1.0
+                Behavior on xScale {
+                    NumberAnimation { duration: 240; easing.type: Easing.OutBack; easing.overshoot: 1.06 }
+                }
+                Behavior on yScale {
+                    NumberAnimation { duration: 240; easing.type: Easing.OutBack; easing.overshoot: 1.06 }
+                }
+            }
+        ]
+
+        Behavior on opacity {
+            enabled: !delegateRoot.isGhost && !delegateRoot.reorderDragging
+            NumberAnimation { duration: 280; easing.type: Easing.OutCubic }
+        }
 
         Component.onCompleted: {
             if (delegateRoot.isDynamicItem) {
@@ -197,7 +246,7 @@ Item {
                 target: visualItem
                 property: "opacity"
                 from: 0.0
-                to: 1.0
+                to: visualItem.entryOpacity
                 duration: 280
                 easing.type: Easing.OutCubic
             }
@@ -261,7 +310,7 @@ Item {
             }
         }
 
-        Drag.active: mouseArea.drag.active
+        Drag.active: delegateRoot.reorderDragging
         Drag.source: delegateRoot
         Drag.keys: ["appItemDrag"]
         Drag.hotSpot.x: width / 2
@@ -269,8 +318,8 @@ Item {
 
         Timer {
             id: hoverDelay
-            interval: 320
-            running: mouseArea.containsMouse && !dock.dockContextMenuOpen && !mouseArea.drag.active
+            interval: 200
+            running: mouseArea.containsMouse && !dock.dockContextMenuOpen && !delegateRoot.reorderDragging
             repeat: false
             onTriggered: delegateRoot.refreshNameTip()
         }
@@ -293,6 +342,28 @@ Item {
             x: Math.round((parent.width - maxVisualSize) / 2)
             anchors.bottom: parent.bottom
             anchors.bottomMargin: 10 * dock.liveScaleFactor
+
+            // Sombra suave ao arrastar (efeito “levitar”).
+            Rectangle {
+                visible: delegateRoot.reorderDragging
+                z: -1
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.bottom
+                anchors.topMargin: Math.round(2 * dock.liveScaleFactor)
+                width: Math.round(parent.width * 0.72)
+                height: Math.max(5, Math.round(7 * dock.liveScaleFactor))
+                radius: height / 2
+                color: "#000000"
+                opacity: 0.42
+                scale: 1.0 + Math.min(0.25, Math.max(Math.abs(visualItem.x), Math.abs(visualItem.y)) / Math.max(1, dock.baseStride))
+
+                Behavior on opacity {
+                    NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+                }
+                Behavior on scale {
+                    NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+                }
+            }
 
             transform: Translate {
                 id: bounceTranslate
@@ -374,154 +445,73 @@ Item {
             opacity: delegateRoot.isRunning ? 1.0 : 0.0
             scale: (dock.liveIndicatorStyle === 4 && delegateRoot.isRunning) ? (delegateRoot.isFocused ? 1.12 : 1.0) : 1.0
 
-            Behavior on width {
-                NumberAnimation {
-                    duration: 280
-                    easing.type: Easing.OutBack
-                }
+            Behavior on width  { NumberAnimation { duration: 280; easing.type: Easing.OutBack } }
+            Behavior on height { NumberAnimation { duration: 280; easing.type: Easing.OutBack } }
+            Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.InOutQuad } }
+            Behavior on color  { ColorAnimation  { duration: 280 } }
+        }
+
+        // Ripple de confirmação de clique — expande e desaparece ao lançar um app
+        Rectangle {
+            id: ripple
+            anchors.horizontalCenter: appIcon.horizontalCenter
+            anchors.verticalCenter: appIcon.verticalCenter
+            width: Math.round(delegateRoot.targetIconSize * 1.1)
+            height: width
+            radius: width / 2
+            color: "transparent"
+            border.color: Qt.rgba(1, 1, 1, 0.55)
+            border.width: Math.max(1, Math.round(1.5 * dock.liveScaleFactor))
+            scale: 0.0
+            opacity: 0.0
+            z: 8
+
+            function play() {
+                rippleScaleAnim.restart()
+                rippleOpacityAnim.restart()
             }
-            Behavior on height {
-                NumberAnimation {
-                    duration: 280
-                    easing.type: Easing.OutBack
-                }
+
+            NumberAnimation {
+                id: rippleScaleAnim
+                target: ripple
+                property: "scale"
+                from: 0.4
+                to: 1.5
+                duration: 480
+                easing.type: Easing.OutCubic
             }
-            Behavior on opacity {
-                NumberAnimation {
-                    duration: 200
-                    easing.type: Easing.InOutQuad
-                }
-            }
-            Behavior on color {
-                ColorAnimation {
-                    duration: 280
-                }
+            NumberAnimation {
+                id: rippleOpacityAnim
+                target: ripple
+                property: "opacity"
+                from: 0.7
+                to: 0.0
+                duration: 480
+                easing.type: Easing.OutCubic
             }
         }
 
-        MouseArea {
-            id: mouseArea
-            z: 100
-            anchors.fill: parent
-            anchors.topMargin: -Math.max(0, delegateRoot.targetIconSize - delegateRoot.height + (10 * dock.liveScaleFactor))
-            anchors.bottomMargin: -40
-            anchors.leftMargin: -dock.baseSpacing / 2
-            anchors.rightMargin: -dock.baseSpacing / 2
-            hoverEnabled: true
-            acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
-            drag.target: (delegateRoot.isPinned && dock.liveDockEditMode) ? visualItem : null
-            drag.axis: Drag.XAxis
+        Rectangle {
+            visible: delegateRoot.windowCount >= 2 && dock.liveBehaviorWindowOverviewOnRefocus
+            anchors.left: appIcon.left
+            anchors.bottom: appIcon.bottom
+            anchors.leftMargin: -3
+            anchors.bottomMargin: -2
+            width: Math.max(14, winCountLabel.implicitWidth + 8)
+            height: 14
+            radius: 7
+            color: "#455A64"
+            border.color: "#88FFFFFF"
+            border.width: 1
+            z: 5
 
-            function updateLogicalMouse(mx) {
-                if (dock.dockHovered || dock.waveAmplitude > 0.02) {
-                    return
-                }
-                var logicalStart = delegateRoot.myLogicalX - (dock.baseSpacing / 2)
-                var logicalWidth = dock.baseItemWidth + dock.baseSpacing
-                dock.logicalMouseX = logicalStart + ((mx / width) * logicalWidth)
-            }
-
-            onPositionChanged: (mouse) => {
-                updateLogicalMouse(mouse.x)
-                if (mouseArea.containsMouse && !hoverDelay.running && !dock.dockContextMenuOpen && !mouseArea.drag.active) {
-                    delegateRoot.refreshNameTip()
-                }
-                if (mouseArea.drag.active && delegateRoot.isPinned) {
-                    var jumpLimit = dock.baseStride * 0.60
-                    while (visualItem.x > jumpLimit && delegateRoot.itemIndex < dock.appModel.count - 1) {
-                        dock.appModel.move(delegateRoot.itemIndex, delegateRoot.itemIndex + 1, 1)
-                        visualItem.x -= dock.baseStride
-                    }
-                    while (visualItem.x < -jumpLimit && delegateRoot.itemIndex > 0) {
-                        dock.appModel.move(delegateRoot.itemIndex, delegateRoot.itemIndex - 1, 1)
-                        visualItem.x += dock.baseStride
-                    }
-                }
-            }
-
-            onEntered: updateLogicalMouse(mouseX)
-
-            onContainsMouseChanged: {
-                if (!mouseArea.containsMouse) {
-                    dock.hideDockIconTip()
-                }
-            }
-
-            onReleased: {
-                if (visualItem.Drag.active || visualItem.x !== 0) {
-                    visualItem.Drag.drop()
-                    visualItem.x = 0
-                    visualItem.y = 0
-                    dock.saveApps()
-                }
-            }
-
-            onClicked: (mouse) => {
-                if (mouse.button === Qt.RightButton) {
-                    dock.showIconContextMenu(appIcon, {
-                        cmd: model.cmd,
-                        name: model.name,
-                        icon: model.icon,
-                        logicalCenter: delegateRoot.myLogicalCenter,
-                        isLauncher: isLauncherItem,
-                        isSeparator: false,
-                        isSystem: isSystemItem,
-                        isDynamic: isDynamicItem,
-                        isRunning: delegateRoot.isRunning,
-                        isFocused: delegateRoot.isFocused,
-                        itemIndex: delegateRoot.itemIndex,
-                        delegate: delegateRoot
-                    })
-                    return
-                }
-                if (mouse.button === Qt.MiddleButton) {
-                    if (dock.liveMiddleClickAction === 1) {
-                        taskBackend.closeApp(model.cmd)
-                        return
-                    }
-                    if (dock.liveMiddleClickAction === 2) {
-                        taskBackend.forceLaunchApp(model.cmd)
-                        return
-                    }
-                    if (dock.liveMiddleClickAction === 3 && delegateRoot.isRunning) {
-                        taskBackend.launchApp(model.cmd)
-                        return
-                    }
-                }
-                if (delegateRoot.isLaunching) {
-                    return
-                }
-                if (dock.liveLeftClickAction === 1) {
-                    dock.showIconContextMenu(appIcon, {
-                        cmd: model.cmd,
-                        name: model.name,
-                        icon: model.icon,
-                        logicalCenter: delegateRoot.myLogicalCenter,
-                        isLauncher: isLauncherItem,
-                        isSeparator: false,
-                        isSystem: isSystemItem,
-                        isDynamic: isDynamicItem,
-                        isRunning: delegateRoot.isRunning,
-                        isFocused: delegateRoot.isFocused,
-                        itemIndex: delegateRoot.itemIndex,
-                        delegate: delegateRoot
-                    })
-                    return
-                }
-                if (dock.liveLeftClickAction === 2) {
-                    taskBackend.forceLaunchApp(model.cmd)
-                    return
-                }
-                if (!isLauncherItem && !delegateRoot.isRunning) {
-                    delegateRoot.isLaunching = true
-                    launchAnim.start()
-                } else {
-                    singleJumpAnim.start()
-                }
-                if (!isLauncherItem && !isSystemItem && delegateRoot.isFocused) {
-                    dock.playMinimizeSuckAt(appIcon)
-                }
-                taskBackend.launchApp(model.cmd)
+            Text {
+                id: winCountLabel
+                anchors.centerIn: parent
+                text: String(delegateRoot.windowCount)
+                color: "white"
+                font.pixelSize: 9
+                font.bold: true
             }
         }
 
@@ -546,6 +536,210 @@ Item {
                 font.pixelSize: 9
                 font.bold: true
             }
+        }
+    }
+
+    // MouseArea fora do visualItem: arrastar o filho a partir daqui funciona no Wayland.
+    MouseArea {
+        id: mouseArea
+        z: 100
+        anchors.fill: parent
+        anchors.topMargin: -Math.max(0, delegateRoot.targetIconSize - delegateRoot.height + (10 * dock.liveScaleFactor))
+        anchors.bottomMargin: -40
+        anchors.leftMargin: -dock.baseSpacing / 2
+        anchors.rightMargin: -dock.baseSpacing / 2
+        hoverEnabled: true
+        acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
+        propagateComposedEvents: false
+
+        readonly property real reorderDragThreshold: Math.max(8, Math.round(14 * dock.liveScaleFactor))
+        property bool suppressNextClick: false
+        property int reorderStartIndex: delegateRoot.itemIndex
+        property real reorderPressAxis: 0
+
+        WheelHandler {
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            onWheel: (event) => {
+                if (!delegateRoot.isRunning || delegateRoot.isLaunching || delegateRoot.reorderDragging) {
+                    return
+                }
+                const delta = event.angleDelta.y > 0 ? 1 : -1
+                if (dock.liveScrollWheelAction === 0) {
+                    taskBackend.cycleAppWindows(model.cmd, delta)
+                } else if (dock.liveScrollWheelAction === 1) {
+                    taskBackend.adjustVolume(delta)
+                } else {
+                    taskBackend.adjustBrightness(delta)
+                }
+                event.accepted = true
+            }
+        }
+
+        function updateLogicalMouse(mx, my) {
+            if (dock.dockHovered || dock.waveAmplitude > 0.02) {
+                return
+            }
+            var logicalStart = delegateRoot.myLogicalX - (dock.baseSpacing / 2)
+            var logicalWidth = dock.baseItemWidth + dock.baseSpacing
+            if (dock.dockLayoutVertical) {
+                dock.logicalMouseX = logicalStart + ((my / height) * logicalWidth)
+            } else {
+                dock.logicalMouseX = logicalStart + ((mx / width) * logicalWidth)
+            }
+        }
+
+        onPressed: (mouse) => {
+            if (mouse.button !== Qt.LeftButton) {
+                return
+            }
+            if (delegateRoot.isPinned) {
+                reorderStartIndex = delegateRoot.itemIndex
+                reorderPressAxis = dock.dockLayoutVertical ? mouse.y : mouse.x
+                delegateRoot.reorderDragging = false
+            }
+        }
+
+        onPositionChanged: (mouse) => {
+            updateLogicalMouse(mouse.x, mouse.y)
+
+            if ((mouse.buttons & Qt.LeftButton) && delegateRoot.isPinned) {
+                const curAxis = dock.dockLayoutVertical ? mouse.y : mouse.x
+                const delta = curAxis - reorderPressAxis
+                if (!delegateRoot.reorderDragging && Math.abs(delta) >= reorderDragThreshold) {
+                    delegateRoot.reorderDragging = true
+                    dock.hideDockIconTip()
+                    dock.waveAmplitude = 0
+                }
+                if (delegateRoot.reorderDragging) {
+                    if (dock.dockLayoutVertical) {
+                        visualItem.y = delta
+                    } else {
+                        visualItem.x = delta
+                    }
+                }
+            }
+
+            if (mouseArea.containsMouse && !hoverDelay.running && !dock.dockContextMenuOpen && !delegateRoot.reorderDragging) {
+                delegateRoot.refreshNameTip()
+            }
+        }
+
+        onEntered: updateLogicalMouse(mouseX, mouseY)
+
+        onContainsMouseChanged: {
+            if (!mouseArea.containsMouse) {
+                dock.hideDockIconTip()
+            }
+        }
+
+        onReleased: (mouse) => {
+            if (delegateRoot.reorderDragging) {
+                suppressNextClick = true
+                const startIdx = reorderStartIndex
+                const axisOffset = dock.dockLayoutVertical ? visualItem.y : visualItem.x
+                const stride = dock.baseStride
+                const delta = Math.round(axisOffset / stride)
+                const target = Math.max(0, Math.min(dock.appModel.count - 1, startIdx + delta))
+
+                // Reordena primeiro; reset visual depois — evita “voltar ao slot antigo e saltar”.
+                if (target !== startIdx) {
+                    dock.appModel.move(startIdx, target, 1)
+                    dock.saveApps()
+                }
+
+                visualItem.x = 0
+                visualItem.y = 0
+                delegateRoot.reorderDragging = false
+                if (dock.dockHovered) {
+                    dock.waveAmplitude = 1.0
+                }
+                mouse.accepted = true
+                return
+            }
+            if (visualItem.x !== 0 || visualItem.y !== 0) {
+                visualItem.x = 0
+                visualItem.y = 0
+            }
+        }
+
+        onClicked: (mouse) => {
+            if (suppressNextClick) {
+                suppressNextClick = false
+                return
+            }
+            if (mouse.button === Qt.RightButton) {
+                dock.showIconContextMenu(appIcon, {
+                    cmd: model.cmd,
+                    name: model.name,
+                    icon: model.icon,
+                    logicalCenter: delegateRoot.myLogicalCenter,
+                    isLauncher: isLauncherItem,
+                    isSeparator: false,
+                    isSystem: isSystemItem,
+                    isDynamic: isDynamicItem,
+                    isRunning: delegateRoot.isRunning,
+                    isFocused: delegateRoot.isFocused,
+                    itemIndex: delegateRoot.itemIndex,
+                    delegate: delegateRoot
+                })
+                return
+            }
+            if (mouse.button === Qt.MiddleButton) {
+                const midAct = dock.effectiveMiddleClickAction(model.cmd)
+                if (midAct === 1) {
+                    taskBackend.closeApp(model.cmd)
+                    return
+                }
+                if (midAct === 2) {
+                    taskBackend.forceLaunchApp(model.cmd)
+                    return
+                }
+                if (midAct === 3 && delegateRoot.isRunning) {
+                    taskBackend.launchApp(model.cmd)
+                    return
+                }
+                return
+            }
+            if (delegateRoot.isLaunching) {
+                return
+            }
+            const leftAct = dock.effectiveLeftClickAction(model.cmd)
+            if (leftAct === 1) {
+                dock.showIconContextMenu(appIcon, {
+                    cmd: model.cmd,
+                    name: model.name,
+                    icon: model.icon,
+                    logicalCenter: delegateRoot.myLogicalCenter,
+                    isLauncher: isLauncherItem,
+                    isSeparator: false,
+                    isSystem: isSystemItem,
+                    isDynamic: isDynamicItem,
+                    isRunning: delegateRoot.isRunning,
+                    isFocused: delegateRoot.isFocused,
+                    itemIndex: delegateRoot.itemIndex,
+                    delegate: delegateRoot
+                })
+                return
+            }
+            if (leftAct === 2) {
+                taskBackend.forceLaunchApp(model.cmd)
+                return
+            }
+            ripple.play()
+            if (!isLauncherItem && !delegateRoot.isRunning) {
+                delegateRoot.isLaunching = true
+                launchAnim.start()
+            } else {
+                singleJumpAnim.start()
+            }
+            if (!isLauncherItem && !isSystemItem && delegateRoot.isFocused) {
+                const willMinimize = !dock.liveBehaviorWindowOverviewOnRefocus
+                        || taskBackend.appWindowCount(model.cmd) < 2
+                if (willMinimize) {
+                    dock.playMinimizeSuckAt(appIcon)
+                }
+            }
+            taskBackend.launchApp(model.cmd)
         }
     }
 }

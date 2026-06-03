@@ -12,6 +12,9 @@
 packaging/aur/pkg/
 packaging/aur/src/
 
+# Imagens de referência / capturas de ecrã locais (não fazem parte do código)
+/assets/
+
 # Ficheiros temporários
 *~
 *.swp

@@ -42,6 +42,15 @@ QString resolveWindowHandleForLaunch(const QString &command,
 
 QString runFirstKdotoolSearchHit(const QStringList &args, int timeoutMs);
 
+// Todas as janelas que batem com a cadeia de busca (primeiro filtro com resultado).
+QStringList resolveAllWindowHandlesForLaunch(const QString &command,
+                                             const QHash<QString, QVariantMap> &knownApps,
+                                             bool kdotoolAvailable,
+                                             int kdotoolTimeoutMs);
+
+// Window View do KWin (estilo Exposé por app) — handles no formato kdotool/KWin uuid.
+bool activateKWinWindowView(const QStringList &handles);
+
 // Atualiza texto de classe+título WM da janela ativa; retorna false se só kdotool puder fazê‑lo.
 bool fillActiveHintsFromNativeStacking(QString &outClassLower,
                                        QString &outTitleLower,

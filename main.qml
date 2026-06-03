@@ -28,12 +28,12 @@ Window {
     property bool liveMonochromeIcons: false
     property int liveIndicatorStyle: 0 // 0 ponto, 1 linha, 2 barra, 3 sublinhado, 4 pulso
     property real liveIndicatorScale: 1.0
-    property int liveBg3dStyle: 1 // 0 flat, 1 glass3d suave, 2 glass premium
+    property int liveBg3dStyle: 1 // 0 plano, 1 vidro 3D suave, 2 vidro premium, 3 vidro sem 3D
     property string liveGradientColorA: "#111111"
     property string liveGradientColorB: "#191D22"
     property string liveGradientColorC: "#1E1E1E"
     property real liveGradientMix: 0.65
-    property real liveGradientAngle: 90
+    // liveGradientAngle removido — propriedade sem efeito visual (gradiente é sempre vertical)
     property real liveBorderWidth: 1.0
     property real liveBorderGlow: 0.16
     property real liveShadowStrength: 0.30
@@ -44,13 +44,15 @@ Window {
     property bool liveAutoThemeByActiveApp: false
     property bool liveDockEditMode: false
     property int liveDockEdge: 0 // 0 baixo, 1 topo, 2 esquerda, 3 direita
+    readonly property bool dockLayoutVertical: liveDockEdge === 2 || liveDockEdge === 3
     property real liveDockOffsetX: 0
     property real liveDockOffsetY: 0
     property int liveLeftClickAction: 0 // 0 padrao, 1 menu, 2 nova janela
     property int liveMiddleClickAction: 2 // 0 padrao, 1 fechar, 2 nova janela, 3 minimizar
     property int liveRightClickAction: 1 // 0 padrao, 1 menu
     property string liveToggleDockShortcut: "Ctrl+Alt+D"
-    property string liveOpenSettingsShortcut: "Ctrl+,"
+    property string liveOpenSettingsShortcut: "Meta+D"
+    property int liveScrollWheelAction: 0 // 0 janelas, 1 volume, 2 brilho
     property bool liveScheduleThemeEnabled: false
     property int liveDayThemeMode: 1
     property int liveNightThemeMode: 0
@@ -186,13 +188,124 @@ Window {
         }
     }
 
+    function normalizeAppCommandKey(cmd) {
+        if (!cmd) {
+            return ""
+        }
+        let token = String(cmd).trim().toLowerCase().split(/\s+/)[0] || ""
+        const slash = token.lastIndexOf("/")
+        if (slash >= 0) {
+            token = token.substring(slash + 1)
+        }
+        return token.replace(/['"]/g, "")
+    }
+
     function appRuleForCommand(cmd) {
         try {
             let parsed = JSON.parse(liveAppRulesJson || "{}")
+            const norm = normalizeAppCommandKey(cmd)
             let rule = parsed[cmd]
-            return rule && typeof rule === "object" ? rule : {}
+            if (!rule && norm.length > 0) {
+                for (let key in parsed) {
+                    if (normalizeAppCommandKey(key) === norm) {
+                        rule = parsed[key]
+                        break
+                    }
+                }
+            }
+            rule = rule && typeof rule === "object" ? Object.assign({}, rule) : {}
+            const nb = taskBackend.notificationBadges[cmd]
+            if (nb !== undefined && Number(nb) > 0) {
+                rule.badgeText = String(nb)
+            }
+            return rule
         } catch (e) {
             return {}
+        }
+    }
+
+    function effectiveLeftClickAction(cmd) {
+        const rule = appRuleForCommand(cmd)
+        if (rule.leftClickAction !== undefined) return rule.leftClickAction
+        return liveLeftClickAction
+    }
+    function effectiveMiddleClickAction(cmd) {
+        const rule = appRuleForCommand(cmd)
+        if (rule.middleClickAction !== undefined) return rule.middleClickAction
+        return liveMiddleClickAction
+    }
+    function effectiveRightClickAction(cmd) {
+        const rule = appRuleForCommand(cmd)
+        if (rule.rightClickAction !== undefined) return rule.rightClickAction
+        return liveRightClickAction
+    }
+
+    function setAppClickRule(cmd, field, value) {
+        let rules = {}
+        try { rules = JSON.parse(liveAppRulesJson || "{}") } catch (e) { rules = {} }
+        const norm = normalizeAppCommandKey(cmd)
+        const key = norm.length > 0 ? norm : cmd
+        // Remove chaves antigas equivalentes (ex.: "/usr/bin/chromium" vs "chromium").
+        for (let oldKey in rules) {
+            if (oldKey !== key && normalizeAppCommandKey(oldKey) === key) {
+                delete rules[oldKey]
+            }
+        }
+        if (!rules[key]) {
+            rules[key] = {}
+        }
+        rules[key][field] = value
+        liveAppRulesJson = JSON.stringify(rules)
+        dockSettings.appRulesJson = liveAppRulesJson
+        taskBackend.writeUserJsonFile("app_rules.json", liveAppRulesJson)
+    }
+
+    function migrateAppRulesJson() {
+        let rules = {}
+        try { rules = JSON.parse(liveAppRulesJson || "{}") } catch (e) { return }
+        let out = {}
+        let changed = false
+        for (let key in rules) {
+            const nk = normalizeAppCommandKey(key)
+            const target = nk.length > 0 ? nk : key
+            if (!out[target]) {
+                out[target] = {}
+            }
+            Object.assign(out[target], rules[key])
+            if (target !== key) {
+                changed = true
+            }
+        }
+        // Clique esquerdo em "Menu" no Chromium costuma ser acidental ao testar regras no menu.
+        if (out.chromium && out.chromium.leftClickAction === 1) {
+            delete out.chromium.leftClickAction
+            changed = true
+        }
+        if (changed) {
+            liveAppRulesJson = JSON.stringify(out)
+            dockSettings.appRulesJson = liveAppRulesJson
+            taskBackend.writeUserJsonFile("app_rules.json", liveAppRulesJson)
+        }
+    }
+
+    function openSettingsGlobal() {
+        settingsWin.show()
+        settingsWin.raise()
+        settingsWin.requestActivate()
+    }
+
+    function toggleDockGlobal() {
+        root.visible = !root.visible
+        if (root.visible) {
+            root.raise()
+            root.requestActivate()
+        }
+    }
+
+    function syncGlobalShortcuts() {
+        if (typeof globalShortcuts !== "undefined" && globalShortcuts) {
+            globalShortcuts.setOpenSettingsShortcut(liveOpenSettingsShortcut)
+            globalShortcuts.setToggleDockShortcut(liveToggleDockShortcut)
         }
     }
 
@@ -291,6 +404,9 @@ Window {
     property bool liveBehaviorAutoHide: false
     property bool liveBehaviorDodgeWindows: false
     property bool liveBehaviorKeepAppsFocused: false
+    property bool liveBehaviorWindowOverviewOnRefocus: true
+    property bool liveBehaviorShowUnpinnedApps: true
+    property bool liveBehaviorRememberRecentApps: false
     property int liveBehaviorAutoHideDelayMs: 900
 
     onLiveBehaviorKeepAppsFocusedChanged: applyLayerShellFromSettings()
@@ -305,8 +421,77 @@ Window {
     property bool dockAutoHideLatched: false
     property bool dockContextMenuOpen: false
 
+    onLiveDockEditModeChanged: {
+        // Legado: preferência antiga; reordenação é sempre por arrasto (estilo macOS).
+        if (liveDockEditMode) {
+            liveDockEditMode = false
+            dockSettings.dockEditMode = false
+        }
+    }
+
     function showIconContextMenu(anchorItem, data) {
         iconContextMenu.openForIcon(anchorItem, data)
+    }
+
+    function showDockSurfaceContextMenu(anchorItem, globalX, globalY) {
+        iconContextMenu.openForSurface(anchorItem, globalX, globalY)
+    }
+
+    function addPinnedAppFromDesktopUrl(urlStr) {
+        const info = taskBackend.parseDropInfo(urlStr)
+        if (!info.cmd)
+            return false
+        if (isCommandPinned(info.cmd))
+            return false
+        appModel.append({
+            name: info.name,
+            icon: info.icon,
+            cmd: info.cmd
+        })
+        saveApps()
+        return true
+    }
+
+    function systemModelContainsCmd(cmd) {
+        const norm = normalizeAppCommandKey(cmd)
+        for (let i = 0; i < systemModel.count; i++) {
+            const item = systemModel.get(i)
+            if (!item || !item.cmd)
+                continue
+            if (item.cmd === cmd)
+                return true
+            if (norm.length > 0 && normalizeAppCommandKey(item.cmd) === norm)
+                return true
+        }
+        return false
+    }
+
+    function addWidgetShortcutFromDesktopUrl(urlStr) {
+        const info = taskBackend.parseDropInfo(urlStr)
+        if (!info.cmd)
+            return false
+        if (systemModelContainsCmd(info.cmd))
+            return false
+        let arr = []
+        try {
+            arr = JSON.parse(liveWidgetsJson || "[]")
+        } catch (e) {
+            arr = []
+        }
+        if (!Array.isArray(arr))
+            arr = []
+        arr.push({
+            name: info.name,
+            icon: info.icon || "applications-system",
+            cmd: info.cmd
+        })
+        liveWidgetsJson = JSON.stringify(arr)
+        dockSettings.userWidgetsJson = liveWidgetsJson
+        if (typeof dockSettings.sync === "function")
+            dockSettings.sync()
+        taskBackend.writeUserJsonFile("widgets.json", liveWidgetsJson)
+        reloadCustomWidgets()
+        return true
     }
 
     function lockDockForContextMenu(locked, anchorLogicalX) {
@@ -374,9 +559,13 @@ Window {
 
     property real safePadding: Math.max(160, (root.baseStride * root.dockWaveRadiusStrideFactor * root.liveWaveIntensity) * 2.2)
 
+    readonly property int maxWinHeight: root.screen ? root.screen.height : 16777215
+
     property real rawWinWidth: baseRowWidth + maxIconsExpansion + safePadding
     readonly property int maxWinWidth: root.screen ? root.screen.width : 16777215
-    width: Math.min(maxWinWidth, Math.max(420, Math.round(rawWinWidth / 2) * 2))
+    width: dockLayoutVertical
+           ? Math.min(maxWinWidth, Math.max(120, Math.round((dockBarHeightPx + liveDockMargin * 2) * liveScaleFactor + dockIconTopOverflowPx + 48)))
+           : Math.min(maxWinWidth, Math.max(420, Math.round(rawWinWidth / 2) * 2))
 
     readonly property real dockExpandedHeight: Math.round(
         (root.liveDockMargin + root.dockBarHeightPx) * root.liveScaleFactor
@@ -389,7 +578,9 @@ Window {
     // Deslocamento visual ao recolher (Translate no dockContainer);
     readonly property real dockRetractSlidePixels: Math.max(0, root.dockExpandedHeight - root.dockPeekHeight)
 
-    height: root.dockRetracted ? root.dockPeekHeight : root.dockExpandedHeight
+    height: dockLayoutVertical
+            ? Math.min(maxWinHeight, Math.max(420, Math.round(rawWinWidth / 2) * 2))
+            : (root.dockRetracted ? root.dockPeekHeight : root.dockExpandedHeight)
 
     onHeightChanged: pointerMaskDebouncer.restart()
     onWidthChanged: pointerMaskDebouncer.restart()
@@ -408,6 +599,26 @@ Window {
     Component.onDestruction: {
         console.log(qsTr("Doca a fechar; a gravar a lista de aplicações."))
         saveApps()
+        if (root.liveBehaviorRememberRecentApps)
+            saveLastSeenDynamic()
+    }
+
+    onLiveBehaviorShowUnpinnedAppsChanged: {
+        if (!liveBehaviorShowUnpinnedApps) {
+            ghostClearTimer.stop()
+            clearDynamicModel()
+        } else {
+            updateDynamicApps()
+        }
+        updateZone()
+    }
+
+    onLiveBehaviorRememberRecentAppsChanged: {
+        if (!liveBehaviorRememberRecentApps) {
+            ghostClearTimer.stop()
+            clearGhostApps()
+            taskBackend.writeUserJsonFile("last_seen_dynamic.json", "[]")
+        }
     }
 
     HoverHandler {
@@ -420,7 +631,7 @@ Window {
             root.dockMouseX = px
             root.dockMouseY = py
 
-            var tw = mainRow.width
+            var tw = root.dockLayoutVertical ? mainColumn.height : mainRow.width
             if (tw <= 0) {
                 tw = root.baseRowWidth
             }
@@ -432,10 +643,18 @@ Window {
                 (root.smoothedWaveRowWidth * (1.0 - alpha)) + (tw * alpha)
             )
 
-            var rowLeft = (root.width * 0.5) - (root.smoothedWaveRowWidth * 0.5)
-            var relX = root.dockMouseX - rowLeft
-            var denom = root.smoothedWaveRowWidth
-            var lxRaw = denom > 0 ? ((relX / denom) * root.baseRowWidth) : (root.baseRowWidth * 0.5)
+            var lxRaw
+            if (root.dockLayoutVertical) {
+                var colTop = (root.height * 0.5) - (root.smoothedWaveRowWidth * 0.5)
+                var relY = root.dockMouseY - colTop
+                var denomV = root.smoothedWaveRowWidth
+                lxRaw = denomV > 0 ? ((relY / denomV) * root.baseRowWidth) : (root.baseRowWidth * 0.5)
+            } else {
+                var rowLeft = (root.width * 0.5) - (root.smoothedWaveRowWidth * 0.5)
+                var relX = root.dockMouseX - rowLeft
+                var denom = root.smoothedWaveRowWidth
+                lxRaw = denom > 0 ? ((relX / denom) * root.baseRowWidth) : (root.baseRowWidth * 0.5)
+            }
             lxRaw = Math.max(0, Math.min(root.baseRowWidth, lxRaw))
 
             var beta = waveOn ? 0.075 : 0.42
@@ -462,17 +681,28 @@ Window {
 
     property bool dockHovered: {
         if (!globalHover.hovered) return false
+        if (root.dockRetracted) return false
 
-            // Se estiver oculta, desliga o radar dos ícones!
-            if (root.dockRetracted) return false
+        var maxIcon = Math.max(root.liveMinIconSize, root.liveMaxIconSize) * root.liveScaleFactor
+        var waveExtra = root.wavePeakDeltaPx * 3.15 * root.liveScaleFactor
+        var hoverSpan = root.baseRowWidth + (30 * root.liveScaleFactor) + waveExtra
 
-                var maxIcon = Math.max(root.liveMinIconSize, root.liveMaxIconSize) * root.liveScaleFactor
-                var safeHitY = root.height - (maxIcon + 25)
-                var waveExtra = root.wavePeakDeltaPx * 3.15 * root.liveScaleFactor
-                var hoverW = root.baseRowWidth + (30 * root.liveScaleFactor) + waveExtra
-                var dockLeft = (root.width / 2) - (hoverW / 2)
-                var dockRight = dockLeft + hoverW
-                return (dockMouseY > safeHitY) && (dockMouseX >= dockLeft) && (dockMouseX <= dockRight)
+        if (root.dockLayoutVertical) {
+            var safeHitX = root.liveDockEdge === 2
+                    ? (maxIcon + 25)
+                    : (root.width - (maxIcon + 25))
+            var dockTop = (root.height / 2) - (hoverSpan / 2)
+            var dockBottom = dockTop + hoverSpan
+            if (root.liveDockEdge === 2) {
+                return (dockMouseX < safeHitX) && (dockMouseY >= dockTop) && (dockMouseY <= dockBottom)
+            }
+            return (dockMouseX > safeHitX) && (dockMouseY >= dockTop) && (dockMouseY <= dockBottom)
+        }
+
+        var safeHitY = root.height - (maxIcon + 25)
+        var dockLeft = (root.width / 2) - (hoverSpan / 2)
+        var dockRight = dockLeft + hoverSpan
+        return (dockMouseY > safeHitY) && (dockMouseX >= dockLeft) && (dockMouseX <= dockRight)
     }
 
     property real waveAmplitude: 0.0
@@ -512,10 +742,13 @@ Window {
         autoHideDockTimer.restart()
     }
 
+    onLiveDockEdgeChanged: taskBackend.applyLayerShellEdge(root.liveDockEdge)
+
     function applyLayerShellFromSettings() {
         var mode = root.liveBehaviorKeepAppsFocused ? 0 : 2
         taskBackend.applyLayerShellKeyboardMode(mode)
         taskBackend.setLayerShellActivateOnShow(!root.liveBehaviorKeepAppsFocused)
+        taskBackend.applyLayerShellEdge(root.liveDockEdge)
     }
 
     function applyDockRetractedState() {
@@ -596,7 +829,6 @@ Window {
         property string gradientColorB: "#191D22"
         property string gradientColorC: "#1E1E1E"
         property real gradientMix: 0.65
-        property real gradientAngle: 90
         property real borderWidth: 1.0
         property real borderGlow: 0.16
         property real shadowStrength: 0.30
@@ -613,7 +845,7 @@ Window {
         property int middleClickAction: 2
         property int rightClickAction: 1
         property string toggleDockShortcut: "Ctrl+Alt+D"
-        property string openSettingsShortcut: "Ctrl+,"
+        property string openSettingsShortcut: "Meta+D"
         property bool scheduleThemeEnabled: false
         property int dayThemeMode: 1
         property int nightThemeMode: 0
@@ -628,7 +860,11 @@ Window {
         property bool behaviorAutoHide: false
         property bool behaviorDodgeWindows: false
         property bool behaviorKeepAppsFocused: false
+        property bool behaviorWindowOverviewOnRefocus: true
+        property bool behaviorShowUnpinnedApps: true
+        property bool behaviorRememberRecentApps: false
         property int behaviorAutoHideDelayMs: 900
+        property int scrollWheelAction: 0
     }
 
     property alias appSettings: dockSettings
@@ -640,7 +876,14 @@ Window {
         onTriggered: {
             var espacoTotal = 0
             if (!root.dockRetracted) {
-                espacoTotal = ((root.dockBarHeightPx + root.liveDockMargin) * root.liveScaleFactor)
+                var isVertical = (root.liveDockEdge === 2 || root.liveDockEdge === 3)
+                if (isVertical) {
+                    // Zona exclusiva lateral = largura da barra + margem
+                    espacoTotal = (dockBg.width + root.liveDockMargin * root.liveScaleFactor)
+                } else {
+                    // Zona exclusiva superior/inferior = altura da barra + margem
+                    espacoTotal = ((root.dockBarHeightPx + root.liveDockMargin) * root.liveScaleFactor)
+                }
             }
             taskBackend.updateExclusiveZone(Math.round(espacoTotal))
         }
@@ -801,6 +1044,59 @@ Window {
         }
     }
 
+    // Salva apps dinâmicos reais para opcionalmente mostrar como ghost no próximo arranque.
+    function saveLastSeenDynamic() {
+        if (!root.liveBehaviorRememberRecentApps)
+            return
+        let apps = []
+        for (let i = 0; i < dynamicModel.count; i++) {
+            let e = dynamicModel.get(i)
+            if (!e.isGhost) {
+                apps.push({ name: e.name, icon: e.icon, cmd: e.cmd })
+            }
+        }
+        taskBackend.writeUserJsonFile("last_seen_dynamic.json", JSON.stringify(apps))
+    }
+
+    // Carrega ghosts do arranque anterior (só se o utilizador activou a opção).
+    function loadLastSeenDynamic() {
+        if (!root.liveBehaviorRememberRecentApps)
+            return
+        let raw = taskBackend.readUserJsonFile("last_seen_dynamic.json")
+        if (!raw || raw === "") return
+        let apps = []
+        try { apps = JSON.parse(raw) } catch (e) { return }
+        for (let i = 0; i < apps.length; i++) {
+            let a = apps[i]
+            if (!a.cmd || !a.name) continue
+            if (isCommandPinned(a.cmd)) continue
+            dynamicModel.append({ name: a.name, icon: a.icon || "", cmd: a.cmd,
+                                  isDynamic: true, removing: false, isGhost: true })
+        }
+    }
+
+    // Remove todos os ghosts restantes (chamado por timer após arranque).
+    function clearGhostApps() {
+        for (let i = dynamicModel.count - 1; i >= 0; i--) {
+            if (dynamicModel.get(i).isGhost === true) {
+                dynamicModel.remove(i)
+            }
+        }
+    }
+
+    function clearDynamicModel() {
+        for (let i = dynamicModel.count - 1; i >= 0; i--)
+            dynamicModel.remove(i)
+    }
+
+    Timer {
+        id: ghostClearTimer
+        interval: 40000
+        repeat: false
+        running: false
+        onTriggered: root.clearGhostApps()
+    }
+
     function reloadCustomWidgets() {
         for (let i = systemModel.count - 1; i >= 0; i--) {
             if (systemModel.get(i).isWidget === true) {
@@ -826,7 +1122,27 @@ Window {
         }
     }
 
+    function isCommandPinned(cmd) {
+        const norm = normalizeAppCommandKey(cmd)
+        for (let i = 0; i < appModel.count; i++) {
+            const pinned = appModel.get(i).cmd
+            if (pinned === cmd) {
+                return true
+            }
+            if (norm.length > 0 && normalizeAppCommandKey(pinned) === norm) {
+                return true
+            }
+        }
+        return false
+    }
+
     function updateDynamicApps() {
+        if (!root.liveBehaviorShowUnpinnedApps) {
+            if (dynamicModel.count > 0)
+                clearDynamicModel()
+            return
+        }
+
         let pinned = []
         for (let i = 0; i < appModel.count; i++) {
             pinned.push(appModel.get(i).cmd)
@@ -853,7 +1169,8 @@ Window {
             if (!found) {
                 let row = dynamicModel.get(i)
                 if (row.removing === true) continue
-                    dynamicModel.setProperty(i, "removing", true)
+                if (row.isGhost === true) continue  // ghost aguarda o timer de limpeza
+                dynamicModel.setProperty(i, "removing", true)
             }
         }
 
@@ -865,6 +1182,10 @@ Window {
                     if (dynamicModel.get(i).removing === true) {
                         dynamicModel.setProperty(i, "removing", false)
                     }
+                    // App ghost voltou — promove para app real
+                    if (dynamicModel.get(i).isGhost === true) {
+                        dynamicModel.setProperty(i, "isGhost", false)
+                    }
                     break
                 }
             }
@@ -874,7 +1195,8 @@ Window {
                     icon: running[j].icon,
                     cmd: running[j].cmd,
                     isDynamic: true,
-                    removing: false
+                    removing: false,
+                    isGhost: false
                 })
             }
         }
@@ -909,7 +1231,7 @@ Window {
         root.liveGradientColorB = dockSettings.gradientColorB
         root.liveGradientColorC = dockSettings.gradientColorC
         root.liveGradientMix = dockSettings.gradientMix
-        root.liveGradientAngle = dockSettings.gradientAngle
+        // gradientAngle: propriedade removida — sem efeito visual
         root.liveBorderWidth = dockSettings.borderWidth
         root.liveBorderGlow = dockSettings.borderGlow
         root.liveShadowStrength = dockSettings.shadowStrength
@@ -945,6 +1267,7 @@ Window {
             const persistedRules = taskBackend.readUserJsonFile("app_rules.json")
             if (persistedRules !== "") root.liveAppRulesJson = persistedRules
         }
+        migrateAppRulesJson()
         if (root.liveCustomCommandsJson === "{}") {
             const persistedCommands = taskBackend.readUserJsonFile("custom_commands.json")
             if (persistedCommands !== "") root.liveCustomCommandsJson = persistedCommands
@@ -961,7 +1284,13 @@ Window {
         root.liveBehaviorAutoHide = dockSettings.behaviorAutoHide
         root.liveBehaviorDodgeWindows = dockSettings.behaviorDodgeWindows
         root.liveBehaviorKeepAppsFocused = dockSettings.behaviorKeepAppsFocused
+        root.liveBehaviorWindowOverviewOnRefocus = dockSettings.behaviorWindowOverviewOnRefocus
+        root.liveBehaviorShowUnpinnedApps = dockSettings.behaviorShowUnpinnedApps
+        root.liveBehaviorRememberRecentApps = dockSettings.behaviorRememberRecentApps
         root.liveBehaviorAutoHideDelayMs = dockSettings.behaviorAutoHideDelayMs
+        root.liveScrollWheelAction = dockSettings.scrollWheelAction
+        taskBackend.windowOverviewOnRefocus = root.liveBehaviorWindowOverviewOnRefocus
+        syncGlobalShortcuts()
 
         applyScheduledThemeByClock()
         updateZone()
@@ -1002,7 +1331,12 @@ Window {
         systemModel.append({name: qsTr("Transferências"), icon: "folder-downloads", cmd: "dolphin ~/Downloads", isSystem: true})
         systemModel.append({name: qsTr("Reciclagem"), icon: "user-trash", cmd: "dolphin trash:/", isSystem: true})
         reloadCustomWidgets()
-        updateDynamicApps()
+        if (root.liveBehaviorRememberRecentApps) {
+            loadLastSeenDynamic()
+            ghostClearTimer.start()
+        }
+        if (root.liveBehaviorShowUnpinnedApps)
+            updateDynamicApps()
     }
 
     function saveApps() {
@@ -1052,7 +1386,7 @@ Window {
         }
 
         property real dockSlidePixels: root.dockRetracted ? root.dockRetractSlidePixels : 0
-        Behavior on dockSlidePixels { enabled: !settingsWin.visible; NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
+        Behavior on dockSlidePixels { enabled: !settingsWin.visible; NumberAnimation { duration: 320; easing.type: Easing.OutBack; easing.overshoot: 1.15 } }
         transform: Translate { y: dockContainer.dockSlidePixels }
 
         onDockSlidePixelsChanged: dockBg.requestBlurUpdate()
@@ -1102,11 +1436,19 @@ Window {
 
             property real waveExtraWidth: root.wavePeakDeltaPx * 3.15 * root.liveScaleFactor * root.liveWaveIntensity
             property real rawBgWidth: root.baseRowWidth + (30 * root.liveScaleFactor) + (waveExtraWidth * root.waveAmplitude)
+            readonly property bool bgIsFlat: root.liveBg3dStyle === 0
+            readonly property bool bgIsPremium: root.liveBg3dStyle === 2
+            readonly property bool bgIsGlass2d: root.liveBg3dStyle === 3
+            readonly property bool bgIs3d: root.liveBg3dStyle === 1 || root.liveBg3dStyle === 2
 
-            width:  Math.round(rawBgWidth / 2) * 2
-            height: Math.round(root.dockBarHeightPx * root.liveScaleFactor)
+            width: root.dockLayoutVertical
+                   ? Math.round(root.dockBarHeightPx * root.liveScaleFactor)
+                   : Math.round(rawBgWidth / 2) * 2
+            height: root.dockLayoutVertical
+                    ? Math.round(rawBgWidth / 2) * 2
+                    : Math.round(root.dockBarHeightPx * root.liveScaleFactor)
 
-            color: root.liveBg3dStyle === 0
+            color: dockBg.bgIsFlat
                    ? Qt.rgba(root.themeColors.dockR, root.themeColors.dockG, root.themeColors.dockB, root.liveBgOpacity)
                    : "transparent"
             radius: Math.round(root.liveDockRadius * root.liveScaleFactor)
@@ -1116,12 +1458,9 @@ Window {
             clip: true
 
             // === MICRO-BATCHER DE BLUR ===
-            // O timer de 8ms espera silenciosamente as âncoras (anchors) de largura e
-            // eixo-X terminarem de calcular antes de enviar para o KWin.
-            // Resultado: blur sempre centralizado, eliminando a piscada na borda arredondada.
             Timer {
                 id: blurThrottleTimer
-                interval: 8
+                interval: 16
                 repeat: false
                 onTriggered: dockBg.updateBlurNative()
             }
@@ -1133,13 +1472,30 @@ Window {
             }
 
             function updateBlurNative() {
-                var p = dockBg.mapToItem(dockContainer, 0, 0)
+                var realX = 0
+                var realY = 0
+
+                // Posição calculada na mão — evita mapToItem retornar 0,0 no pico da onda
+                if (root.liveDockEdge === 0) { // Baixo
+                    realX = (root.width - dockBg.width) / 2 + root.liveDockOffsetX
+                    realY = root.height - dockBg.height - dockBg.anchors.bottomMargin + dockContainer.dockSlidePixels
+                } else if (root.liveDockEdge === 1) { // Topo
+                    realX = (root.width - dockBg.width) / 2 + root.liveDockOffsetX
+                    realY = dockBg.anchors.topMargin + dockContainer.dockSlidePixels
+                } else if (root.liveDockEdge === 2) { // Esquerda
+                    realX = dockBg.anchors.leftMargin
+                    realY = (root.height - dockBg.height) / 2 + root.liveDockOffsetY + dockContainer.dockSlidePixels
+                } else if (root.liveDockEdge === 3) { // Direita
+                    realX = root.width - dockBg.width - dockBg.anchors.rightMargin
+                    realY = (root.height - dockBg.height) / 2 + root.liveDockOffsetY + dockContainer.dockSlidePixels
+                }
+
                 taskBackend.setBlurRegion(
-                    Math.round(p.x),
-                    Math.round(p.y),
+                    Math.round(realX),
+                    Math.round(realY),
                     Math.round(dockBg.width),
                     Math.round(dockBg.height),
-                    Math.round(dockBg.radius)
+                    0 // Um único retângulo no KWin Wayland
                 )
             }
 
@@ -1155,7 +1511,7 @@ Window {
             Rectangle {
                 anchors.fill: parent
                 radius: parent.radius
-                visible: root.liveBg3dStyle > 0
+                visible: !dockBg.bgIsFlat
                 antialiasing: true
                 gradient: Gradient {
                     orientation: Gradient.Vertical
@@ -1163,21 +1519,21 @@ Window {
                         position: 0.0
                         color: Qt.tint(
                             root.liveGradientColorA,
-                            Qt.rgba(1, 1, 1, Math.max(0.0, root.liveGradientMix * (root.liveBg3dStyle === 2 ? 0.58 : 0.40))))
+                            Qt.rgba(1, 1, 1, Math.max(0.0, root.liveGradientMix * (dockBg.bgIsPremium ? 0.58 : (dockBg.bgIsGlass2d ? 0.26 : 0.40)))))
                     }
                     GradientStop {
                         position: 0.38
-                        color: Qt.tint(root.liveGradientColorB, Qt.rgba(1, 1, 1, root.liveBg3dStyle === 2 ? 0.12 : 0.06))
+                        color: Qt.tint(root.liveGradientColorB, Qt.rgba(1, 1, 1, dockBg.bgIsPremium ? 0.12 : (dockBg.bgIsGlass2d ? 0.03 : 0.06)))
                     }
                     GradientStop {
                         position: 0.72
-                        color: Qt.tint(root.liveGradientColorB, Qt.rgba(0, 0, 0, root.liveBg3dStyle === 2 ? 0.09 : 0.05))
+                        color: Qt.tint(root.liveGradientColorB, Qt.rgba(0, 0, 0, dockBg.bgIsPremium ? 0.09 : (dockBg.bgIsGlass2d ? 0.03 : 0.05)))
                     }
                     GradientStop {
                         position: 1.0
                         color: Qt.tint(
                             root.liveGradientColorC,
-                            Qt.rgba(0, 0, 0, Math.max(0.0, (root.liveBg3dStyle === 2 ? 0.40 : 0.28) - (root.liveGradientMix * 0.20))))
+                            Qt.rgba(0, 0, 0, Math.max(0.0, (dockBg.bgIsPremium ? 0.40 : (dockBg.bgIsGlass2d ? 0.16 : 0.28)) - (root.liveGradientMix * 0.20))))
                     }
                 }
                 opacity: root.liveBgOpacity
@@ -1193,12 +1549,12 @@ Window {
                 anchors.topMargin: 1
                 height: Math.max(7, Math.round(parent.height * 0.28))
                 radius: parent.radius
-                visible: root.liveBg3dStyle > 0
+                visible: dockBg.bgIs3d
                 antialiasing: true
                 gradient: Gradient {
                     orientation: Gradient.Vertical
-                    GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, root.liveBg3dStyle === 2 ? 0.19 : 0.16) }
-                    GradientStop { position: 0.42; color: Qt.rgba(1, 1, 1, root.liveBg3dStyle === 2 ? 0.065 : 0.05) }
+                    GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, dockBg.bgIsPremium ? 0.19 : 0.16) }
+                    GradientStop { position: 0.42; color: Qt.rgba(1, 1, 1, dockBg.bgIsPremium ? 0.065 : 0.05) }
                     GradientStop { position: 1.0; color: Qt.rgba(1, 1, 1, 0.0) }
                 }
 
@@ -1210,9 +1566,9 @@ Window {
                     gradient: Gradient {
                         orientation: Gradient.Horizontal
                         GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, 0.0) }
-                        GradientStop { position: 0.22; color: Qt.rgba(1, 1, 1, root.liveBg3dStyle === 2 ? 0.045 : 0.035) }
-                        GradientStop { position: 0.50; color: Qt.rgba(1, 1, 1, root.liveBg3dStyle === 2 ? 0.04 : 0.03) }
-                        GradientStop { position: 0.78; color: Qt.rgba(1, 1, 1, root.liveBg3dStyle === 2 ? 0.045 : 0.035) }
+                        GradientStop { position: 0.22; color: Qt.rgba(1, 1, 1, dockBg.bgIsPremium ? 0.045 : 0.035) }
+                        GradientStop { position: 0.50; color: Qt.rgba(1, 1, 1, dockBg.bgIsPremium ? 0.04 : 0.03) }
+                        GradientStop { position: 0.78; color: Qt.rgba(1, 1, 1, dockBg.bgIsPremium ? 0.045 : 0.035) }
                         GradientStop { position: 1.0; color: Qt.rgba(1, 1, 1, 0.0) }
                     }
                 }
@@ -1222,14 +1578,14 @@ Window {
             Rectangle {
                 anchors.fill: parent
                 radius: parent.radius
-                visible: root.liveBg3dStyle > 0
+                visible: dockBg.bgIs3d
                 antialiasing: true
                 gradient: Gradient {
                     orientation: Gradient.Horizontal
-                    GradientStop { position: 0.0; color: Qt.rgba(0, 0, 0, root.liveShadowStrength * (root.liveBg3dStyle === 2 ? 0.30 : 0.24)) }
+                    GradientStop { position: 0.0; color: Qt.rgba(0, 0, 0, root.liveShadowStrength * (dockBg.bgIsPremium ? 0.30 : 0.24)) }
                     GradientStop { position: 0.18; color: Qt.rgba(0, 0, 0, 0.02) }
                     GradientStop { position: 0.82; color: Qt.rgba(0, 0, 0, 0.02) }
-                    GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, root.liveShadowStrength * (root.liveBg3dStyle === 2 ? 0.30 : 0.24)) }
+                    GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, root.liveShadowStrength * (dockBg.bgIsPremium ? 0.30 : 0.24)) }
                 }
             }
 
@@ -1242,7 +1598,7 @@ Window {
                 anchors.rightMargin: 15
                 height: 1
                 color: root.themeColors.dockTopLine
-                visible: root.liveBg3dStyle === 0
+                visible: dockBg.bgIsFlat || dockBg.bgIsGlass2d
                 radius: parent.radius
                 antialiasing: true
             }
@@ -1251,10 +1607,11 @@ Window {
                 anchors.fill: parent
                 hoverEnabled: true
                 acceptedButtons: Qt.RightButton
-                onClicked: {
-                    settingsWin.show()
-                    settingsWin.raise()
-                    settingsWin.requestActivate()
+                onClicked: (mouse) => {
+                    if (mouse.button === Qt.RightButton) {
+                        const g = dockBg.mapToGlobal(mouse.x, mouse.y)
+                        root.showDockSurfaceContextMenu(dockBg, g.x, g.y)
+                    }
                 }
             }
         }
@@ -1267,14 +1624,15 @@ Window {
             width: Math.round(dockBg.width * 0.88)
             height: Math.max(8, Math.round(dockBg.height * 0.20))
             radius: height / 2
-            visible: root.liveBg3dStyle > 0
-            color: Qt.rgba(0, 0, 0, root.liveShadowStrength * (root.liveBg3dStyle === 2 ? 0.62 : 0.52))
-            opacity: root.liveBg3dStyle === 2 ? 0.42 : 0.36
+            visible: dockBg.bgIs3d
+            color: Qt.rgba(0, 0, 0, root.liveShadowStrength * (dockBg.bgIsPremium ? 0.62 : 0.52))
+            opacity: dockBg.bgIsPremium ? 0.42 : 0.36
             z: -2
         }
 
         Row {
             id: mainRow
+            visible: !root.dockLayoutVertical
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: dockBg.bottom
 
@@ -1357,6 +1715,61 @@ Window {
                     anchors.centerIn: parent
                     radius: 1
                     antialiasing: true
+                }
+            }
+
+            Repeater {
+                model: systemModel
+                delegate: DockIconDelegate { dock: root }
+            }
+        }
+
+        Column {
+            id: mainColumn
+            visible: root.dockLayoutVertical
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.left: root.liveDockEdge === 2 ? dockBg.left : undefined
+            anchors.right: root.liveDockEdge === 3 ? dockBg.right : undefined
+            width: Math.round(root.dockBarHeightPx * root.liveScaleFactor)
+            spacing: root.baseSpacing
+
+            Repeater {
+                model: launcherModel
+                delegate: DockIconDelegate { dock: root }
+            }
+            Repeater {
+                model: appModel
+                delegate: DockIconDelegate { dock: root }
+            }
+
+            Item {
+                width: Math.round(root.dockBarHeightPx * root.liveScaleFactor)
+                height: root.dividerWidth
+                visible: root.div1Count > 0
+                Rectangle {
+                    width: Math.round(root.dockBarHeightPx * root.liveScaleFactor) * 0.45
+                    height: Math.max(2, Math.round(2 * root.liveScaleFactor))
+                    color: root.themeColors.divider
+                    anchors.centerIn: parent
+                    radius: 1
+                }
+            }
+
+            Repeater {
+                model: dynamicModel
+                delegate: DockIconDelegate { dock: root }
+            }
+
+            Item {
+                width: Math.round(root.dockBarHeightPx * root.liveScaleFactor)
+                height: root.dividerWidth
+                visible: root.div2Count > 0
+                Rectangle {
+                    width: Math.round(root.dockBarHeightPx * root.liveScaleFactor) * 0.45
+                    height: Math.max(2, Math.round(2 * root.liveScaleFactor))
+                    color: root.themeColors.divider
+                    anchors.centerIn: parent
+                    radius: 1
                 }
             }
 
@@ -1570,21 +1983,14 @@ Window {
 
     Shortcut {
         sequences: [StandardKey.Preferences, root.liveOpenSettingsShortcut]
-        onActivated: {
-            settingsWin.show()
-            settingsWin.raise()
-            settingsWin.requestActivate()
-        }
+        onActivated: root.openSettingsGlobal()
     }
+
+    onLiveOpenSettingsShortcutChanged: syncGlobalShortcuts()
+    onLiveToggleDockShortcutChanged: syncGlobalShortcuts()
 
     Shortcut {
         sequences: [root.liveToggleDockShortcut]
-        onActivated: {
-            root.visible = !root.visible
-            if (root.visible) {
-                root.raise()
-                root.requestActivate()
-            }
-        }
+        onActivated: root.toggleDockGlobal()
     }
 }

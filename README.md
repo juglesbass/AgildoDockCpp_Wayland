@@ -72,6 +72,28 @@ Fluxo rápido: público no GitHub com etiqueta **`v1.0`** (ou igual ao `pkgver`)
 cmake -S . -B build && cmake --build build && ctest --test-dir build
 ```
 
+## Preview como plasmoid (Plasma 6)
+
+Existe um preview separado em `plasmoid/agildodock-preview` para validar visual e interacao basica no painel, sem substituir a dock principal.
+
+Instalar localmente:
+
+```bash
+kpackagetool6 -t Plasma/Applet -i plasmoid/agildodock-preview
+```
+
+Atualizar apos editar:
+
+```bash
+kpackagetool6 -t Plasma/Applet -u plasmoid/agildodock-preview
+```
+
+Remover:
+
+```bash
+kpackagetool6 -t Plasma/Applet -r org.agildosoft.agildodock.preview
+```
+
 ## Traduções (i18n)
 
 O CMake usa **`qt_add_translations`** (Qt **LinguistTools**): em cada compilação o **`lrelease`** gera `agildodock_en_US.qm` e `agildodock_pt_PT.qm` e inclui-os no recurso **`:/i18n/`**.

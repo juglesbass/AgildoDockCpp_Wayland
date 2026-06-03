@@ -6,6 +6,9 @@
 #include <QProcess>
 #include <QStringList>
 
+#include <QDBusConnection>
+#include <QDBusMessage>
+
 #include <KWindowSystem/kwindowsystem.h>
 #if defined(KWINDOWSYSTEM_HAVE_X11) && QT_CONFIG(xcb)
 #include <KWindowSystem/KWindowInfo>
@@ -185,6 +188,24 @@ static bool stackingWindowBelongsToCommand(const QString &command,
 }
 
 #if defined(KWINDOWSYSTEM_HAVE_X11) && QT_CONFIG(xcb)
+static QStringList allOwnedX11Windows(const QString &command, const QHash<QString, QVariantMap> &knownApps)
+{
+    QStringList packed;
+    const QList<WId> order = KX11Extras::stackingOrder();
+    for (const WId wid : order) {
+        KWindowInfo iw(wid, NET::WMVisibleName, NET::WM2WindowClass);
+        if (!iw.valid(false)) {
+            continue;
+        }
+        const QString clsBlob = combinedWmLower(iw.windowClassName(), iw.windowClassClass());
+        const QString caption = iw.visibleName().toLower();
+        if (stackingWindowBelongsToCommand(command, clsBlob, caption, knownApps)) {
+            packed << encodeX11WId(wid);
+        }
+    }
+    return packed;
+}
+
 static WId topmostOwnedX11Window(const QString &command, const QHash<QString, QVariantMap> &knownApps)
 {
     const QList<WId> order = KX11Extras::stackingOrder();
@@ -328,6 +349,54 @@ QString runFirstKdotoolSearchHit(const QStringList &args, int timeoutMs)
     return QString::fromUtf8(p.readAllStandardOutput()).trimmed().split(QLatin1Char('\n')).value(0).trimmed();
 }
 
+static QStringList runAllKdotoolSearchHits(const QStringList &args, int timeoutMs)
+{
+    QProcess p;
+    p.start(QStringLiteral("kdotool"), args);
+    p.waitForFinished(timeoutMs);
+    const QString out = QString::fromUtf8(p.readAllStandardOutput()).trimmed();
+    if (out.isEmpty()) {
+        return {};
+    }
+    QStringList lines = out.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+    for (QString &line : lines) {
+        line = line.trimmed();
+    }
+    lines.removeDuplicates();
+    return lines;
+}
+
+static QStringList filterKdotoolHandlesForCommand(const QStringList &handles,
+                                                  const QString &command,
+                                                  const QHash<QString, QVariantMap> &knownApps,
+                                                  int timeoutMs)
+{
+    QStringList filtered;
+    for (const QString &id : handles) {
+        if (id.isEmpty()) {
+            continue;
+        }
+        QProcess clsP;
+        clsP.start(QStringLiteral("kdotool"), {QStringLiteral("getwindowclassname"), id});
+        if (!clsP.waitForFinished(timeoutMs)) {
+            clsP.kill();
+            continue;
+        }
+        QProcess nameP;
+        nameP.start(QStringLiteral("kdotool"), {QStringLiteral("getwindowname"), id});
+        if (!nameP.waitForFinished(timeoutMs)) {
+            nameP.kill();
+            continue;
+        }
+        const QString clsLower = QString::fromUtf8(clsP.readAllStandardOutput()).trimmed().toLower();
+        const QString titleLower = QString::fromUtf8(nameP.readAllStandardOutput()).trimmed().toLower();
+        if (commandMatchesForegroundHints(command, clsLower, titleLower, knownApps)) {
+            filtered << id;
+        }
+    }
+    return filtered;
+}
+
 QString resolveWindowHandleForLaunch(const QString &command,
                                      const QHash<QString, QVariantMap> &knownApps,
                                      bool kdotoolAvailable,
@@ -374,6 +443,70 @@ QString resolveWindowHandleForLaunch(const QString &command,
         }
     }
     return {};
+}
+
+QStringList resolveAllWindowHandlesForLaunch(const QString &command,
+                                             const QHash<QString, QVariantMap> &knownApps,
+                                             bool kdotoolAvailable,
+                                             int kdotoolTimeoutMs)
+{
+    if (command.isEmpty()) {
+        return {};
+    }
+
+#if defined(KWINDOWSYSTEM_HAVE_X11) && QT_CONFIG(xcb)
+    if (nativeX11ClientUsable()) {
+        const QStringList x11Packed = allOwnedX11Windows(command, knownApps);
+        if (!x11Packed.isEmpty()) {
+            return x11Packed;
+        }
+    }
+#endif
+
+    QString wmDesk = knownApps.value(command)[QStringLiteral("wmclass")].toString().toLower();
+    QString nameDesk = knownApps.value(command)[QStringLiteral("name")].toString();
+
+    QString appIdDummy;
+    const QVector<KdotoolSearchFilter> chain =
+        buildKdotoolSearchChain(command, strippedExecBasename(command), wmDesk, nameDesk, &appIdDummy);
+    Q_UNUSED(appIdDummy);
+
+    if (!kdotoolAvailable) {
+        return {};
+    }
+
+    for (const KdotoolSearchFilter &f : chain) {
+        QStringList args{QStringLiteral("search")};
+        if (f.byName) {
+            args << QStringLiteral("--name") << f.needle;
+        } else {
+            args << QStringLiteral("--class") << f.needle;
+        }
+
+        const QStringList hits = runAllKdotoolSearchHits(args, kdotoolTimeoutMs);
+        if (hits.isEmpty()) {
+            continue;
+        }
+
+        const QStringList filtered = filterKdotoolHandlesForCommand(hits, command, knownApps, kdotoolTimeoutMs);
+        return filtered.isEmpty() ? hits : filtered;
+    }
+    return {};
+}
+
+bool activateKWinWindowView(const QStringList &handles)
+{
+    if (handles.isEmpty()) {
+        return false;
+    }
+
+    QDBusMessage msg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
+                                                      QStringLiteral("/org/kde/KWin/Effect/WindowView1"),
+                                                      QStringLiteral("org.kde.KWin.Effect.WindowView1"),
+                                                      QStringLiteral("activate"));
+    msg.setArguments({handles});
+    const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, 600);
+    return reply.type() == QDBusMessage::ReplyMessage;
 }
 
 bool fillActiveHintsFromNativeStacking(QString &outClassLower,

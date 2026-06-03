@@ -79,7 +79,7 @@ Window {
         dock.liveGradientColorB = dock.appSettings.gradientColorB
         dock.liveGradientColorC = dock.appSettings.gradientColorC
         dock.liveGradientMix = dock.appSettings.gradientMix
-        dock.liveGradientAngle = dock.appSettings.gradientAngle
+        // gradientAngle: propriedade removida
         dock.liveBorderWidth = dock.appSettings.borderWidth
         dock.liveBorderGlow = dock.appSettings.borderGlow
         dock.liveShadowStrength = dock.appSettings.shadowStrength
@@ -111,7 +111,13 @@ Window {
         dock.liveBehaviorAutoHide = dock.appSettings.behaviorAutoHide
         dock.liveBehaviorDodgeWindows = dock.appSettings.behaviorDodgeWindows
         dock.liveBehaviorKeepAppsFocused = dock.appSettings.behaviorKeepAppsFocused
+        dock.liveBehaviorWindowOverviewOnRefocus = dock.appSettings.behaviorWindowOverviewOnRefocus
+        dock.liveBehaviorShowUnpinnedApps = dock.appSettings.behaviorShowUnpinnedApps
+        dock.liveBehaviorRememberRecentApps = dock.appSettings.behaviorRememberRecentApps
         dock.liveBehaviorAutoHideDelayMs = dock.appSettings.behaviorAutoHideDelayMs
+        dock.liveScrollWheelAction = dock.appSettings.scrollWheelAction
+        taskBackend.windowOverviewOnRefocus = dock.liveBehaviorWindowOverviewOnRefocus
+        dock.syncGlobalShortcuts()
     }
 
     function cancelarValores() {
@@ -142,7 +148,7 @@ Window {
         dock.appSettings.gradientColorB = dock.liveGradientColorB
         dock.appSettings.gradientColorC = dock.liveGradientColorC
         dock.appSettings.gradientMix = dock.liveGradientMix
-        dock.appSettings.gradientAngle = dock.liveGradientAngle
+        // gradientAngle: propriedade removida
         dock.appSettings.borderWidth = dock.liveBorderWidth
         dock.appSettings.borderGlow = dock.liveBorderGlow
         dock.appSettings.shadowStrength = dock.liveShadowStrength
@@ -174,7 +180,13 @@ Window {
         dock.appSettings.behaviorAutoHide = dock.liveBehaviorAutoHide
         dock.appSettings.behaviorDodgeWindows = dock.liveBehaviorDodgeWindows
         dock.appSettings.behaviorKeepAppsFocused = dock.liveBehaviorKeepAppsFocused
+        dock.appSettings.behaviorWindowOverviewOnRefocus = dock.liveBehaviorWindowOverviewOnRefocus
+        dock.appSettings.behaviorShowUnpinnedApps = dock.liveBehaviorShowUnpinnedApps
+        dock.appSettings.behaviorRememberRecentApps = dock.liveBehaviorRememberRecentApps
         dock.appSettings.behaviorAutoHideDelayMs = dock.liveBehaviorAutoHideDelayMs
+        dock.appSettings.scrollWheelAction = dock.liveScrollWheelAction
+        taskBackend.windowOverviewOnRefocus = dock.liveBehaviorWindowOverviewOnRefocus
+        dock.syncGlobalShortcuts()
 
         dock.pushCustomizationHistory()
         if (typeof dock.appSettings.sync === "function") {
@@ -202,20 +214,34 @@ Window {
         try { profiles = JSON.parse(dock.liveProfilesJson || "{}") } catch (e) { profiles = {} }
         profiles[nomePerfil] = {
             savedAt: Date.now(),
+            // aparência
             themeMode: dock.liveThemeMode,
             accentMode: dock.liveAccentMode,
             bg3dStyle: dock.liveBg3dStyle,
+            bgOpacity: dock.liveBgOpacity,
             gradientColorA: dock.liveGradientColorA,
             gradientColorB: dock.liveGradientColorB,
             gradientColorC: dock.liveGradientColorC,
+            gradientMix: dock.liveGradientMix,
             borderGlow: dock.liveBorderGlow,
             borderWidth: dock.liveBorderWidth,
             shadowStrength: dock.liveShadowStrength,
+            dockRadius: dock.liveDockRadius,
+            monochromeIcons: dock.liveMonochromeIcons,
+            // indicador
+            indicatorStyle: dock.liveIndicatorStyle,
+            indicatorScale: dock.liveIndicatorScale,
+            // tamanhos e onda
+            scaleFactor: dock.liveScaleFactor,
+            iconSpacing: dock.liveIconSpacing,
+            dockMargin: dock.liveDockMargin,
             minIconSize: dock.liveMinIconSize,
             maxIconSize: dock.liveMaxIconSize,
             waveIntensity: dock.liveWaveIntensity,
             waveRadiusFactor: dock.liveWaveRadiusFactor,
             waveFalloff: dock.liveWaveFalloff,
+            // animação
+            animationProfile: dock.liveAnimationProfile,
             launchBounceIntensity: dock.liveLaunchBounceIntensity
         }
         dock.liveProfilesJson = JSON.stringify(profiles)
@@ -227,21 +253,35 @@ Window {
             let p = profiles[nomePerfil]
             if (!p) return
             dock.pushCustomizationHistory()
-            dock.liveThemeMode = p.themeMode
-            dock.liveAccentMode = p.accentMode
-            dock.liveBg3dStyle = p.bg3dStyle
-            dock.liveGradientColorA = p.gradientColorA
-            dock.liveGradientColorB = p.gradientColorB
-            dock.liveGradientColorC = p.gradientColorC
-            dock.liveBorderGlow = p.borderGlow
-            dock.liveBorderWidth = p.borderWidth
-            dock.liveShadowStrength = p.shadowStrength
-            dock.liveMinIconSize = p.minIconSize
-            dock.liveMaxIconSize = p.maxIconSize
-            dock.liveWaveIntensity = p.waveIntensity
-            dock.liveWaveRadiusFactor = p.waveRadiusFactor
-            dock.liveWaveFalloff = p.waveFalloff
-            dock.liveLaunchBounceIntensity = p.launchBounceIntensity
+            // aparência
+            if (p.themeMode    !== undefined) dock.liveThemeMode    = p.themeMode
+            if (p.accentMode   !== undefined) dock.liveAccentMode   = p.accentMode
+            if (p.bg3dStyle    !== undefined) dock.liveBg3dStyle    = p.bg3dStyle
+            if (p.bgOpacity    !== undefined) dock.liveBgOpacity    = p.bgOpacity
+            if (p.gradientColorA !== undefined) dock.liveGradientColorA = p.gradientColorA
+            if (p.gradientColorB !== undefined) dock.liveGradientColorB = p.gradientColorB
+            if (p.gradientColorC !== undefined) dock.liveGradientColorC = p.gradientColorC
+            if (p.gradientMix  !== undefined) dock.liveGradientMix  = p.gradientMix
+            if (p.borderGlow   !== undefined) dock.liveBorderGlow   = p.borderGlow
+            if (p.borderWidth  !== undefined) dock.liveBorderWidth  = p.borderWidth
+            if (p.shadowStrength !== undefined) dock.liveShadowStrength = p.shadowStrength
+            if (p.dockRadius   !== undefined) dock.liveDockRadius   = p.dockRadius
+            if (p.monochromeIcons !== undefined) dock.liveMonochromeIcons = p.monochromeIcons
+            // indicador
+            if (p.indicatorStyle !== undefined) dock.liveIndicatorStyle = p.indicatorStyle
+            if (p.indicatorScale !== undefined) dock.liveIndicatorScale = p.indicatorScale
+            // tamanhos e onda
+            if (p.scaleFactor  !== undefined) dock.liveScaleFactor  = p.scaleFactor
+            if (p.iconSpacing  !== undefined) dock.liveIconSpacing  = p.iconSpacing
+            if (p.dockMargin   !== undefined) dock.liveDockMargin   = p.dockMargin
+            if (p.minIconSize  !== undefined) dock.liveMinIconSize  = p.minIconSize
+            if (p.maxIconSize  !== undefined) dock.liveMaxIconSize  = Math.max(p.minIconSize || dock.liveMinIconSize, p.maxIconSize)
+            if (p.waveIntensity !== undefined) dock.liveWaveIntensity = p.waveIntensity
+            if (p.waveRadiusFactor !== undefined) dock.liveWaveRadiusFactor = p.waveRadiusFactor
+            if (p.waveFalloff  !== undefined) dock.liveWaveFalloff  = p.waveFalloff
+            // animação
+            if (p.animationProfile !== undefined) dock.liveAnimationProfile = p.animationProfile
+            if (p.launchBounceIntensity !== undefined) dock.liveLaunchBounceIntensity = p.launchBounceIntensity
         } catch (e) {}
     }
 
@@ -404,7 +444,7 @@ Window {
                                 Label { text: qsTr("Fundo"); color: "#CCCCCC"; font.pixelSize: 12 }
                                 ComboBox {
                                     Layout.fillWidth: true
-                                    model: [qsTr("Plano"), qsTr("Vidro 3D (suave)"), qsTr("Vidro Premium")]
+                                    model: [qsTr("Plano"), qsTr("Vidro 3D (suave)"), qsTr("Vidro Premium"), qsTr("Vidro (sem 3D)")]
                                     currentIndex: dock.liveBg3dStyle
                                     onActivated: dock.liveBg3dStyle = currentIndex
                                 }
@@ -474,8 +514,21 @@ Window {
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 6
-                            Label { text: qsTr("Sombra 3D: %1%").arg(Math.round(dock.liveShadowStrength * 100)); color: "#CCCCCC"; font.pixelSize: 12 }
-                            Slider { Layout.fillWidth: true; from: 0.05; to: 0.80; stepSize: 0.01; value: dock.liveShadowStrength; onMoved: dock.liveShadowStrength = value }
+                            readonly property bool shadowEnabled: dock.liveBg3dStyle === 1 || dock.liveBg3dStyle === 2
+                            Label {
+                                text: qsTr("Sombra 3D: %1%").arg(Math.round(dock.liveShadowStrength * 100))
+                                color: parent.shadowEnabled ? "#CCCCCC" : "#555555"
+                                font.pixelSize: 12
+                            }
+                            Slider {
+                                Layout.fillWidth: true
+                                from: 0.05
+                                to: 0.80
+                                stepSize: 0.01
+                                value: dock.liveShadowStrength
+                                enabled: parent.shadowEnabled
+                                onMoved: dock.liveShadowStrength = value
+                            }
                         }
                     }
                 }
@@ -495,6 +548,16 @@ Window {
                         spacing: 8
 
                         Label { text: qsTr("Comportamento e onda"); font.bold: true; color: "#FFFFFF" }
+
+                        Label {
+                            text: qsTr("Arraste ícones fixados na dock para reordenar (estilo macOS). Clique curto abre o app.")
+                            wrapMode: Text.WordWrap
+                            Layout.fillWidth: true
+                            font.pixelSize: 11
+                            color: "#888888"
+                        }
+
+                        Rectangle { Layout.fillWidth: true; height: 1; color: "#22FFFFFF" }
 
                         CheckBox {
                             text: qsTr("Ocultar automaticamente")
@@ -535,6 +598,72 @@ Window {
                             onToggled: dock.liveBehaviorKeepAppsFocused = checked
                             palette.text: "#DDDDDD"
                             Layout.fillWidth: true
+                        }
+
+                        CheckBox {
+                            text: qsTr("Mostrar janelas ao clicar no app focado (2+ janelas)")
+                            checked: dock.liveBehaviorWindowOverviewOnRefocus
+                            onToggled: {
+                                dock.liveBehaviorWindowOverviewOnRefocus = checked
+                                taskBackend.windowOverviewOnRefocus = checked
+                            }
+                            palette.text: "#DDDDDD"
+                            Layout.fillWidth: true
+                        }
+
+                        Rectangle { Layout.fillWidth: true; height: 1; color: "#22FFFFFF" }
+
+                        CheckBox {
+                            text: qsTr("Mostrar apps em execução não fixados")
+                            checked: dock.liveBehaviorShowUnpinnedApps
+                            onToggled: dock.liveBehaviorShowUnpinnedApps = checked
+                            palette.text: "#DDDDDD"
+                            Layout.fillWidth: true
+                        }
+                        Label {
+                            visible: dock.liveBehaviorShowUnpinnedApps
+                            text: qsTr("Apps abertos aparecem na dock até fecharem (estilo macOS).")
+                            wrapMode: Text.WordWrap
+                            Layout.fillWidth: true
+                            font.pixelSize: 11
+                            color: "#888888"
+                        }
+
+                        CheckBox {
+                            text: qsTr("Lembrar apps da sessão anterior ao abrir a dock")
+                            checked: dock.liveBehaviorRememberRecentApps
+                            enabled: dock.liveBehaviorShowUnpinnedApps
+                            onToggled: dock.liveBehaviorRememberRecentApps = checked
+                            palette.text: "#DDDDDD"
+                            Layout.fillWidth: true
+                        }
+                        Label {
+                            visible: dock.liveBehaviorRememberRecentApps && dock.liveBehaviorShowUnpinnedApps
+                            text: qsTr("Mostra ícones semitransparentes dos apps usados antes de reiniciar a dock.")
+                            wrapMode: Text.WordWrap
+                            Layout.fillWidth: true
+                            font.pixelSize: 11
+                            color: "#888888"
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 6
+                            Label { text: qsTr("Scroll no ícone"); color: "#CCCCCC"; font.pixelSize: 12 }
+                            ComboBox {
+                                Layout.fillWidth: true
+                                model: [qsTr("Alternar janelas"), qsTr("Volume"), qsTr("Brilho")]
+                                currentIndex: dock.liveScrollWheelAction
+                                onActivated: dock.liveScrollWheelAction = currentIndex
+                            }
+                        }
+
+                        Label {
+                            text: qsTr("Atalho global de preferências (KGlobalAccel): %1").arg(dock.liveOpenSettingsShortcut)
+                            wrapMode: Text.WordWrap
+                            Layout.fillWidth: true
+                            font.pixelSize: 11
+                            color: "#888888"
                         }
 
                         Rectangle { Layout.fillWidth: true; height: 1; color: "#22FFFFFF" }
@@ -656,14 +785,6 @@ Window {
                                 Slider { Layout.fillWidth: true; from: 0; to: 23; stepSize: 1; value: dock.liveNightStartHour; onMoved: dock.liveNightStartHour = Math.round(value) }
                             }
                         }
-                        CheckBox {
-                            text: qsTr("Modo edição visual da dock")
-                            checked: dock.liveDockEditMode
-                            onToggled: dock.liveDockEditMode = checked
-                            palette.text: "#DDDDDD"
-                            Layout.fillWidth: true
-                        }
-
                         Label { text: qsTr("Regras por app (JSON)"); color: "#CCCCCC"; font.pixelSize: 12 }
                         JsonEditor {
                             Layout.fillWidth: true

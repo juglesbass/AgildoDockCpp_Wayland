@@ -1,0 +1,21 @@
+{
+  "KPackageStructure": "Plasma/Applet",
+  "KPlugin": {
+    "Id": "org.agildosoft.agildodock.preview",
+    "Version": "1.0.0",
+    "Name": "AgildoDock Preview",
+    "Description": "Preview de dock em formato plasmoid para Plasma 6.",
+    "Category": "Utilities",
+    "Icon": "preferences-system-windows-effect-magiclamp",
+    "Authors": [
+      {
+        "Name": "AgildoSoft"
+      }
+    ],
+    "License": "GPL-3.0-or-later",
+    "EnabledByDefault": false
+  },
+  "X-Plasma-API-Minimum-Version": "6.0",
+  "X-Plasma-API": "declarativeappletscript",
+  "X-Plasma-MainScript": "ui/main.qml"
+}
