@@ -122,7 +122,7 @@ Item {
     property real targetIconSize: {
         var minSize = dock.baseMinSize
         var maxSize = Math.max(dock.liveMinIconSize, dock.liveMaxIconSize) * dock.liveScaleFactor
-        var effAmp = Math.max(0.0, Math.min(1.8, dock.waveAmplitude * dock.liveWaveIntensity))
+        var effAmp = Math.max(0.0, Math.min(1.0, dock.waveAmplitude * dock.liveWaveIntensity))
         if (effAmp === 0.0 || maxSize <= minSize) {
             return minSize
         }

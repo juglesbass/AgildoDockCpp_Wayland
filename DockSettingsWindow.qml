@@ -67,9 +67,10 @@ Window {
         dock.liveBgOpacity = dock.appSettings.bgOpacity
         dock.liveMinIconSize = dock.appSettings.minIconSize
         dock.liveMaxIconSize = Math.max(dock.appSettings.minIconSize, dock.appSettings.maxIconSize)
+        dock.clampMaxIconSizeForZoomCap()
         dock.liveThemeMode = dock.appSettings.themeMode
         dock.liveAccentMode = dock.appSettings.accentMode
-        dock.liveWaveIntensity = dock.appSettings.waveIntensity
+        dock.liveWaveIntensity = Math.max(0.6, Math.min(1.0, dock.appSettings.waveIntensity))
         dock.liveDockRadius = dock.appSettings.dockRadius
         dock.liveMonochromeIcons = dock.appSettings.monochromeIcons
         dock.liveIndicatorStyle = dock.appSettings.indicatorStyle
@@ -127,7 +128,7 @@ Window {
 
     function aplicarValores() {
         var minSz = dock.liveMinIconSize
-        var maxSz = Math.max(minSz, dock.liveMaxIconSize)
+        var maxSz = Math.max(minSz, Math.min(dock.liveMaxIconSize, minSz * 2.0))
         dock.liveMaxIconSize = maxSz
 
         dock.appSettings.scaleFactor = dock.liveScaleFactor
@@ -275,7 +276,10 @@ Window {
             if (p.iconSpacing  !== undefined) dock.liveIconSpacing  = p.iconSpacing
             if (p.dockMargin   !== undefined) dock.liveDockMargin   = p.dockMargin
             if (p.minIconSize  !== undefined) dock.liveMinIconSize  = p.minIconSize
-            if (p.maxIconSize  !== undefined) dock.liveMaxIconSize  = Math.max(p.minIconSize || dock.liveMinIconSize, p.maxIconSize)
+            if (p.maxIconSize  !== undefined) {
+                dock.liveMaxIconSize = Math.max(p.minIconSize || dock.liveMinIconSize, p.maxIconSize)
+                dock.clampMaxIconSizeForZoomCap()
+            }
             if (p.waveIntensity !== undefined) dock.liveWaveIntensity = p.waveIntensity
             if (p.waveRadiusFactor !== undefined) dock.liveWaveRadiusFactor = p.waveRadiusFactor
             if (p.waveFalloff  !== undefined) dock.liveWaveFalloff  = p.waveFalloff
@@ -672,19 +676,35 @@ Window {
                             Layout.fillWidth: true
                             spacing: 6
                             Label { text: qsTr("Ícone base: %1 px").arg(Math.round(dock.liveMinIconSize)); color: "#CCCCCC"; font.pixelSize: 12 }
-                            Slider { Layout.fillWidth: true; from: 30; to: 80; stepSize: 1; value: dock.liveMinIconSize; onMoved: dock.liveMinIconSize = value }
+                            Slider {
+                                Layout.fillWidth: true
+                                from: 30; to: 80; stepSize: 1
+                                value: dock.liveMinIconSize
+                                onMoved: {
+                                    dock.liveMinIconSize = value
+                                    dock.clampMaxIconSizeForZoomCap()
+                                }
+                            }
                         }
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 6
-                            Label { text: qsTr("Zoom máximo: %1 px").arg(Math.round(dock.liveMaxIconSize)); color: "#CCCCCC"; font.pixelSize: 12 }
-                            Slider { Layout.fillWidth: true; from: 30; to: 140; stepSize: 1; value: dock.liveMaxIconSize; onMoved: dock.liveMaxIconSize = value }
+                            Label {
+                                text: qsTr("Zoom máximo: %1%").arg(Math.round(dock.liveMaxIconZoomPercent))
+                                color: "#CCCCCC"; font.pixelSize: 12
+                            }
+                            Slider {
+                                Layout.fillWidth: true
+                                from: 0; to: 100; stepSize: 5
+                                value: dock.liveMaxIconZoomPercent
+                                onMoved: dock.setLiveMaxIconZoomPercent(value)
+                            }
                         }
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 6
                             Label { text: qsTr("Intensidade: %1%").arg(Math.round(dock.liveWaveIntensity * 100)); color: "#CCCCCC"; font.pixelSize: 12 }
-                            Slider { Layout.fillWidth: true; from: 0.6; to: 1.6; stepSize: 0.05; value: dock.liveWaveIntensity; onMoved: dock.liveWaveIntensity = value }
+                            Slider { Layout.fillWidth: true; from: 0.6; to: 1.0; stepSize: 0.05; value: dock.liveWaveIntensity; onMoved: dock.liveWaveIntensity = value }
                         }
 
                         RowLayout {

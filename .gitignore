@@ -1,6 +1,9 @@
 # Pasta de compilação local (CMake)
 /build/
 
+# Backups locais de desenvolvimento
+/.backup/
+
 # Metadados do editor / agente (não faz parte do código-fonte)
 .cursor/
 

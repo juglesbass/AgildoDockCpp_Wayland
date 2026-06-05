@@ -375,6 +375,10 @@ bool TaskBackend::windowManagementAvailable() const
 void TaskBackend::setMainWindow(QWindow *win)
 {
     m_mainWindow = win;
+    if (win) {
+        connect(win, &QWindow::widthChanged, this, [this] { m_hasLastBlur = false; });
+        connect(win, &QWindow::heightChanged, this, [this] { m_hasLastBlur = false; });
+    }
 }
 
 QString TaskBackend::dockAppsSnapshotPath()
@@ -783,13 +787,19 @@ void TaskBackend::setPointerInputExcludeTop(int excludeTopPixels)
     m_mainWindow->requestUpdate();
 }
 
-void TaskBackend::setBlurRegion(int x, int y, int w, int h, int radius)
+void TaskBackend::setBlurRegion(int x, int y, int w, int h, int radius, bool immediate)
 {
     m_pendingBlurX = x;
     m_pendingBlurY = y;
     m_pendingBlurW = w;
     m_pendingBlurH = h;
     m_pendingBlurRadius = radius;
+
+    if (immediate) {
+        m_blurFlushPending = false;
+        flushBlurRegion();
+        return;
+    }
 
     if (!m_blurFlushPending) {
         m_blurFlushPending = true;
@@ -817,11 +827,17 @@ void TaskBackend::flushBlurRegion()
     int safeW = qBound(0, adjW, m_mainWindow->width() - safeX);
     int safeH = qBound(0, adjH, m_mainWindow->height() - safeY);
 
-    const int radius = m_pendingBlurRadius;
-
     if (safeW < 10 || safeH < 10) {
         return;
     }
+
+    const int winW = m_mainWindow->width();
+    const int winH = m_mainWindow->height();
+    if (safeW >= winW - 4 && safeH >= winH - 4) {
+        return;
+    }
+
+    const int radius = qBound(0, m_pendingBlurRadius, qMin(safeW, safeH) / 2);
 
     if (m_hasLastBlur && m_lastBlurX == safeX && m_lastBlurY == safeY
         && m_lastBlurW == safeW && m_lastBlurH == safeH && m_lastBlurRadius == radius) {
@@ -835,10 +851,14 @@ void TaskBackend::flushBlurRegion()
     m_lastBlurH = safeH;
     m_lastBlurRadius = radius;
 
+    // Polígono arredondado; dimensões inteiras evitam cantos “partidos” no KWin
     QPainterPath path;
-    path.addRoundedRect(safeX, safeY, safeW, safeH, radius, radius);
-    const QRegion blurRegion(path.toFillPolygon().toPolygon());
-    KWindowEffects::enableBlurBehind(m_mainWindow, true, blurRegion);
+    path.addRoundedRect(QRectF(safeX, safeY, safeW, safeH), radius, radius);
+    QPolygon poly = path.toFillPolygon().toPolygon();
+    if (poly.isEmpty()) {
+        return;
+    }
+    KWindowEffects::enableBlurBehind(m_mainWindow, true, QRegion(poly));
 }
 
 void TaskBackend::loadKnownApps()

@@ -39,7 +39,7 @@ public:
     Q_INVOKABLE void setLayerShellActivateOnShow(bool activate);
     /// Define a borda Layer Shell: 0 baixo, 1 topo, 2 esquerda, 3 direita.
     Q_INVOKABLE void applyLayerShellEdge(int edge);
-    Q_INVOKABLE void setBlurRegion(int x, int y, int w, int h, int radius);
+    Q_INVOKABLE void setBlurRegion(int x, int y, int w, int h, int radius, bool immediate = false);
     /// Wayland: remove a faixa superior (em px) da região que recebe ponteiro — cliques passam atrás.
     /// excludeTopPixels <= 0 repõe a superfície completa. Não altera o layout nem os tooltips.
     Q_INVOKABLE void setPointerInputExcludeTop(int excludeTopPixels);

@@ -21,9 +21,27 @@ Window {
     property real liveBgOpacity: 0.66
     property real liveMinIconSize: 45.0
     property real liveMaxIconSize: 75.0
+    // Zoom máximo em % acima do ícone base (teto 100% = no máximo o dobro do mínimo)
+    readonly property real maxIconZoomPercentCap: 100.0
+    readonly property real liveMaxIconZoomPercent: liveMinIconSize > 0
+            ? Math.max(0, Math.min(maxIconZoomPercentCap, ((liveMaxIconSize / liveMinIconSize) - 1.0) * 100.0))
+            : 0
+
+    function clampMaxIconSizeForZoomCap() {
+        var lo = liveMinIconSize
+        var hi = lo * (1.0 + maxIconZoomPercentCap / 100.0)
+        liveMaxIconSize = Math.max(lo, Math.min(liveMaxIconSize, hi))
+    }
+
+    function setLiveMaxIconZoomPercent(pct) {
+        var p = Math.max(0, Math.min(maxIconZoomPercentCap, pct))
+        liveMaxIconSize = liveMinIconSize * (1.0 + p / 100.0)
+    }
+
+    onLiveMinIconSizeChanged: clampMaxIconSizeForZoomCap()
     property int liveThemeMode: 0 // 0 Escuro, 1 Claro, 2 Noite Azul, 3 Ametista
     property int liveAccentMode: 0 // 0 Ciano, 1 Roxo, 2 Verde, 3 Laranja, 4 Rosa
-    property real liveWaveIntensity: 1.0 // 0.6..1.6
+    property real liveWaveIntensity: 1.0 // 0.6..1.0 (máx. 100%)
     property real liveDockRadius: 22.0 // px base antes da escala
     property bool liveMonochromeIcons: false
     property int liveIndicatorStyle: 0 // 0 ponto, 1 linha, 2 barra, 3 sublinhado, 4 pulso
@@ -346,7 +364,9 @@ Window {
                 }))
             }
             liveScaleFactor = s.scale; liveIconSpacing = s.spacing; liveDockMargin = s.margin; liveBgOpacity = s.opacity
-            liveMinIconSize = s.min; liveMaxIconSize = s.max; liveThemeMode = s.theme; liveAccentMode = s.accent
+            liveMinIconSize = s.min; liveMaxIconSize = s.max
+            clampMaxIconSizeForZoomCap()
+            liveThemeMode = s.theme; liveAccentMode = s.accent
             liveWaveIntensity = s.wave; liveDockRadius = s.radius; liveBg3dStyle = s.bgStyle
             liveGradientColorA = s.gradA; liveGradientColorB = s.gradB; liveGradientColorC = s.gradC
             liveGradientMix = s.gradMix; liveBorderWidth = s.borderW; liveBorderGlow = s.borderGlow
@@ -557,11 +577,16 @@ Window {
     // Matemática global blindada contra retornos `undefined` durante animações
     property real dividerExtraHitArea: Math.max(0, (Math.max(root.liveMinIconSize, root.liveMaxIconSize) * root.liveScaleFactor * root.waveAmplitude) - Math.round(root.dockBarHeightPx * root.liveScaleFactor) + (10 * root.liveScaleFactor))
 
-    property real safePadding: Math.max(160, (root.baseStride * root.dockWaveRadiusStrideFactor * root.liveWaveIntensity) * 2.2)
+    // Janela Layer Shell: só o necessário para a onda (antes safePadding somava ~160–380px à toa)
+    readonly property real winEdgeSlopPx: Math.max(
+        40 * root.liveScaleFactor,
+        root.wavePeakDeltaPx * root.liveScaleFactor * 2.0,
+        root.baseStride * 0.45
+    )
 
     readonly property int maxWinHeight: root.screen ? root.screen.height : 16777215
 
-    property real rawWinWidth: baseRowWidth + maxIconsExpansion + safePadding
+    property real rawWinWidth: baseRowWidth + maxIconsExpansion + (winEdgeSlopPx * 2)
     readonly property int maxWinWidth: root.screen ? root.screen.width : 16777215
     width: dockLayoutVertical
            ? Math.min(maxWinWidth, Math.max(120, Math.round((dockBarHeightPx + liveDockMargin * 2) * liveScaleFactor + dockIconTopOverflowPx + 48)))
@@ -1219,9 +1244,10 @@ Window {
         root.liveBgOpacity    = dockSettings.bgOpacity
         root.liveMinIconSize  = dockSettings.minIconSize
         root.liveMaxIconSize  = Math.max(dockSettings.minIconSize, dockSettings.maxIconSize)
+        root.clampMaxIconSizeForZoomCap()
         root.liveThemeMode    = dockSettings.themeMode
         root.liveAccentMode   = dockSettings.accentMode
-        root.liveWaveIntensity = Math.max(0.6, Math.min(1.6, dockSettings.waveIntensity))
+        root.liveWaveIntensity = Math.max(0.6, Math.min(1.0, dockSettings.waveIntensity))
         root.liveDockRadius   = Math.max(8, Math.min(40, dockSettings.dockRadius))
         root.liveMonochromeIcons = dockSettings.monochromeIcons
         root.liveIndicatorStyle = dockSettings.indicatorStyle
@@ -1415,6 +1441,7 @@ Window {
                 duration: 900
                 easing.type: Easing.OutBack
             }
+            onFinished: dockBg.requestBlurUpdate()
         }
 
         Rectangle {
@@ -1436,6 +1463,88 @@ Window {
 
             property real waveExtraWidth: root.wavePeakDeltaPx * 3.15 * root.liveScaleFactor * root.liveWaveIntensity
             property real rawBgWidth: root.baseRowWidth + (30 * root.liveScaleFactor) + (waveExtraWidth * root.waveAmplitude)
+
+            readonly property bool waveBlurAnimating: Math.abs(root.waveAmplitude - (root.dockHovered ? 1.0 : 0.0)) > 0.02
+
+            property int blurLastSentW: -1
+            property int blurLastSentH: -1
+            property int blurStableCx: -1
+            property int blurStableCy: -1
+            property bool blurWaveFramePending: false
+
+            // Evita repintura do vidro enquanto o KWin ajusta o blur na onda
+            layer.enabled: waveBlurAnimating && !dockBg.bgIsFlat
+            layer.smooth: true
+
+            // Um flush por frame na onda (sem debounce de 40ms — ponta direita atrasava)
+            function scheduleWaveBlurFrame() {
+                if (!waveBlurAnimating || dockBg.bgIsFlat)
+                    return
+                if (blurWaveFramePending)
+                    return
+                blurWaveFramePending = true
+                Qt.callLater(function() {
+                    blurWaveFramePending = false
+                    dockBg.updateBlurNative(true)
+                })
+            }
+
+            // Posição do blur por matemática (mapToItem oscila quando a largura anima)
+            function computeBlurStableRect(bw, bh) {
+                var radius = Math.min(
+                    Math.round(dockBg.radius),
+                    Math.floor(Math.min(bw, bh) / 2)
+                )
+                var slideY = Math.round(dockContainer.dockSlidePixels)
+                var margin = Math.round(root.liveDockMargin * root.liveScaleFactor)
+                var bx, by
+
+                if (!root.dockLayoutVertical) {
+                    var cx = (waveBlurAnimating && blurStableCx >= 0)
+                            ? blurStableCx
+                            : (Math.round(root.width / 2) + Math.round(root.liveDockOffsetX))
+                    // bw sempre par: divisão inteira evita tremor na ponta direita
+                    bx = cx - (bw >> 1)
+                    if (root.liveDockEdge === 0) {
+                        var bottomMargin = Math.round(margin - dockContainer.startupOffsetY + root.liveDockOffsetY)
+                        by = Math.round(root.height - bh - bottomMargin + slideY)
+                    } else {
+                        var topMargin = Math.round(margin + dockContainer.startupOffsetY + root.liveDockOffsetY)
+                        by = Math.round(topMargin + slideY)
+                    }
+                } else {
+                    var cy = (waveBlurAnimating && blurStableCy >= 0)
+                            ? blurStableCy
+                            : (Math.round(root.height / 2) + Math.round(root.liveDockOffsetY))
+                    by = cy - (bh >> 1)
+                    if (root.liveDockEdge === 2) {
+                        var leftMargin = Math.round(margin + root.liveDockOffsetX)
+                        bx = leftMargin
+                    } else {
+                        var rightMargin = Math.round(margin - root.liveDockOffsetX)
+                        bx = Math.round(root.width - bw - rightMargin)
+                    }
+                }
+
+                return { x: bx, y: by, radius: radius }
+            }
+
+            onWaveBlurAnimatingChanged: {
+                blurThrottleTimer.stop()
+                blurLastSentW = -1
+                blurLastSentH = -1
+                if (waveBlurAnimating) {
+                    blurStableCx = Math.round(root.width / 2) + Math.round(root.liveDockOffsetX)
+                    blurStableCy = Math.round(root.height / 2) + Math.round(root.liveDockOffsetY)
+                } else {
+                    blurStableCx = -1
+                    blurStableCy = -1
+                }
+                updateBlurNative(true)
+                if (waveBlurAnimating)
+                    Qt.callLater(function() { dockBg.updateBlurNative(true) })
+            }
+
             readonly property bool bgIsFlat: root.liveBg3dStyle === 0
             readonly property bool bgIsPremium: root.liveBg3dStyle === 2
             readonly property bool bgIsGlass2d: root.liveBg3dStyle === 3
@@ -1466,43 +1575,53 @@ Window {
             }
 
             function requestBlurUpdate() {
-                if (!blurThrottleTimer.running) {
+                if (dockBg.bgIsFlat || waveBlurAnimating)
+                    return
+                if (!blurThrottleTimer.running)
                     blurThrottleTimer.start()
-                }
             }
 
-            function updateBlurNative() {
-                var realX = 0
-                var realY = 0
+            function updateBlurNative(immediate) {
+                if (immediate === undefined)
+                    immediate = false
 
-                // Posição calculada na mão — evita mapToItem retornar 0,0 no pico da onda
-                if (root.liveDockEdge === 0) { // Baixo
-                    realX = (root.width - dockBg.width) / 2 + root.liveDockOffsetX
-                    realY = root.height - dockBg.height - dockBg.anchors.bottomMargin + dockContainer.dockSlidePixels
-                } else if (root.liveDockEdge === 1) { // Topo
-                    realX = (root.width - dockBg.width) / 2 + root.liveDockOffsetX
-                    realY = dockBg.anchors.topMargin + dockContainer.dockSlidePixels
-                } else if (root.liveDockEdge === 2) { // Esquerda
-                    realX = dockBg.anchors.leftMargin
-                    realY = (root.height - dockBg.height) / 2 + root.liveDockOffsetY + dockContainer.dockSlidePixels
-                } else if (root.liveDockEdge === 3) { // Direita
-                    realX = root.width - dockBg.width - dockBg.anchors.rightMargin
-                    realY = (root.height - dockBg.height) / 2 + root.liveDockOffsetY + dockContainer.dockSlidePixels
-                }
+                // Animação de entrada: startupOffsetY ainda não estabilizou
+                if (dockContainer.startupOffsetY > 0.5)
+                    return
 
-                taskBackend.setBlurRegion(
-                    Math.round(realX),
-                    Math.round(realY),
-                    Math.round(dockBg.width),
-                    Math.round(dockBg.height),
-                    Math.round(dockBg.radius)
-                )
+                if (dockBg.bgIsFlat)
+                    return
+
+                var bw = Math.round(dockBg.width)
+                var bh = Math.round(dockBg.height)
+                if (bw < 10 || bh < 10)
+                    return
+                if (bw > root.width * 0.92 && bh > root.height * 0.92)
+                    return
+
+                if (bw === blurLastSentW && bh === blurLastSentH)
+                    return
+
+                var rect = computeBlurStableRect(bw, bh)
+                blurLastSentW = bw
+                blurLastSentH = bh
+                taskBackend.setBlurRegion(rect.x, rect.y, bw, bh, rect.radius, immediate || waveBlurAnimating)
             }
 
             onXChanged: requestBlurUpdate()
             onYChanged: requestBlurUpdate()
-            onWidthChanged: requestBlurUpdate()
-            onHeightChanged: requestBlurUpdate()
+            onWidthChanged: {
+                if (waveBlurAnimating)
+                    scheduleWaveBlurFrame()
+                else
+                    requestBlurUpdate()
+            }
+            onHeightChanged: {
+                if (waveBlurAnimating)
+                    scheduleWaveBlurFrame()
+                else
+                    requestBlurUpdate()
+            }
             onRadiusChanged: requestBlurUpdate()
 
             Component.onCompleted: requestBlurUpdate()
