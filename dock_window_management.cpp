@@ -87,6 +87,12 @@ buildKdotoolSearchChain(const QString &command,
         chain.push_back(KdotoolSearchFilter{false, QStringLiteral("faugus-launcher")});
         return chain;
     }
+    if (exeLower == QLatin1String("lact")) {
+        if (!desktopAppName.trimmed().isEmpty()) {
+            chain.push_back(KdotoolSearchFilter{true, desktopAppName});
+        }
+        return chain;
+    }
     if (exeLower.contains(QLatin1String("chrom"))) {
         chain.push_back(KdotoolSearchFilter{false, QStringLiteral("chromium")});
         chain.push_back(KdotoolSearchFilter{false, QStringLiteral("Chromium")});
@@ -167,6 +173,9 @@ static bool stackingWindowBelongsToCommand(const QString &command,
     }
     if (execFull.contains(QLatin1String("faugus"))) {
         return cls.contains(QLatin1String("faugus")) || cls.contains(QLatin1String("faugus-launcher"));
+    }
+    if (execFull == QLatin1String("lact")) {
+        return !appNameDesk.isEmpty() && cap.contains(appNameDesk);
     }
     if (execFull.contains(QLatin1String("chrom"))) {
         const bool chromiumish = cls.contains(QLatin1String("chromium")) || cls.contains(QLatin1String("google-chrome"))
@@ -286,11 +295,14 @@ bool commandMatchesForegroundHints(const QString &command,
         return false;
     }
 
+    QString execName = strippedExecBasename(command);
+    if (execName == QLatin1String("lact")) {
+        return !appName.isEmpty() && cap.toLower().contains(appName);
+    }
+
     if (cls.isEmpty()) {
         return false;
     }
-
-    QString execName = strippedExecBasename(command);
 
     if (execName.contains(QLatin1String("faugus"))) {
         return cls.contains(QLatin1String("faugus"));

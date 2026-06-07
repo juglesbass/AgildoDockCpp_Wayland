@@ -1,5 +1,6 @@
 #include "taskbackend.h"
 #include "dock_window_management.h"
+#include "dock_browser_integration.h"
 
 #include <QDateTime>
 #include <QDirIterator>
@@ -21,6 +22,7 @@
 #include <QUrl>
 #include <QXmlStreamReader>
 #include <QtConcurrent/QtConcurrentRun>
+#include <utility>
 
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
@@ -52,6 +54,13 @@ namespace {
         qint64 timestampMs = 0;
     };
     static QHash<QString, WindowCountCacheEntry> s_windowCountCache;
+
+    static bool isLactCommand(const QString &cmd)
+    {
+        const QString c = cmd.trimmed().toLower();
+        const QString exec = c.split(QLatin1Char(' ')).constFirst().section(QLatin1Char('/'), -1);
+        return exec == QLatin1String("lact");
+    }
 
     static bool debugEnabledFromEnv()
     {
@@ -359,8 +368,21 @@ TaskBackend::TaskBackend(QObject *parent)
     }
 
     loadKnownApps();
+    ensurePlasmaBrowserIntegrationHosts();
 
     setupNotificationBadgeWatcher();
+    setupUnityLauncherProgressWatcher();
+    setupZenDownloadWatcher();
+
+    m_progressNotifyTimer = new QTimer(this);
+    m_progressNotifyTimer->setSingleShot(true);
+    m_progressNotifyTimer->setInterval(16);
+    connect(m_progressNotifyTimer, &QTimer::timeout, this, [this]() {
+        const QSet<QString> cmds = std::exchange(m_pendingProgressNotifyCmds, {});
+        for (const QString &cmd : cmds) {
+            emit launcherProgressForCommandChanged(cmd);
+        }
+    });
 
     auto *timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, &TaskBackend::updateSystemState);
@@ -869,7 +891,7 @@ void TaskBackend::loadKnownApps()
     sysPaths << homePath;
 
     const QStringList blacklist = {
-        QStringLiteral("lact"),     QStringLiteral("steam"),     QStringLiteral("discord"), QStringLiteral("telegram-desktop"),
+        QStringLiteral("steam"),     QStringLiteral("discord"), QStringLiteral("telegram-desktop"),
         QStringLiteral("obsidian"), QStringLiteral("kded5"),     QStringLiteral("kded6"), QStringLiteral("polkit"),
         QStringLiteral("kwallet"),  QStringLiteral("powerdevil"), QStringLiteral("ksmserver"), QStringLiteral("plasmashell"),
         QStringLiteral("kwin_wayland"), QStringLiteral("agent"), QStringLiteral("agildo thermo"), QStringLiteral("agildothermo"),
@@ -911,13 +933,36 @@ void TaskBackend::loadKnownApps()
 void TaskBackend::rebuildExecIndex()
 {
     m_appsByExec.clear();
+    m_desktopBasenameToCmd.clear();
+    m_desktopEntryToCmd.clear();
+    m_execBasenameToCmd.clear();
     for (auto it = knownApps.constBegin(); it != knownApps.constEnd(); ++it) {
+        const QString cmd = it.key();
         const QVariantMap &app = it.value();
-        const QString appExec = execBasenameFromCommand(app[QStringLiteral("cmd")].toString());
+        const QString appExec = execBasenameFromCommand(cmd);
         if (!appExec.isEmpty()) {
             m_appsByExec.insert(appExec, app);
+            if (!m_execBasenameToCmd.contains(appExec)) {
+                m_execBasenameToCmd.insert(appExec, cmd);
+            }
+        }
+        const QString desktopPath = app.value(QStringLiteral("desktopPath")).toString();
+        if (desktopPath.isEmpty()) {
+            continue;
+        }
+        const QString baseName = QFileInfo(desktopPath).fileName().toLower();
+        if (!m_desktopBasenameToCmd.contains(baseName)) {
+            m_desktopBasenameToCmd.insert(baseName, cmd);
+        }
+        QString entryId = baseName;
+        if (entryId.endsWith(QStringLiteral(".desktop"))) {
+            entryId.chop(8);
+        }
+        if (!m_desktopEntryToCmd.contains(entryId.toLower())) {
+            m_desktopEntryToCmd.insert(entryId.toLower(), cmd);
         }
     }
+    updateZenDownloadCommand();
 }
 
 bool TaskBackend::appMatchesRunningCmdLine(const QString &cmdLineLower, const QVariantMap &app)
@@ -1001,12 +1046,37 @@ QVariantList TaskBackend::getUnpinnedApps(const QVariantList &pinnedCmdsVar)
         }
 
         const QString matchCmd = bestMatch[QStringLiteral("cmd")].toString();
-        if (!pinnedContainsCommand(pinnedCmds, matchCmd) && !addedCmds.contains(matchCmd)) {
-            unpinned.append(bestMatch);
-            addedCmds.insert(matchCmd);
+        if (pinnedContainsCommand(pinnedCmds, matchCmd) || addedCmds.contains(matchCmd)) {
+            continue;
         }
+        if (isLactCommand(matchCmd) && m_kdotoolAvailable && !lactHasVisibleWindow(matchCmd)) {
+            continue;
+        }
+        unpinned.append(bestMatch);
+        addedCmds.insert(matchCmd);
     }
     return unpinned;
+}
+
+bool TaskBackend::lactHasVisibleWindow(const QString &command) const
+{
+    if (!m_kdotoolAvailable) {
+        return true;
+    }
+    QString lactCmd = command;
+    if (!knownApps.contains(lactCmd)) {
+        for (auto it = knownApps.constBegin(); it != knownApps.constEnd(); ++it) {
+            if (isLactCommand(it.key())) {
+                lactCmd = it.key();
+                break;
+            }
+        }
+    }
+    if (lactCmd.isEmpty()) {
+        lactCmd = QStringLiteral("lact gui");
+    }
+    return !DockWindowManagement::resolveAllWindowHandlesForLaunch(
+        lactCmd, knownApps, m_kdotoolAvailable, kKdotoolTimeoutMs).isEmpty();
 }
 
 void TaskBackend::forceLaunchApp(const QString &command)
@@ -1221,6 +1291,20 @@ bool TaskBackend::isAppRunning(const QString &command)
         if (m_kdotoolAvailable) {
             return anyDolphinWindowExists(m_kdotoolAvailable);
         }
+    }
+
+    if (isLactCommand(command)) {
+        bool procRunning = false;
+        for (const QString &r : std::as_const(m_runningCmdLines)) {
+            if (r.startsWith(execName) || r.contains(QStringLiteral("/") + execName)) {
+                procRunning = true;
+                break;
+            }
+        }
+        if (!procRunning) {
+            return false;
+        }
+        return lactHasVisibleWindow(command);
     }
 
     if (cmdLower.contains(QStringLiteral("--app-id"))) {

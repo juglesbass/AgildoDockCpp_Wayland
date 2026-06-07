@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QHash>
+#include <QMap>
 #include <QMultiHash>
 #include <QProcess>
 #include <QSet>
@@ -14,6 +15,9 @@
 #include <QWindow>
 
 
+class DockUnityLauncherService;
+class DockZenDownloadWatcher;
+
 class TaskBackend : public QObject
 {
     Q_OBJECT
@@ -22,6 +26,7 @@ class TaskBackend : public QObject
     Q_PROPERTY(bool windowManagementAvailable READ windowManagementAvailable CONSTANT)
     Q_PROPERTY(bool windowOverviewOnRefocus READ windowOverviewOnRefocus WRITE setWindowOverviewOnRefocus NOTIFY windowOverviewOnRefocusChanged)
     Q_PROPERTY(QVariantMap notificationBadges READ notificationBadges NOTIFY notificationBadgesChanged)
+    Q_PROPERTY(QVariantMap launcherProgress READ launcherProgress NOTIFY launcherProgressChanged)
 
 public:
     explicit TaskBackend(QObject *parent = nullptr);
@@ -59,6 +64,7 @@ public:
     bool windowOverviewOnRefocus() const { return m_windowOverviewOnRefocus; }
     void setWindowOverviewOnRefocus(bool enabled);
     QVariantMap notificationBadges() const { return m_notificationBadges; }
+    QVariantMap launcherProgress() const { return m_launcherProgress; }
     /// Centraliza filtro de apps que não devem aparecer na área dinâmica (ex.: Agildo Monitor).
     Q_INVOKABLE bool shouldHideFromDock(const QString &cmd, const QString &name) const;
     /// Persiste snapshot da lista de apps fixadas com escrita atômica.
@@ -70,17 +76,30 @@ public:
     Q_INVOKABLE QString readUserJsonFile(const QString &relativeName) const;
     /// Log de debug com categoria (respeita AGILDO_DOCK_DEBUG e AGILDO_DOCK_DEBUG_CATS).
     Q_INVOKABLE void debugLog(const QString &category, const QString &message) const;
+    /// Pausa sinais de progresso durante a animação da onda (evita conflito com blur KWin).
+    Q_INVOKABLE void setDockWaveAnimating(bool animating);
+    /// 0 = ícone do navegador, 1 = pasta Transferências, 2 = Transferências com ícone do arquivo (macOS).
+    Q_INVOKABLE void setDownloadProgressDisplayMode(int mode);
 
 signals:
     void windowsUpdated();
     void activeWindowCoversWorkAreaChanged();
     void windowOverviewOnRefocusChanged();
     void notificationBadgesChanged();
+    void launcherProgressChanged();
+    /// Só o ícone com cmd correspondente deve reagir (evita repaint global na doca).
+    void launcherProgressForCommandChanged(const QString &command);
 
 private slots:
     void completeLaunchApp(const QString &command, const QString &winId);
     void completeCloseApp(const QString &command, const QString &winId);
     void flushBlurRegion();
+    void mergeUnityLauncherUpdate(const QString &appUri, const QMap<QString, QVariant> &properties);
+    void mergeZenDownloadProgress(const QString &command,
+                                  double progress,
+                                  bool visible,
+                                  const QString &filePath,
+                                  const QString &fileName);
 
 private:
     void updateSystemState();
@@ -93,6 +112,7 @@ private:
     QStringList windowHandlesForCommand(const QString &command);
     QVariantMap matchRunningLineToApp(const QString &cmdLineLower) const;
     static bool appMatchesRunningCmdLine(const QString &cmdLineLower, const QVariantMap &app);
+    bool lactHasVisibleWindow(const QString &command) const;
 
     static QString readProcCmdlineFile(const QString &path);
     static QString execBasenameFromCommand(const QString &command);
@@ -101,6 +121,19 @@ private:
     void emitWindowsUpdatedCoalesced();
     void setupNotificationBadgeWatcher();
     void refreshNotificationBadgesFromSni();
+    void setupUnityLauncherProgressWatcher();
+    void setupZenDownloadWatcher();
+    void updateZenDownloadCommand();
+    QString commandForUnityAppUri(const QString &appUri) const;
+    void applyLauncherProgressForCommand(const QString &cmd, QVariantMap entry, QVariantMap &next) const;
+    void notifyLauncherProgressForCommand(const QString &command, bool urgent = false);
+    /// Onde exibir progresso de download de navegador (ver setDownloadProgressDisplayMode).
+    QString downloadProgressDockCommand(const QString &sourceCommand) const;
+    bool publishLauncherProgressForSource(const QString &sourceCommand, QVariantMap entry);
+    void enrichLauncherProgressEntry(QVariantMap &entry) const;
+    void reapplyActiveDownloadMetadata();
+    static QString iconThemeForDownloadFile(const QString &filePath);
+    static bool commandLooksLikeBrowser(const QString &command);
     static QString dockAppsSnapshotPath();
     static QString dockAppsSnapshotBackupPath();
     static QString appDataPathForFile(const QString &relativeName);
@@ -108,6 +141,11 @@ private:
 
     QHash<QString, QVariantMap> knownApps;
     QMultiHash<QString, QVariantMap> m_appsByExec;
+    QHash<QString, QString> m_desktopBasenameToCmd;
+    QHash<QString, QString> m_desktopEntryToCmd;
+    QHash<QString, QString> m_execBasenameToCmd;
+    DockUnityLauncherService *m_unityLauncher = nullptr;
+    DockZenDownloadWatcher *m_zenDownloadWatcher = nullptr;
     QWindow *m_mainWindow = nullptr;
 
     QSet<QString> m_runningCmdLines;
@@ -139,7 +177,12 @@ private:
     bool m_windowsUpdatedPending = false;
     bool m_windowOverviewOnRefocus = true;
     QVariantMap m_notificationBadges;
+    QVariantMap m_launcherProgress;
     QTimer *m_sniBadgeTimer = nullptr;
+    QTimer *m_progressNotifyTimer = nullptr;
+    QSet<QString> m_pendingProgressNotifyCmds;
+    bool m_dockWaveAnimating = false;
+    int m_downloadProgressDisplayMode = 2;
 };
 
 #endif // TASKBACKEND_H

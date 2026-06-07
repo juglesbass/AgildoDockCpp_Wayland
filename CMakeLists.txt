@@ -8,7 +8,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick WaylandClient Concurrent DBus LinguistTools)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick WaylandClient Concurrent DBus Sql LinguistTools)
 qt_policy(SET QTP0001 NEW)
 find_package(KF6WindowSystem REQUIRED)
 find_package(KF6GlobalAccel REQUIRED)
@@ -18,8 +18,12 @@ find_package(LayerShellQt REQUIRED)
 add_executable(agildodock
     main.cpp
     taskbackend.cpp
+    taskbackend_launcher_progress.cpp
     dock_window_management.cpp
     dock_global_shortcuts.cpp
+    dock_unity_launcher.cpp
+    dock_browser_integration.cpp
+    dock_zen_downloads.cpp
 )
 
 target_compile_definitions(agildodock PRIVATE AGILDO_DOCK_VERSION="${PROJECT_VERSION}")
@@ -67,6 +71,7 @@ target_link_libraries(agildodock PRIVATE
     Qt6::WaylandClient
     Qt6::Concurrent
     Qt6::DBus
+    Qt6::Sql
     KF6::WindowSystem
     KF6::GlobalAccel
     KF6::Kirigami

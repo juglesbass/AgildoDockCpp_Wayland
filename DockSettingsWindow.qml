@@ -117,7 +117,9 @@ Window {
         dock.liveBehaviorRememberRecentApps = dock.appSettings.behaviorRememberRecentApps
         dock.liveBehaviorAutoHideDelayMs = dock.appSettings.behaviorAutoHideDelayMs
         dock.liveScrollWheelAction = dock.appSettings.scrollWheelAction
+        dock.liveDownloadProgressDisplayMode = dock.appSettings.downloadProgressDisplayMode
         taskBackend.windowOverviewOnRefocus = dock.liveBehaviorWindowOverviewOnRefocus
+        taskBackend.setDownloadProgressDisplayMode(dock.liveDownloadProgressDisplayMode)
         dock.syncGlobalShortcuts()
     }
 
@@ -186,7 +188,9 @@ Window {
         dock.appSettings.behaviorRememberRecentApps = dock.liveBehaviorRememberRecentApps
         dock.appSettings.behaviorAutoHideDelayMs = dock.liveBehaviorAutoHideDelayMs
         dock.appSettings.scrollWheelAction = dock.liveScrollWheelAction
+        dock.appSettings.downloadProgressDisplayMode = dock.liveDownloadProgressDisplayMode
         taskBackend.windowOverviewOnRefocus = dock.liveBehaviorWindowOverviewOnRefocus
+        taskBackend.setDownloadProgressDisplayMode(dock.liveDownloadProgressDisplayMode)
         dock.syncGlobalShortcuts()
 
         dock.pushCustomizationHistory()
@@ -659,6 +663,29 @@ Window {
                                 model: [qsTr("Alternar janelas"), qsTr("Volume"), qsTr("Brilho")]
                                 currentIndex: dock.liveScrollWheelAction
                                 onActivated: dock.liveScrollWheelAction = currentIndex
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 6
+                            Label { text: qsTr("Progresso de download"); color: "#CCCCCC"; font.pixelSize: 12 }
+                            ComboBox {
+                                Layout.fillWidth: true
+                                model: [
+                                    qsTr("No ícone do navegador"),
+                                    qsTr("Na pasta Transferências"),
+                                    qsTr("Transferências com ícone do arquivo (macOS)")
+                                ]
+                                currentIndex: dock.liveDownloadProgressDisplayMode
+                                onActivated: dock.liveDownloadProgressDisplayMode = currentIndex
+                            }
+                            Label {
+                                text: qsTr("No macOS, a barra aparece em Transferências com o ícone do arquivo que está sendo baixado.")
+                                wrapMode: Text.WordWrap
+                                Layout.fillWidth: true
+                                font.pixelSize: 11
+                                color: "#888888"
                             }
                         }
 

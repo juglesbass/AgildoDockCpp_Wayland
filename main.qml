@@ -70,7 +70,8 @@ Window {
     property int liveRightClickAction: 1 // 0 padrao, 1 menu
     property string liveToggleDockShortcut: "Ctrl+Alt+D"
     property string liveOpenSettingsShortcut: "Meta+D"
-    property int liveScrollWheelAction: 0 // 0 janelas, 1 volume, 2 brilho
+    property int liveScrollWheelAction: 0
+    property int liveDownloadProgressDisplayMode: 2 // 0 navegador, 1 pasta, 2 macOS (ícone do arquivo)
     property bool liveScheduleThemeEnabled: false
     property int liveDayThemeMode: 1
     property int liveNightThemeMode: 0
@@ -731,6 +732,11 @@ Window {
     }
 
     property real waveAmplitude: 0.0
+    property bool waveCollapseArmed: false
+    readonly property bool waveBlurAnimating:
+            waveAmpAnim.running || waveCollapseTimer.running || waveCollapseArmed
+
+    onWaveBlurAnimatingChanged: taskBackend.setDockWaveAnimating(waveBlurAnimating)
 
     Timer {
         id: waveCollapseTimer
@@ -768,6 +774,7 @@ Window {
     }
 
     onLiveDockEdgeChanged: taskBackend.applyLayerShellEdge(root.liveDockEdge)
+    onLiveDownloadProgressDisplayModeChanged: taskBackend.setDownloadProgressDisplayMode(root.liveDownloadProgressDisplayMode)
 
     function applyLayerShellFromSettings() {
         var mode = root.liveBehaviorKeepAppsFocused ? 0 : 2
@@ -808,13 +815,21 @@ Window {
 
     Behavior on waveAmplitude {
         NumberAnimation {
+            id: waveAmpAnim
             duration: 350
             easing.type: Easing.OutCubic
+            onRunningChanged: {
+                if (running)
+                    root.waveCollapseArmed = false
+                else if (!root.dockHovered && root.waveAmplitude < 0.02)
+                    root.waveCollapseArmed = false
+            }
         }
     }
 
     onDockHoveredChanged: {
         if (dockHovered) {
+            waveCollapseArmed = false
             waveCollapseTimer.stop()
             waveAmplitude = 1.0
             root.smoothedWaveRowWidth = root.baseRowWidth
@@ -824,6 +839,7 @@ Window {
             root.dockRetracted = false
             updateZone()
         } else {
+            waveCollapseArmed = true
             root.hideDockIconTip()
             waveCollapseTimer.restart()
             if (root.liveBehaviorAutoHide) {
@@ -890,6 +906,7 @@ Window {
         property bool behaviorRememberRecentApps: false
         property int behaviorAutoHideDelayMs: 900
         property int scrollWheelAction: 0
+        property int downloadProgressDisplayMode: 2
     }
 
     property alias appSettings: dockSettings
@@ -1315,7 +1332,9 @@ Window {
         root.liveBehaviorRememberRecentApps = dockSettings.behaviorRememberRecentApps
         root.liveBehaviorAutoHideDelayMs = dockSettings.behaviorAutoHideDelayMs
         root.liveScrollWheelAction = dockSettings.scrollWheelAction
+        root.liveDownloadProgressDisplayMode = dockSettings.downloadProgressDisplayMode
         taskBackend.windowOverviewOnRefocus = root.liveBehaviorWindowOverviewOnRefocus
+        taskBackend.setDownloadProgressDisplayMode(root.liveDownloadProgressDisplayMode)
         syncGlobalShortcuts()
 
         applyScheduledThemeByClock()
@@ -1464,17 +1483,45 @@ Window {
             property real waveExtraWidth: root.wavePeakDeltaPx * 3.15 * root.liveScaleFactor * root.liveWaveIntensity
             property real rawBgWidth: root.baseRowWidth + (30 * root.liveScaleFactor) + (waveExtraWidth * root.waveAmplitude)
 
-            readonly property bool waveBlurAnimating: Math.abs(root.waveAmplitude - (root.dockHovered ? 1.0 : 0.0)) > 0.02
+            readonly property bool waveBlurAnimating: root.waveBlurAnimating
+            readonly property bool waveBlurCollapsing: !root.dockHovered && waveAmpAnim.running
 
             property int blurLastSentW: -1
             property int blurLastSentH: -1
             property int blurStableCx: -1
             property int blurStableCy: -1
             property bool blurWaveFramePending: false
+            property bool waveBlurLayerHold: false
 
-            // Evita repintura do vidro enquanto o KWin ajusta o blur na onda
-            layer.enabled: waveBlurAnimating && !dockBg.bgIsFlat
+            Timer {
+                id: waveBlurLayerHoldTimer
+                interval: 48
+                repeat: false
+                onTriggered: dockBg.waveBlurLayerHold = false
+            }
+
+            // Layer só na expansão; no recolhimento o KWin blur acompanha largura em tempo real
+            layer.enabled: root.dockHovered
+                           && (waveAmpAnim.running || waveBlurLayerHold)
+                           && !dockBg.bgIsFlat
             layer.smooth: true
+
+            function flushCollapseBlur() {
+                blurLastSentW = -1
+                blurLastSentH = -1
+                updateBlurNative(true)
+                Qt.callLater(function() { dockBg.updateBlurNative(true) })
+            }
+
+            Connections {
+                target: waveAmpAnim
+                function onRunningChanged() {
+                    if (waveAmpAnim.running || root.dockHovered)
+                        return
+                    if (root.waveAmplitude < 0.05)
+                        dockBg.flushCollapseBlur()
+                }
+            }
 
             // Um flush por frame na onda (sem debounce de 40ms — ponta direita atrasava)
             function scheduleWaveBlurFrame() {
@@ -1531,18 +1578,33 @@ Window {
 
             onWaveBlurAnimatingChanged: {
                 blurThrottleTimer.stop()
-                blurLastSentW = -1
-                blurLastSentH = -1
                 if (waveBlurAnimating) {
+                    if (root.dockHovered) {
+                        waveBlurLayerHoldTimer.stop()
+                        waveBlurLayerHold = false
+                    }
+                    blurLastSentW = -1
+                    blurLastSentH = -1
                     blurStableCx = Math.round(root.width / 2) + Math.round(root.liveDockOffsetX)
                     blurStableCy = Math.round(root.height / 2) + Math.round(root.liveDockOffsetY)
                 } else {
                     blurStableCx = -1
                     blurStableCy = -1
+                    if (root.dockHovered) {
+                        waveBlurLayerHold = true
+                        waveBlurLayerHoldTimer.restart()
+                    } else {
+                        waveBlurLayerHoldTimer.stop()
+                        waveBlurLayerHold = false
+                        blurLastSentW = -1
+                        blurLastSentH = -1
+                    }
                 }
                 updateBlurNative(true)
-                if (waveBlurAnimating)
+                if (root.dockHovered)
                     Qt.callLater(function() { dockBg.updateBlurNative(true) })
+                else
+                    Qt.callLater(function() { dockBg.flushCollapseBlur() })
             }
 
             readonly property bool bgIsFlat: root.liveBg3dStyle === 0
@@ -1611,16 +1673,24 @@ Window {
             onXChanged: requestBlurUpdate()
             onYChanged: requestBlurUpdate()
             onWidthChanged: {
-                if (waveBlurAnimating)
-                    scheduleWaveBlurFrame()
-                else
+                if (waveBlurAnimating) {
+                    if (waveBlurCollapsing)
+                        updateBlurNative(true)
+                    else
+                        scheduleWaveBlurFrame()
+                } else {
                     requestBlurUpdate()
+                }
             }
             onHeightChanged: {
-                if (waveBlurAnimating)
-                    scheduleWaveBlurFrame()
-                else
+                if (waveBlurAnimating) {
+                    if (waveBlurCollapsing)
+                        updateBlurNative(true)
+                    else
+                        scheduleWaveBlurFrame()
+                } else {
                     requestBlurUpdate()
+                }
             }
             onRadiusChanged: requestBlurUpdate()
 

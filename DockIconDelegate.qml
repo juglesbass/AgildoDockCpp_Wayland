@@ -24,6 +24,56 @@ Item {
     property bool reorderDragging: false
     property var appRule: dock.appRuleForCommand(model.cmd)
 
+    // Barra de progresso — estado local; permanece visível na onda (sem Loader)
+    property real downloadProgress: 0
+    property bool downloadProgressVisible: false
+    property color downloadProgressColor: dock.accentFocus
+    property string downloadProgressIcon: ""
+    property string downloadProgressFileName: ""
+    readonly property bool isDownloadsSystemItem: isSystemItem && model.icon === "folder-downloads"
+    readonly property bool showDownloadFileIcon: downloadProgressVisible
+        && dock.liveDownloadProgressDisplayMode === 2
+        && downloadProgressFileName.length > 0
+        && downloadProgressIcon.length > 0
+        && isDownloadsSystemItem
+
+    function syncDownloadProgress() {
+        if (!model.cmd) {
+            if (downloadProgressVisible)
+                downloadProgressVisible = false
+            return
+        }
+        const lp = taskBackend.launcherProgress[model.cmd]
+        const visible = lp !== undefined && lp.progressVisible === true
+        if (visible) {
+            const p = Math.max(0, Math.min(1, Number(lp.progress) || 0))
+            const rule = dock.appRuleForCommand(model.cmd)
+            const color = rule.progressColor ? rule.progressColor : dock.accentFocus
+            const icon = lp.progressIcon !== undefined ? String(lp.progressIcon) : ""
+            const fileName = lp.progressFileName !== undefined ? String(lp.progressFileName) : ""
+            if (!downloadProgressVisible) {
+                downloadProgressVisible = true
+                downloadProgress = p
+                downloadProgressColor = color
+                downloadProgressIcon = icon
+                downloadProgressFileName = fileName
+            } else {
+                if (downloadProgress !== p)
+                    downloadProgress = p
+                if (downloadProgressColor !== color)
+                    downloadProgressColor = color
+                if (icon.length > 0 && downloadProgressIcon !== icon)
+                    downloadProgressIcon = icon
+                if (downloadProgressFileName !== fileName)
+                    downloadProgressFileName = fileName
+            }
+        } else if (downloadProgressVisible) {
+            downloadProgressVisible = false
+            downloadProgressIcon = ""
+            downloadProgressFileName = ""
+        }
+    }
+
     Accessible.role: Accessible.Button
     Accessible.name: isValid && model.name !== undefined ? model.name : ""
     Accessible.description: isLauncherItem ? qsTr("Lançador na doca")
@@ -81,12 +131,26 @@ Item {
     Connections {
         target: taskBackend
         function onWindowsUpdated() {
+            if (dock.waveBlurAnimating)
+                return
             if (delegateRoot.isRunning) {
                 delegateRoot.refreshWindowCount()
             }
         }
         function onNotificationBadgesChanged() {
             // força reavaliação de appRule (badge de notificação)
+        }
+        function onLauncherProgressForCommandChanged(cmd) {
+            if (cmd === model.cmd)
+                delegateRoot.syncDownloadProgress()
+        }
+    }
+
+    Connections {
+        target: dock
+        function onWaveBlurAnimatingChanged() {
+            if (!dock.waveBlurAnimating)
+                delegateRoot.syncDownloadProgress()
         }
     }
 
@@ -156,6 +220,7 @@ Item {
     }
 
     Component.onCompleted: {
+        syncDownloadProgress()
         if (!isLauncherItem && delegateRoot.isValid) {
             delegateRoot.isRunning = taskBackend.isAppRunning(model.cmd)
             delegateRoot.isFocused = delegateRoot.isRunning ? taskBackend.isAppFocused(model.cmd) : false
@@ -183,6 +248,12 @@ Item {
             } else if (isDynamicItem) {
                 hint = qsTr("Clique para fixar na doca")
             }
+        }
+        if (downloadProgressVisible && downloadProgressFileName.length > 0 && isDownloadsSystemItem) {
+            const pct = Math.round(downloadProgress * 100)
+            dock.showDockIconTip(appIcon, downloadProgressFileName,
+                                 qsTr("A transferir… %1%").arg(pct), dock.accentFocus, "")
+            return
         }
         dock.showDockIconTip(appIcon, model.name, status, statusColor, hint)
     }
@@ -326,7 +397,7 @@ Item {
 
         Kirigami.Icon {
             id: appIcon
-            source: model.icon
+            source: delegateRoot.showDownloadFileIcon ? delegateRoot.downloadProgressIcon : model.icon
             // Padrão true: arredonda a 32/48/64… do tema; a onda volta a escalar → menos nitidez.
             roundToIconSize: false
             // Mesmo critério que o pico da onda em targetIconSize (evita scale>1 se min>max nas definições).
@@ -535,6 +606,37 @@ Item {
                 color: "white"
                 font.pixelSize: 9
                 font.bold: true
+            }
+        }
+
+        Item {
+            id: progressBarRoot
+            visible: downloadProgressVisible
+            z: 6
+            anchors.horizontalCenter: appIcon.horizontalCenter
+            anchors.bottom: appIcon.bottom
+            anchors.bottomMargin: 1 * dock.liveScaleFactor
+            width: Math.round(appIcon.width * appIcon.scale * 0.84)
+            height: Math.max(2, Math.round(3 * dock.liveScaleFactor))
+
+            Rectangle {
+                anchors.fill: parent
+                radius: height / 2
+                color: "#55000000"
+            }
+            Rectangle {
+                height: parent.height
+                width: Math.max(0, Math.round(parent.width * downloadProgress))
+                radius: height / 2
+                color: downloadProgressColor
+
+                Behavior on width {
+                    enabled: !dock.waveBlurAnimating
+                    NumberAnimation {
+                        duration: dock.animationDuration(120)
+                        easing.type: Easing.OutCubic
+                    }
+                }
             }
         }
     }
