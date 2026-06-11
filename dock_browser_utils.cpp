@@ -95,4 +95,30 @@ QString browserFamilyForCommand(const QString &command)
     return QString();
 }
 
+bool commandMatchesWmClass(const QString &command, const QString &wmClassLower)
+{
+    const QString cls = wmClassLower.trimmed().toLower();
+    if (cls.isEmpty()) {
+        return false;
+    }
+    const QString base = execBasenameFromCommand(command);
+    if (base.isEmpty()) {
+        return false;
+    }
+    if (cls.contains(base) || base.contains(cls)) {
+        return true;
+    }
+    const QString family = browserFamilyForCommand(command);
+    if (family == QStringLiteral("chromium")) {
+        return cls.contains(QStringLiteral("chrom")) || cls.contains(QStringLiteral("chrome"))
+            || cls.contains(QStringLiteral("edge")) || cls.contains(QStringLiteral("brave"))
+            || cls.contains(QStringLiteral("opera")) || cls.contains(QStringLiteral("vivaldi"));
+    }
+    if (family == QStringLiteral("gecko")) {
+        return cls.contains(QStringLiteral("firefox")) || cls.contains(QStringLiteral("zen"))
+            || cls.contains(QStringLiteral("librewolf")) || cls.contains(QStringLiteral("waterfox"));
+    }
+    return false;
+}
+
 } // namespace DockBrowserUtils

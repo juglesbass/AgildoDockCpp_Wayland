@@ -360,10 +360,15 @@ Window {
         }
     }
 
+    readonly property var desktopNameFilters: [
+        qsTr("Atalhos de aplicação (*.desktop)"),
+        qsTr("Todos os ficheiros (*)")
+    ]
+
     FileDialog {
         id: pinnedAppPicker
         title: qsTr("Escolher aplicativo para fixar na doca")
-        nameFilters: [qsTr("Atalhos de aplicação (*.desktop)"), qsTr("Todos os ficheiros (*)")]
+        nameFilters: menuWin.desktopNameFilters
         fileMode: FileDialog.OpenFile
         onAccepted: menuWin.dock.addPinnedAppFromDesktopUrl(selectedFile.toString())
     }
@@ -371,7 +376,7 @@ Window {
     FileDialog {
         id: systemShortcutPicker
         title: qsTr("Escolher atalho do sistema")
-        nameFilters: [qsTr("Atalhos de aplicação (*.desktop)"), qsTr("Todos os ficheiros (*)")]
+        nameFilters: menuWin.desktopNameFilters
         fileMode: FileDialog.OpenFile
         onAccepted: menuWin.dock.addWidgetShortcutFromDesktopUrl(selectedFile.toString())
     }

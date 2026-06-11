@@ -7,6 +7,7 @@
 #include <QFileInfo>
 #include <QMimeDatabase>
 #include <QMimeType>
+#include <algorithm>
 #include <utility>
 
 namespace {
@@ -14,15 +15,6 @@ namespace {
 QString downloadsDockCommand()
 {
     return QStringLiteral("dolphin ~/Downloads");
-}
-
-} // namespace
-
-namespace {
-
-bool commandLooksLikeBrowser(const QString &command)
-{
-    return DockBrowserUtils::commandLooksLikeBrowser(command);
 }
 
 } // namespace
@@ -197,7 +189,7 @@ void TaskBackend::reapplyActiveDownloadMetadata()
             continue;
         }
         const QString browserCmd = entry.value(QStringLiteral("progressBrowserCmd")).toString();
-        if (!browserCmd.isEmpty() && commandLooksLikeBrowser(browserCmd)) {
+        if (!browserCmd.isEmpty() && DockBrowserUtils::commandLooksLikeBrowser(browserCmd)) {
             publishLauncherProgressForSource(browserCmd, entry);
         }
     }
@@ -209,14 +201,55 @@ void TaskBackend::updateBrowserDownloadCommand()
         return;
     }
 
-    QString browserCmd;
+    QStringList browserCmds;
+    browserCmds.reserve(m_execBasenameToCmd.size());
     for (auto it = m_execBasenameToCmd.constBegin(); it != m_execBasenameToCmd.constEnd(); ++it) {
-        if (DockBrowserUtils::commandLooksLikeBrowser(it.value())) {
-            browserCmd = it.value();
-            break;
+        const QString &cmd = it.value();
+        if (DockBrowserUtils::commandLooksLikeBrowser(cmd)) {
+            browserCmds.append(cmd);
         }
     }
-    m_browserDownloadWatcher->setBrowserCommand(browserCmd);
+
+    if (browserCmds.isEmpty()) {
+        m_browserDownloadWatcher->setBrowserCommand(QString());
+        return;
+    }
+
+    std::sort(browserCmds.begin(), browserCmds.end());
+
+    QString bestProgressCmd;
+    double bestProgress = -1.0;
+    for (const QString &cmd : std::as_const(browserCmds)) {
+        const QString dockCmd = downloadProgressDockCommand(cmd);
+        const QVariantMap entry = m_launcherProgress.value(dockCmd).toMap();
+        const QString src = entry.value(QStringLiteral("progressBrowserCmd")).toString();
+        if (!entry.value(QStringLiteral("progressVisible")).toBool()) {
+            continue;
+        }
+        if (src != cmd && dockCmd != cmd) {
+            continue;
+        }
+        const double progress = entry.value(QStringLiteral("progress"), -1.0).toDouble();
+        if (progress >= 0.0 && progress < 1.0 && progress > bestProgress) {
+            bestProgress = progress;
+            bestProgressCmd = cmd;
+        }
+    }
+
+    QString chosen = bestProgressCmd;
+    if (chosen.isEmpty()) {
+        for (const QString &cmd : std::as_const(browserCmds)) {
+            if (DockBrowserUtils::commandMatchesWmClass(cmd, m_activeAppClass)) {
+                chosen = cmd;
+                break;
+            }
+        }
+    }
+    if (chosen.isEmpty()) {
+        chosen = browserCmds.constFirst();
+    }
+
+    m_browserDownloadWatcher->setBrowserCommand(chosen);
 }
 
 void TaskBackend::applyLauncherProgressForCommand(const QString &cmd, QVariantMap entry, QVariantMap &next) const
@@ -236,7 +269,7 @@ QString TaskBackend::downloadProgressDockCommand(const QString &sourceCommand) c
         return sourceCommand;
     }
 
-    if (commandLooksLikeBrowser(sourceCommand)) {
+    if (DockBrowserUtils::commandLooksLikeBrowser(sourceCommand)) {
         return downloadsDockCommand();
     }
     return sourceCommand;

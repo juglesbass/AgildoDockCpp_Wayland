@@ -3,6 +3,7 @@
 #include <KGlobalAccel>
 #include <QAction>
 #include <QKeySequence>
+#include <QCoreApplication>
 #include <QMetaObject>
 
 DockGlobalShortcuts::DockGlobalShortcuts(QObject *targetRoot, QObject *parent)
@@ -20,7 +21,8 @@ void DockGlobalShortcuts::ensureActions()
 
     if (!m_openSettings) {
         m_openSettings = new QAction(this);
-        m_openSettings->setText(QStringLiteral("AgildoDock — Preferências"));
+        m_openSettings->setText(QCoreApplication::translate("DockGlobalShortcuts",
+                                                             "AgildoDock — Preferências"));
         m_openSettings->setObjectName(QStringLiteral("AgildoDock_OpenSettings"));
         KGlobalAccel::setGlobalShortcut(m_openSettings, QKeySequence(m_openSettingsSeq));
         connect(m_openSettings, &QAction::triggered, this, [this]() {
@@ -32,7 +34,8 @@ void DockGlobalShortcuts::ensureActions()
 
     if (!m_toggleDock) {
         m_toggleDock = new QAction(this);
-        m_toggleDock->setText(QStringLiteral("AgildoDock — Mostrar/Ocultar"));
+        m_toggleDock->setText(QCoreApplication::translate("DockGlobalShortcuts",
+                                                          "AgildoDock — Mostrar/Ocultar"));
         m_toggleDock->setObjectName(QStringLiteral("AgildoDock_ToggleDock"));
         KGlobalAccel::setGlobalShortcut(m_toggleDock, QKeySequence(m_toggleDockSeq));
         connect(m_toggleDock, &QAction::triggered, this, [this]() {

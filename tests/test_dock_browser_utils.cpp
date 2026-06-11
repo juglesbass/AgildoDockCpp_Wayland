@@ -12,6 +12,7 @@ private slots:
     void chromiumBrowsers();
     void geckoBrowsers();
     void chromiumConfigRootsContainsForks();
+    void wmClassMatching();
 };
 
 void TestDockBrowserUtils::execBasenameFromCommand_data()
@@ -53,6 +54,15 @@ void TestDockBrowserUtils::chromiumConfigRootsContainsForks()
     QVERIFY(roots.contains(QStringLiteral("brave")));
     QVERIFY(roots.contains(QStringLiteral("opera")));
     QVERIFY(roots.contains(QStringLiteral("vivaldi")));
+}
+
+void TestDockBrowserUtils::wmClassMatching()
+{
+    QVERIFY(DockBrowserUtils::commandMatchesWmClass(QStringLiteral("google-chrome-stable"),
+                                                    QStringLiteral("google-chrome")));
+    QVERIFY(DockBrowserUtils::commandMatchesWmClass(QStringLiteral("zen"), QStringLiteral("zen")));
+    QVERIFY(!DockBrowserUtils::commandMatchesWmClass(QStringLiteral("firefox"),
+                                                     QStringLiteral("google-chrome")));
 }
 
 QTEST_APPLESS_MAIN(TestDockBrowserUtils)

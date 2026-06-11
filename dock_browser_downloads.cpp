@@ -18,7 +18,7 @@
 
 namespace {
 
-QString geckoConfigRoot(const QString &relativeRoot)
+QString browserConfigDir(const QString &relativeRoot)
 {
     return QStandardPaths::writableLocation(QStandardPaths::ConfigLocation) + QLatin1Char('/') + relativeRoot;
 }
@@ -106,7 +106,7 @@ void considerCandidate(DownloadScanBest &best, double progress, const QString &f
 
 void scanGeckoProfiles(const QString &relativeRoot, DownloadScanBest &best)
 {
-    const QDir profileRoot(geckoConfigRoot(relativeRoot));
+    const QDir profileRoot(browserConfigDir(relativeRoot));
     if (!profileRoot.exists()) {
         return;
     }
@@ -281,7 +281,7 @@ bool queryChromiumHistorySnapshot(const QString &historyPath, DownloadScanBest &
 
 void scanChromiumProfiles(const QString &relativeRoot, DownloadScanBest &best)
 {
-    const QDir browserRoot(geckoConfigRoot(relativeRoot));
+    const QDir browserRoot(browserConfigDir(relativeRoot));
     if (!browserRoot.exists()) {
         return;
     }
@@ -394,7 +394,7 @@ void DockBrowserDownloadWatcher::setupChromiumHistoryWatcher()
 
     QStringList browserRoots;
     for (const QString &relativeRoot : DockBrowserUtils::chromiumConfigRoots()) {
-        browserRoots << geckoConfigRoot(relativeRoot);
+        browserRoots << browserConfigDir(relativeRoot);
     }
 
     for (const QString &browserRootPath : browserRoots) {

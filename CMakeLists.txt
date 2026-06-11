@@ -34,6 +34,7 @@ qt6_add_qml_module(agildodock
     VERSION 1.0
     QML_FILES
         main.qml
+        DockBlurBackground.qml
         DockSettingsWindow.qml
         DockIconDelegate.qml
         DockIconContextMenu.qml
@@ -49,6 +50,7 @@ qt_add_resources(agildodock "agildodock_app_icon"
 
 set(AGILDO_DOCK_QML_I18N_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/main.qml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/DockBlurBackground.qml"
     "${CMAKE_CURRENT_SOURCE_DIR}/DockSettingsWindow.qml"
     "${CMAKE_CURRENT_SOURCE_DIR}/DockIconDelegate.qml"
     "${CMAKE_CURRENT_SOURCE_DIR}/DockIconContextMenu.qml"

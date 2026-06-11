@@ -31,13 +31,6 @@ static QString strippedExecBasename(const QString &command)
     return DockBrowserUtils::execBasenameFromCommand(command);
 }
 
-static bool exeLooksLikeChromFamily(QStringView exe)
-{
-    const QString e = exe.toString();
-    return e.contains(QLatin1String("chrom")) || e.contains(QLatin1String("chrome")) || e.contains(QLatin1String("edge"))
-           || e.contains(QLatin1String("zen"));
-}
-
 static QVector<KdotoolSearchFilter>
 buildKdotoolSearchChain(const QString &command,
                         const QString &exeLower,
@@ -98,7 +91,7 @@ buildKdotoolSearchChain(const QString &command,
         return chain;
     }
 
-    const bool isBrowserWide = exeLooksLikeChromFamily(QStringView(exeLower));
+    const bool isBrowserWide = DockBrowserUtils::commandLooksLikeBrowser(exeLower);
 
     if (!desktopWmClass.isEmpty()) {
         chain.push_back(KdotoolSearchFilter{false, desktopWmClass});
@@ -161,7 +154,7 @@ static bool stackingWindowBelongsToCommand(const QString &command,
     }
 
     const QString execFull = strippedExecBasename(command);
-    const bool isBrowserWide = exeLooksLikeChromFamily(QStringView(execFull));
+    const bool isBrowserWide = DockBrowserUtils::commandLooksLikeBrowser(execFull);
 
     if (execFull.contains(QLatin1String("agildomonitor"))) {
         return cls.contains(QLatin1String("agildomonitor")) || cap.contains(QLatin1String("agildo monitor"));

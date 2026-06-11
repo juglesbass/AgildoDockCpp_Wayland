@@ -18,4 +18,7 @@ QStringList geckoConfigRoots();
 
 QString browserFamilyForCommand(const QString &command);
 
+// Compara comando .desktop / exec com classe WM activa (kdotool/KWin).
+bool commandMatchesWmClass(const QString &command, const QString &wmClassLower);
+
 } // namespace DockBrowserUtils

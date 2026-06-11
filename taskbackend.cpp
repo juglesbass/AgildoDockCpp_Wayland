@@ -1001,10 +1001,7 @@ bool TaskBackend::appMatchesRunningCmdLine(const QString &cmdLineLower, const QV
         return false;
     }
 
-    const bool browserish = appExec.contains(QStringLiteral("chromium")) || appExec.contains(QStringLiteral("chrome"))
-        || appExec.contains(QStringLiteral("edge")) || appExec.contains(QStringLiteral("zen"));
-
-    if (browserish) {
+    if (DockBrowserUtils::commandLooksLikeBrowser(appExec)) {
         if ((cmdLineLower.startsWith(appExec) || cmdLineLower.contains(QStringLiteral("/") + appExec))
             && !cmdLineLower.contains(QStringLiteral("--app-id")) && !cmdLineLower.contains(QStringLiteral("--type=renderer"))
             && !cmdLineLower.contains(QStringLiteral("--type=zygote"))) {

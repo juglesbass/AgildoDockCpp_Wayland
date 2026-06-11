@@ -1,32 +1,48 @@
 # AgildoDock
 
-Doca de aplicações para **Plasma (KDE) em Wayland**, com Layer Shell, efeito de onda e integração com janelas: **preferencialmente «kdotool»** quando estás em Plasma/Wayland, ou **KX11Extras/KWindowInfo** quando a própria doca corre numa sessão Qt **X11**.
+Doca de aplicações para **Plasma (KDE) em Wayland**, com Layer Shell, blur KWin, efeito de onda e integração com janelas: **preferencialmente «kdotool»** no Plasma/Wayland, ou **KX11Extras/KWindowInfo** quando a sessão Qt corre em **X11**.
+
+Versão actual: **1.3.4** (ver `CHANGELOG.md`).
 
 ## Requisitos
 
-- Qt 6, KF6 (KWindowSystem, Kirigami), LayerShellQt  
-- **kdotool** no `PATH` — caminho habitual no **Plasma/Wayland** para focar, minimizar, fechar e medir geometria («desviar»). Num **Plasma X11** com **`QT_QPA_PLATFORM=xcb`** podes ficar apenas com **KWinStack**.  
-- Testado em fluxos **Plasma 6 + Wayland**; outros compositores podem ter diferenças em blur, região de input e layer-shell  
+- Qt 6 (Quick, Sql), KF6 (KWindowSystem, Kirigami, KGlobalAccel), LayerShellQt  
+- **kdotool** no `PATH` — habitual no Plasma/Wayland para focar, minimizar, fechar e medir geometria  
+- Testado em **Plasma 6 + Wayland**; outros compositores podem diferir em blur, região de input e layer-shell  
+
+## Funcionalidades principais
+
+- Dock em **quatro bordas** (inferior, superior, esquerda, direita) via Layer Shell  
+- Estilos **Padrão** (fill opaco + blur) e **Vidro** (gradiente translúcido + blur)  
+- Onda magnética nos ícones, auto-ocultar, desviar janelas maximizadas  
+- Progresso de download (navegador, pasta Transferências ou ícone do ficheiro)  
+- Badges SNI, Unity DBus (quando disponível), stacks de janelas  
+- Perfis/presets, regras JSON, widgets leves, tema agendado dia/noite  
+- i18n: **en_US**, **pt_PT**, **pt_BR**  
 
 ## Comportamento de processos
 
-O estado **«em execução»** dos ícones usa leitura periódica de **`/proc/*/cmdline`** (em thread de trabalho, sem bloquear a UI). O **meta-informações da janela ativa** (classe WM, título, geometria) vêm primeiro de **KX11Extras** quando a sessão permite; caso contrário, do **kdotool** quando estiver instalado. O sinal `windowsUpdated` dispara após cada varredura de `/proc` e novo após esse refresco da janela em primeiro plano.
+O estado «em execução» usa leitura periódica de **`/proc/*/cmdline`** (thread de trabalho). A janela activa (classe WM, título, geometria) vem de **KX11Extras** ou **kdotool**. O sinal `windowsUpdated` dispara após cada varredura.
 
 ## Atalhos
 
-- **Ctrl+,** ou **Preferências** (tecla de atalho do ambiente): abre a janela de configurações (se o compositor entregar teclas à superfície da doca).
+- **Meta+D** (global, KGlobalAccel): abre preferências — configurável nas definições  
+- **Ctrl+Alt+D** (global): mostrar/ocultar dock  
+- **Ctrl+,** ou **Preferências** (StandardKey): abre definições quando a doca tem foco  
 
 ## Linha de comandos
 
 ```bash
-agildodock --version   # ou -v; não precisa de servidor gráfico
+agildodock --version   # ou -v
 ```
+
+Variáveis úteis: **`AGILDO_DOCK_LOCALE`** (ex. `pt_BR`), **`AGILDO_DOCK_DEBUG`**, **`AGILDO_DOCK_DEBUG_CATS`**.
 
 ## Instalação no sistema
 
-O projeto instala um binário **`agildodock`**, entrada **`.desktop`**, ícone tema **hicolor** e **metainfo** (Discover / lojas compatíveis com AppStream).
+Instala **`agildodock`**, `.desktop`, ícones hicolor, metainfo AppStream e plasmoid de preview opcional.
 
-### Instalar com CMake (manual)
+### CMake (manual)
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
@@ -35,36 +51,17 @@ sudo cmake --install build
 sudo gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true
 ```
 
-Com prefixo próprio (`/usr/local`): o mesmo comando com `-DCMAKE_INSTALL_PREFIX=/usr/local` (atenção aos `PATH` do `.desktop`; em ambiente Plasma costuma estar ok).
+### Pacote Arch / CachyOS
 
-### Pacote Arch / CachyOS (makepkg)
+```bash
+./packaging/make_dist.sh 1.3.4
+cd packaging
+mv ../agildodock-1.3.4.tar.gz .
+updpkgsums
+makepkg -sic
+```
 
-1. Gera o tarball com a estrutura que o **`PKGBUILD`** espera (`agildodock-VERSION/…` no topo):
-
-   ```bash
-   ./packaging/make_dist.sh 1.0
-   ```
-
-2. Copia **`agildodock-1.0.tar.gz`** para **`packaging/`**, atualiza checksums e compila:
-
-   ```bash
-   cd packaging
-   mv ../agildodock-1.0.tar.gz .
-   updpkgsums
-   makepkg -sic
-   ```
-
-3. **`license=`** em `packaging/PKGBUILD`: substitui por licença real do projeto (SPDX).
-
-### Publicar no GitHub (primeira vez)
-
-O código já pode estar inicializado como repositório **git** (com commits e etiqueta **`v1.0`**). O envio (**`git push`**) exige iniciar sessão no GitHub à tua conta — faz isso no teu terminal. Corre **`./packaging/publicar-no-github.sh`**: lá estão os dois caminhos (site **novo repositório** vazio ou **`gh repo create`**).
-
-### Arch User Repository (AUR)
-
-Ficheiros em **`packaging/aur/`** (`PKGBUILD`, `agildodock.install`, `prepare-for-aur.sh`, `README.txt`). Guia passo a passo: **`packaging/aur/README.txt`**.
-
-Fluxo rápido: público no GitHub com etiqueta **`v1.0`** (ou igual ao `pkgver`), preenches `Maintainer` e **`_githubuser`** no `PKGBUILD`, `./prepare-for-aur.sh`, submissão na AUR, depois **`paru -S agildodock`**.
+Ver **`packaging/aur/README.txt`** para AUR.
 
 ## Testes (CTest)
 
@@ -72,53 +69,41 @@ Fluxo rápido: público no GitHub com etiqueta **`v1.0`** (ou igual ao `pkgver`)
 cmake -S . -B build && cmake --build build && ctest --test-dir build
 ```
 
-## Preview como plasmoid (Plasma 6)
+Inclui smoke `--version` e **`test_dock_browser_utils`**.
 
-Existe um preview separado em `plasmoid/agildodock-preview` para validar visual e interacao basica no painel, sem substituir a dock principal.
-
-Instalar localmente:
+## Plasmoid preview (Plasma 6)
 
 ```bash
 kpackagetool6 -t Plasma/Applet -i plasmoid/agildodock-preview
-```
-
-Atualizar apos editar:
-
-```bash
-kpackagetool6 -t Plasma/Applet -u plasmoid/agildodock-preview
-```
-
-Remover:
-
-```bash
-kpackagetool6 -t Plasma/Applet -r org.agildosoft.agildodock.preview
+kpackagetool6 -t Plasma/Applet -u plasmoid/agildodock-preview   # actualizar
+kpackagetool6 -t Plasma/Applet -r org.agildosoft.agildodock.preview  # remover
 ```
 
 ## Traduções (i18n)
 
-O CMake usa **`qt_add_translations`** (Qt **LinguistTools**): em cada compilação o **`lrelease`** gera `agildodock_en_US.qm` e `agildodock_pt_PT.qm` e inclui-os no recurso **`:/i18n/`**.
+```bash
+cmake --build build --target agildodock_lupdate   # actualizar .ts
+cmake --build build                                # gera .qm
+```
 
-- **Ficheiros no repositório:** `i18n/agildodock_en_US.ts`, `i18n/agildodock_pt_PT.ts` e **`i18n/agildodock_pt_BR.ts`** (português do Brasil: «mouse», «tela», «Salvar», «Arquivos», «Lixeira», «Downloads», etc.).
-- **Atualizar as cadeias** a partir do QML (corrige `<location>` e mensagens novas):
+## Restaurar versão anterior (git)
 
-  ```bash
-  cmake --build build --target agildodock_lupdate
-  ```
+Se actualizaste a partir do repositório local:
 
-  Depois edita os `.ts` (por exemplo com **Linguist**), volta a compilar para regenerar os `.qm`.
-
-- **Arranque:** `main.cpp` escolhe o `.qm` por `QLocale`: **`pt_BR`** usa `agildodock_pt_BR.qm`; **`pt_PT`** usa `agildodock_pt_PT.qm`; outros `pt_*` tentam Brasil e depois Portugal. Variável **`AGILDO_DOCK_LOCALE`** (ex. `pt_BR`) força um catálogo.
-
-- **Novo idioma:** copia um `.ts` existente, altera `language="…"`, traduz, acrescenta o ficheiro em **`qt_add_translations`** em `CMakeLists.txt` e recompila.
+```bash
+git checkout backup/pre-melhorias-2026-05-30
+```
 
 ## Acessibilidade
 
-- Papéis **Accessible** em **`Item`** válidos: área visual da doca (`dockContainer`), coluna das definições, e cada ícone (`DockIconDelegate`). Em **`Window`** o anexo `Accessible` não é suportado (aviso em runtime).
-- Tooltip com maior contraste e texto ligeiramente maior  
-- Sugestão de **≥ 44 px** para alvos de toque nas definições (recomendação; o mínimo do slider mantém-se em 30 px por compatibilidade com configurações antigas)
+Papéis **Accessible** em `dockContainer` e ícones. Tooltip com contraste reforçado. Recomenda-se **≥ 44 px** para toque; o slider mínimo mantém 30 px por compatibilidade.
 
 ## Limitações conhecidas
 
-- **X11**: a doca não aplica `setMask` no ponteiro (evita recorte visual); o restante comportamento não foi o foco principal do projeto  
-- Atalhos globais dependem do compositor entregar eventos de teclado à janela da doca  
-- Ícones «moles» em escalas altas podem vir do tema/SVG; a doca expõe opções de tamanho e `roundToIconSize: false` nos ícones Kirigami  
+- **X11**: `setMask` no ponteiro não é aplicado (evita recorte visual)  
+- Atalhos globais dependem do Plasma/KGlobalAccel  
+- Workaround de arranque (`close` + `show`) pode variar noutros compositores  
+
+## Licença
+
+**GPL-3.0-or-later** — ver `LICENSE`.

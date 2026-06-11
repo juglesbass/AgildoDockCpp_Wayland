@@ -17,7 +17,14 @@ Window {
     minimumHeight: 520
     maximumHeight: 1200
     title: qsTr("Configurações — AgildoDock")
-    color: "#1A1A1A"
+    readonly property bool settingsDark: dock.liveThemeMode === 0 || dock.liveThemeMode === 2 || dock.liveThemeMode === 3
+    readonly property color uiBgColor: settingsDark ? "#1A1A1A" : "#F5F5F5"
+    readonly property color uiLabelColor: settingsDark ? "#CCCCCC" : "#333333"
+    readonly property color uiPanelColor: settingsDark ? "#101010" : "#FFFFFF"
+    readonly property color uiPanelBorder: settingsDark ? "#30FFFFFF" : "#28000000"
+    readonly property color uiEditorText: settingsDark ? "#EEEEEE" : "#1A1A1A"
+    readonly property color uiPlaceholder: settingsDark ? "#77FFFFFF" : "#66000000"
+    color: uiBgColor
     flags: Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint
 
     // Editor JSON estável para evitar warning do TextArea no Breeze.
@@ -25,9 +32,9 @@ Window {
         id: jsonEditor
         property alias text: editor.text
         property string placeholderText: ""
-        color: "#101010"
+        color: settingsWin.uiPanelColor
         radius: 6
-        border.color: "#30FFFFFF"
+        border.color: settingsWin.uiPanelBorder
         border.width: 1
         clip: true
 
@@ -42,7 +49,7 @@ Window {
             TextEdit {
                 id: editor
                 width: flick.width
-                color: "#EEEEEE"
+                color: settingsWin.uiEditorText
                 wrapMode: TextEdit.WrapAnywhere
                 font.pixelSize: 12
                 selectByMouse: true
@@ -53,10 +60,19 @@ Window {
             anchors.fill: parent
             anchors.margins: 10
             text: jsonEditor.placeholderText
-            color: "#77FFFFFF"
+            color: settingsWin.uiPlaceholder
             wrapMode: Text.WrapAnywhere
             visible: editor.text.length === 0
             font.pixelSize: 11
+        }
+    }
+
+    function dockMarginLabelText() {
+        switch (dock.liveDockEdge) {
+        case 1: return qsTr("Margem superior")
+        case 2: return qsTr("Margem esquerda")
+        case 3: return qsTr("Margem direita")
+        default: return qsTr("Margem inferior")
         }
     }
 
@@ -378,25 +394,25 @@ Window {
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 6
-                            Label { text: qsTr("Escala: %1%").arg(Math.round(dock.liveScaleFactor * 100)); color: "#CCCCCC"; font.pixelSize: 12 }
+                            Label { text: qsTr("Escala: %1%").arg(Math.round(dock.liveScaleFactor * 100)); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                             Slider { Layout.fillWidth: true; from: 0.5; to: 1.8; stepSize: 0.05; value: dock.liveScaleFactor; onMoved: dock.liveScaleFactor = value }
                         }
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 6
-                            Label { text: qsTr("Espaçamento: %1 px").arg(Math.round(dock.liveIconSpacing)); color: "#CCCCCC"; font.pixelSize: 12 }
+                            Label { text: qsTr("Espaçamento: %1 px").arg(Math.round(dock.liveIconSpacing)); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                             Slider { Layout.fillWidth: true; from: 0; to: 40; stepSize: 1; value: dock.liveIconSpacing; onMoved: dock.liveIconSpacing = value }
                         }
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 6
-                            Label { text: qsTr("Margem inferior: %1 px").arg(Math.round(dock.liveDockMargin)); color: "#CCCCCC"; font.pixelSize: 12 }
+                            Label { text: dockMarginLabelText() + ": " + Math.round(dock.liveDockMargin) + " px"; color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                             Slider { Layout.fillWidth: true; from: 0; to: 50; stepSize: 1; value: dock.liveDockMargin; onMoved: dock.liveDockMargin = value }
                         }
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 6
-                            Label { text: qsTr("Opacidade: %1%").arg(Math.round(dock.liveBgOpacity * 100)); color: "#CCCCCC"; font.pixelSize: 12 }
+                            Label { text: qsTr("Opacidade: %1%").arg(Math.round(dock.liveBgOpacity * 100)); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                             Slider { Layout.fillWidth: true; from: 0.2; to: 1.0; stepSize: 0.05; value: dock.liveBgOpacity; onMoved: dock.liveBgOpacity = value }
                         }
 
@@ -406,7 +422,7 @@ Window {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 6
-                                Label { text: qsTr("Tema"); color: "#CCCCCC"; font.pixelSize: 12 }
+                                Label { text: qsTr("Tema"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                                 ComboBox {
                                     Layout.fillWidth: true
                                     model: [qsTr("Escuro"), qsTr("Claro"), qsTr("Noite Azul"), qsTr("Ametista")]
@@ -417,7 +433,7 @@ Window {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 6
-                                Label { text: qsTr("Destaque"); color: "#CCCCCC"; font.pixelSize: 12 }
+                                Label { text: qsTr("Destaque"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                                 ComboBox {
                                     Layout.fillWidth: true
                                     model: [qsTr("Ciano"), qsTr("Roxo"), qsTr("Verde"), qsTr("Laranja"), qsTr("Rosa")]
@@ -433,13 +449,13 @@ Window {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 6
-                                Label { text: qsTr("Atalho alternar dock"); color: "#CCCCCC"; font.pixelSize: 12 }
+                                Label { text: qsTr("Atalho alternar dock"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                                 TextField { Layout.fillWidth: true; text: dock.liveToggleDockShortcut; onTextChanged: dock.liveToggleDockShortcut = text }
                             }
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 6
-                                Label { text: qsTr("Atalho abrir ajustes"); color: "#CCCCCC"; font.pixelSize: 12 }
+                                Label { text: qsTr("Atalho abrir ajustes"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                                 TextField { Layout.fillWidth: true; text: dock.liveOpenSettingsShortcut; onTextChanged: dock.liveOpenSettingsShortcut = text }
                             }
                         }
@@ -450,7 +466,7 @@ Window {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 6
-                                Label { text: qsTr("Preset visual"); color: "#CCCCCC"; font.pixelSize: 12 }
+                                Label { text: qsTr("Preset visual"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                                 ComboBox {
                                     id: presetCombo
                                     Layout.fillWidth: true
@@ -462,7 +478,7 @@ Window {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 6
-                                Label { text: qsTr("Fundo"); color: "#CCCCCC"; font.pixelSize: 12 }
+                                Label { text: qsTr("Fundo"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                                 ComboBox {
                                     Layout.fillWidth: true
                                     model: [qsTr("Padrão"), qsTr("Vidro")]
@@ -478,13 +494,13 @@ Window {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 6
-                                Label { text: qsTr("Cor A gradiente"); color: "#CCCCCC"; font.pixelSize: 12 }
+                                Label { text: qsTr("Cor A gradiente"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                                 TextField { Layout.fillWidth: true; text: dock.liveGradientColorA; onTextChanged: dock.liveGradientColorA = text }
                             }
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 6
-                                Label { text: qsTr("Cor B gradiente"); color: "#CCCCCC"; font.pixelSize: 12 }
+                                Label { text: qsTr("Cor B gradiente"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                                 TextField { Layout.fillWidth: true; text: dock.liveGradientColorB; onTextChanged: dock.liveGradientColorB = text }
                             }
                         }
@@ -495,13 +511,13 @@ Window {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 6
-                                Label { text: qsTr("Cor C gradiente"); color: "#CCCCCC"; font.pixelSize: 12 }
+                                Label { text: qsTr("Cor C gradiente"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                                 TextField { Layout.fillWidth: true; text: dock.liveGradientColorC; onTextChanged: dock.liveGradientColorC = text }
                             }
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 6
-                                Label { text: qsTr("Indicador"); color: "#CCCCCC"; font.pixelSize: 12 }
+                                Label { text: qsTr("Indicador"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                                 ComboBox {
                                     Layout.fillWidth: true
                                     model: [qsTr("Ponto"), qsTr("Linha"), qsTr("Barra"), qsTr("Sublinhado"), qsTr("Pulso")]
@@ -522,14 +538,14 @@ Window {
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 6
-                            Label { text: qsTr("Raio da dock: %1 px").arg(Math.round(dock.liveDockRadius)); color: "#CCCCCC"; font.pixelSize: 12 }
+                            Label { text: qsTr("Raio da dock: %1 px").arg(Math.round(dock.liveDockRadius)); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                             Slider { Layout.fillWidth: true; from: 8; to: 40; stepSize: 1; value: dock.liveDockRadius; onMoved: dock.liveDockRadius = value }
                         }
 
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 6
-                            Label { text: qsTr("Brilho da borda: %1%").arg(Math.round(dock.liveBorderGlow * 100)); color: "#CCCCCC"; font.pixelSize: 12 }
+                            Label { text: qsTr("Brilho da borda: %1%").arg(Math.round(dock.liveBorderGlow * 100)); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                             Slider { Layout.fillWidth: true; from: 0.05; to: 0.60; stepSize: 0.01; value: dock.liveBorderGlow; onMoved: dock.liveBorderGlow = value }
                         }
                     }
@@ -651,7 +667,7 @@ Window {
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 6
-                            Label { text: qsTr("Scroll no ícone"); color: "#CCCCCC"; font.pixelSize: 12 }
+                            Label { text: qsTr("Scroll no ícone"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                             ComboBox {
                                 Layout.fillWidth: true
                                 model: [qsTr("Alternar janelas"), qsTr("Volume"), qsTr("Brilho")]
@@ -663,7 +679,7 @@ Window {
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 6
-                            Label { text: qsTr("Progresso de download"); color: "#CCCCCC"; font.pixelSize: 12 }
+                            Label { text: qsTr("Progresso de download"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                             ComboBox {
                                 Layout.fillWidth: true
                                 model: [
@@ -696,7 +712,7 @@ Window {
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 6
-                            Label { text: qsTr("Ícone base: %1 px").arg(Math.round(dock.liveMinIconSize)); color: "#CCCCCC"; font.pixelSize: 12 }
+                            Label { text: qsTr("Ícone base: %1 px").arg(Math.round(dock.liveMinIconSize)); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                             Slider {
                                 Layout.fillWidth: true
                                 from: 30; to: 80; stepSize: 1
@@ -712,7 +728,7 @@ Window {
                             spacing: 6
                             Label {
                                 text: qsTr("Zoom máximo: %1%").arg(Math.round(dock.liveMaxIconZoomPercent))
-                                color: "#CCCCCC"; font.pixelSize: 12
+                                color: settingsWin.uiLabelColor; font.pixelSize: 12
                             }
                             Slider {
                                 Layout.fillWidth: true
@@ -724,7 +740,7 @@ Window {
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 6
-                            Label { text: qsTr("Intensidade: %1%").arg(Math.round(dock.liveWaveIntensity * 100)); color: "#CCCCCC"; font.pixelSize: 12 }
+                            Label { text: qsTr("Intensidade: %1%").arg(Math.round(dock.liveWaveIntensity * 100)); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                             Slider { Layout.fillWidth: true; from: 0.6; to: 1.0; stepSize: 0.05; value: dock.liveWaveIntensity; onMoved: dock.liveWaveIntensity = value }
                         }
 
@@ -734,7 +750,7 @@ Window {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 6
-                                Label { text: qsTr("Perfil de animação"); color: "#CCCCCC"; font.pixelSize: 12 }
+                                Label { text: qsTr("Perfil de animação"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                                 ComboBox {
                                     Layout.fillWidth: true
                                     model: [qsTr("Suave"), qsTr("Rápido"), qsTr("Elástico"), qsTr("Sem animação")]
@@ -745,7 +761,7 @@ Window {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 6
-                                Label { text: qsTr("Ação clique esquerdo"); color: "#CCCCCC"; font.pixelSize: 12 }
+                                Label { text: qsTr("Ação clique esquerdo"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                                 ComboBox {
                                     Layout.fillWidth: true
                                     model: [qsTr("Padrão"), qsTr("Abrir menu"), qsTr("Sempre nova janela")]
@@ -761,7 +777,7 @@ Window {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 6
-                                Label { text: qsTr("Ação clique do meio"); color: "#CCCCCC"; font.pixelSize: 12 }
+                                Label { text: qsTr("Ação clique do meio"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                                 ComboBox {
                                     Layout.fillWidth: true
                                     model: [qsTr("Padrão"), qsTr("Fechar app"), qsTr("Nova janela"), qsTr("Minimizar/Restaurar")]
@@ -772,7 +788,7 @@ Window {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 6
-                                Label { text: qsTr("Posição da dock"); color: "#CCCCCC"; font.pixelSize: 12 }
+                                Label { text: qsTr("Posição da dock"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                                 ComboBox {
                                     Layout.fillWidth: true
                                     model: [qsTr("Inferior"), qsTr("Superior"), qsTr("Esquerda"), qsTr("Direita")]
@@ -785,13 +801,13 @@ Window {
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 6
-                            Label { text: qsTr("Offset X: %1 px").arg(Math.round(dock.liveDockOffsetX)); color: "#CCCCCC"; font.pixelSize: 12 }
+                            Label { text: qsTr("Offset X: %1 px").arg(Math.round(dock.liveDockOffsetX)); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                             Slider { Layout.fillWidth: true; from: -300; to: 300; stepSize: 1; value: dock.liveDockOffsetX; onMoved: dock.liveDockOffsetX = value }
                         }
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 6
-                            Label { text: qsTr("Offset Y: %1 px").arg(Math.round(dock.liveDockOffsetY)); color: "#CCCCCC"; font.pixelSize: 12 }
+                            Label { text: qsTr("Offset Y: %1 px").arg(Math.round(dock.liveDockOffsetY)); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                             Slider { Layout.fillWidth: true; from: -300; to: 300; stepSize: 1; value: dock.liveDockOffsetY; onMoved: dock.liveDockOffsetY = value }
                         }
 
@@ -816,17 +832,17 @@ Window {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 6
-                                Label { text: qsTr("Início do dia: %1h").arg(dock.liveDayStartHour); color: "#CCCCCC"; font.pixelSize: 12 }
+                                Label { text: qsTr("Início do dia: %1h").arg(dock.liveDayStartHour); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                                 Slider { Layout.fillWidth: true; from: 0; to: 23; stepSize: 1; value: dock.liveDayStartHour; onMoved: dock.liveDayStartHour = Math.round(value) }
                             }
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 6
-                                Label { text: qsTr("Início da noite: %1h").arg(dock.liveNightStartHour); color: "#CCCCCC"; font.pixelSize: 12 }
+                                Label { text: qsTr("Início da noite: %1h").arg(dock.liveNightStartHour); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                                 Slider { Layout.fillWidth: true; from: 0; to: 23; stepSize: 1; value: dock.liveNightStartHour; onMoved: dock.liveNightStartHour = Math.round(value) }
                             }
                         }
-                        Label { text: qsTr("Regras por app (JSON)"); color: "#CCCCCC"; font.pixelSize: 12 }
+                        Label { text: qsTr("Regras por app (JSON)"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                         JsonEditor {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 64
@@ -835,7 +851,7 @@ Window {
                             placeholderText: "{\"firefox\":{\"badgeText\":\"3\"}}"
                         }
 
-                        Label { text: qsTr("Comandos custom por app (JSON)"); color: "#CCCCCC"; font.pixelSize: 12 }
+                        Label { text: qsTr("Comandos custom por app (JSON)"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                         JsonEditor {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 64
@@ -844,7 +860,7 @@ Window {
                             placeholderText: "{\"konsole\":[{\"label\":\"Abrir htop\",\"command\":\"konsole -e htop\"}]}"
                         }
 
-                        Label { text: qsTr("Widgets/Plugins leves (JSON array)"); color: "#CCCCCC"; font.pixelSize: 12 }
+                        Label { text: qsTr("Widgets/Plugins leves (JSON array)"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 6
@@ -881,7 +897,7 @@ Window {
                             placeholderText: "[{\"name\":\"CPU\",\"icon\":\"utilities-system-monitor\",\"cmd\":\"plasma-systemmonitor\"}]"
                         }
 
-                        Label { text: qsTr("Perfis rápidos"); color: "#CCCCCC"; font.pixelSize: 12 }
+                        Label { text: qsTr("Perfis rápidos"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 6
