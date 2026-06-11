@@ -23,6 +23,7 @@ license=("GPL-3.0-or-later") # ajustar à licença real / adicionar ficheiro cus
 depends=(
   "gcc-libs"
   "glibc"
+  "kglobalaccel"
   "kirigami"
   "kwindowsystem"
   "layer-shell-qt"

@@ -295,23 +295,13 @@
     </message>
     <message>
         <location line="+3"/>
-        <source>Plano</source>
-        <translation>Flat</translation>
+        <source>Padrão</source>
+        <translation>Default</translation>
     </message>
     <message>
         <location line="+0"/>
-        <source>Vidro 3D (suave)</source>
-        <translation>3D Glass (soft)</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Vidro Premium</source>
-        <translation>Premium Glass</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Vidro (sem 3D)</source>
-        <translation>Glass (no 3D)</translation>
+        <source>Vidro</source>
+        <translation>Glass</translation>
     </message>
     <message>
         <location line="+13"/>

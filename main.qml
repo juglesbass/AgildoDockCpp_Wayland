@@ -46,14 +46,20 @@ Window {
     property bool liveMonochromeIcons: false
     property int liveIndicatorStyle: 0 // 0 ponto, 1 linha, 2 barra, 3 sublinhado, 4 pulso
     property real liveIndicatorScale: 1.0
-    property int liveBg3dStyle: 1 // 0 plano, 1 vidro 3D suave, 2 vidro premium, 3 vidro sem 3D
+    property int liveBg3dStyle: 3 // 0 padrão, 3 vidro (1/2 legado migrado para 3)
+
+    function normalizeBg3dStyle(style) {
+        if (style === 1 || style === 2)
+            return 3
+        return style === 0 ? 0 : 3
+    }
     property string liveGradientColorA: "#111111"
     property string liveGradientColorB: "#191D22"
     property string liveGradientColorC: "#1E1E1E"
     property real liveGradientMix: 0.65
     // liveGradientAngle removido — propriedade sem efeito visual (gradiente é sempre vertical)
     property real liveBorderWidth: 1.0
-    property real liveBorderGlow: 0.16
+    property real liveBorderGlow: 0.24
     property real liveShadowStrength: 0.30
     property int liveAnimationProfile: 0 // 0 suave, 1 rapido, 2 elastico, 3 sem animacao
     property real liveWaveRadiusFactor: 3.15
@@ -368,7 +374,7 @@ Window {
             liveMinIconSize = s.min; liveMaxIconSize = s.max
             clampMaxIconSizeForZoomCap()
             liveThemeMode = s.theme; liveAccentMode = s.accent
-            liveWaveIntensity = s.wave; liveDockRadius = s.radius; liveBg3dStyle = s.bgStyle
+            liveWaveIntensity = s.wave; liveDockRadius = s.radius; liveBg3dStyle = normalizeBg3dStyle(s.bgStyle)
             liveGradientColorA = s.gradA; liveGradientColorB = s.gradB; liveGradientColorC = s.gradC
             liveGradientMix = s.gradMix; liveBorderWidth = s.borderW; liveBorderGlow = s.borderGlow
             liveShadowStrength = s.shadow; liveIndicatorStyle = s.indStyle; liveMonochromeIcons = s.mono
@@ -395,23 +401,30 @@ Window {
         pushCustomizationHistory()
         livePresetName = presetName
         if (presetName === "Dark Glass") {
-            liveThemeMode = 0; liveAccentMode = 0; liveBg3dStyle = 1
-            liveGradientColorA = "#0C0C0F"; liveGradientColorB = "#171A1F"; liveGradientColorC = "#1E2228"
-            liveBorderGlow = 0.20; liveShadowStrength = 0.34; liveMonochromeIcons = false; liveIndicatorStyle = 0
+            liveThemeMode = 0; liveAccentMode = 0; liveBg3dStyle = 3
+            liveBgOpacity = 0.42
+            liveGradientColorA = "#14161A"; liveGradientColorB = "#1A1D22"; liveGradientColorC = "#121418"
+            liveGradientMix = 0.35; liveBorderGlow = 0.24; liveShadowStrength = 0.34
+            liveMonochromeIcons = false; liveIndicatorStyle = 0
         } else if (presetName === "Light Glass") {
-            liveThemeMode = 1; liveAccentMode = 2; liveBg3dStyle = 1
-            liveGradientColorA = "#E7EBF1"; liveGradientColorB = "#DCE2EB"; liveGradientColorC = "#F6F8FB"
-            liveBorderGlow = 0.12; liveShadowStrength = 0.18; liveMonochromeIcons = false; liveIndicatorStyle = 1
+            liveThemeMode = 1; liveAccentMode = 2; liveBg3dStyle = 3
+            liveBgOpacity = 0.36
+            liveGradientColorA = "#EEF1F6"; liveGradientColorB = "#E4E9F0"; liveGradientColorC = "#F8FAFC"
+            liveGradientMix = 0.30; liveBorderGlow = 0.28; liveShadowStrength = 0.18
+            liveMonochromeIcons = false; liveIndicatorStyle = 1
         } else if (presetName === "Neon") {
-            liveThemeMode = 2; liveAccentMode = 0; liveBg3dStyle = 1
-            liveGradientColorA = "#041022"; liveGradientColorB = "#0B1F3B"; liveGradientColorC = "#16386A"
-            liveBorderGlow = 0.34; liveShadowStrength = 0.45; liveMonochromeIcons = true; liveIndicatorStyle = 4
+            liveThemeMode = 2; liveAccentMode = 0; liveBg3dStyle = 3
+            liveBgOpacity = 0.40
+            liveGradientColorA = "#0A1424"; liveGradientColorB = "#101C32"; liveGradientColorC = "#081018"
+            liveGradientMix = 0.38; liveBorderGlow = 0.30; liveShadowStrength = 0.45
+            liveMonochromeIcons = true; liveIndicatorStyle = 4
         } else if (presetName === "Minimal") {
             liveThemeMode = 0; liveAccentMode = 1; liveBg3dStyle = 0
             liveGradientColorA = "#171717"; liveGradientColorB = "#171717"; liveGradientColorC = "#171717"
             liveBorderGlow = 0.07; liveShadowStrength = 0.18; liveMonochromeIcons = true; liveIndicatorStyle = 3
         }
         updateZone()
+        dockBg.syncBlurAfterStyleChange()
     }
 
     function applyScheduledThemeByClock() {
@@ -544,6 +557,14 @@ Window {
         updateZone()
     }
     onLiveDockMarginChanged: updateZone()
+
+    onLiveMaxIconSizeChanged: {
+        updateZone()
+        dockBg.invalidateBlurGeometry()
+    }
+    onLiveWaveIntensityChanged: dockBg.invalidateBlurGeometry()
+    onLiveWaveRadiusFactorChanged: dockBg.invalidateBlurGeometry()
+    onLiveBg3dStyleChanged: Qt.callLater(function() { dockBg.syncBlurAfterStyleChange() })
 
     // --- MAPA MATEMÁTICO BÁSICO ---
     property real baseMinSize: root.liveMinIconSize * root.liveScaleFactor
@@ -710,7 +731,7 @@ Window {
         if (root.dockRetracted) return false
 
         var maxIcon = Math.max(root.liveMinIconSize, root.liveMaxIconSize) * root.liveScaleFactor
-        var waveExtra = root.wavePeakDeltaPx * 3.15 * root.liveScaleFactor
+        var waveExtra = root.wavePeakDeltaPx * 3.15 * root.liveScaleFactor * root.liveWaveIntensity
         var hoverSpan = root.baseRowWidth + (30 * root.liveScaleFactor) + waveExtra
 
         if (root.dockLayoutVertical) {
@@ -865,7 +886,7 @@ Window {
         property bool monochromeIcons: false
         property int indicatorStyle: 0
         property real indicatorScale: 1.0
-        property int bg3dStyle: 1
+        property int bg3dStyle: 3
         property string gradientColorA: "#111111"
         property string gradientColorB: "#191D22"
         property string gradientColorC: "#1E1E1E"
@@ -956,6 +977,10 @@ Window {
 
     function refreshPointerInputMask() {
         pointerMaskDebouncer.restart()
+    }
+
+    function refreshDockBlur() {
+        dockBg.syncBlurAfterStyleChange()
     }
 
     property bool dockTipVisible: false
@@ -1269,7 +1294,7 @@ Window {
         root.liveMonochromeIcons = dockSettings.monochromeIcons
         root.liveIndicatorStyle = dockSettings.indicatorStyle
         root.liveIndicatorScale = dockSettings.indicatorScale
-        root.liveBg3dStyle = dockSettings.bg3dStyle
+        root.liveBg3dStyle = root.normalizeBg3dStyle(dockSettings.bg3dStyle)
         root.liveGradientColorA = dockSettings.gradientColorA
         root.liveGradientColorB = dockSettings.gradientColorB
         root.liveGradientColorC = dockSettings.gradientColorC
@@ -1434,13 +1459,25 @@ Window {
         Behavior on dockSlidePixels { enabled: !settingsWin.visible; NumberAnimation { duration: 320; easing.type: Easing.OutBack; easing.overshoot: 1.15 } }
         transform: Translate { y: dockContainer.dockSlidePixels }
 
-        onDockSlidePixelsChanged: dockBg.requestBlurUpdate()
+        onDockSlidePixelsChanged: dockBg.syncBlurAfterStyleChange()
 
         property real startupOffsetY: 0
+
+        onStartupOffsetYChanged: {
+            if (startupOffsetY < 0.5)
+                dockBg.syncBlurAfterStyleChange()
+        }
 
         Component.onCompleted: {
             startupOffsetY = 200 * root.liveScaleFactor
             startupAnim.start()
+        }
+
+        Timer {
+            id: blurStartupSettleTimer
+            interval: 150
+            repeat: false
+            onTriggered: dockBg.syncBlurAfterStyleChange()
         }
 
         ParallelAnimation {
@@ -1460,7 +1497,10 @@ Window {
                 duration: 900
                 easing.type: Easing.OutBack
             }
-            onFinished: dockBg.requestBlurUpdate()
+            onFinished: {
+                dockBg.syncBlurAfterStyleChange()
+                blurStartupSettleTimer.restart()
+            }
         }
 
         Rectangle {
@@ -1480,14 +1520,29 @@ Window {
                 y: (root.liveDockEdge === 2 || root.liveDockEdge === 3) ? Math.round(root.liveDockOffsetY) : 0
             }
 
-            property real waveExtraWidth: root.wavePeakDeltaPx * 3.15 * root.liveScaleFactor * root.liveWaveIntensity
-            property real rawBgWidth: root.baseRowWidth + (30 * root.liveScaleFactor) + (waveExtraWidth * root.waveAmplitude)
+            readonly property real sidePad: 30 * root.liveScaleFactor
+            // Fundo expande/recolhe só com waveAmplitude — não segue o balanço dos ícones na onda
+            // Largura da expansão quantizada — menos saltos de 2px na ponta direita
+            readonly property real expansionAmp: waveBlurAnimating
+                    ? Math.round(root.waveAmplitude * 80) / 80
+                    : root.waveAmplitude
+            readonly property real waveExtraWidth: root.wavePeakDeltaPx * 3.15 * root.liveScaleFactor * root.liveWaveIntensity
+            readonly property real rawBgSpan: root.baseRowWidth + sidePad + (waveExtraWidth * expansionAmp)
+            readonly property int dockSpanEvenPx: {
+                var w = Math.round(rawBgSpan)
+                if ((w & 1) !== 0)
+                    w += 1
+                return w
+            }
+            readonly property real barThickness: Math.round(root.dockBarHeightPx * root.liveScaleFactor)
 
             readonly property bool waveBlurAnimating: root.waveBlurAnimating
             readonly property bool waveBlurCollapsing: !root.dockHovered && waveAmpAnim.running
 
             property int blurLastSentW: -1
             property int blurLastSentH: -1
+            property int blurLastSentX: -1
+            property int blurLastSentY: -1
             property int blurStableCx: -1
             property int blurStableCy: -1
             property bool blurWaveFramePending: false
@@ -1500,15 +1555,75 @@ Window {
                 onTriggered: dockBg.waveBlurLayerHold = false
             }
 
-            // Layer só na expansão; no recolhimento o KWin blur acompanha largura em tempo real
-            layer.enabled: root.dockHovered
-                           && (waveAmpAnim.running || waveBlurLayerHold)
-                           && !dockBg.bgIsFlat
-            layer.smooth: true
+            // Layer desligado — rasterização extra tremia cantos (sobretudo ponta direita)
+            layer.enabled: false
 
-            function flushCollapseBlur() {
+            function resetBlurCache() {
                 blurLastSentW = -1
                 blurLastSentH = -1
+                blurLastSentX = -1
+                blurLastSentY = -1
+            }
+
+            function syncBlurAfterStyleChange() {
+                resetBlurCache()
+                updateBlurNative(true)
+                Qt.callLater(function() { dockBg.updateBlurNative(true) })
+            }
+
+            // Posição exata na janela (inclui transform do dockContainer) — repouso
+            function readBlurRectFromScene(bw, bh) {
+                var g = dockBg.mapToGlobal(0, 0)
+                var radius = Math.min(
+                    Math.round(dockBg.radius),
+                    Math.floor(Math.min(bw, bh) / 2)
+                )
+                return {
+                    x: Math.round(g.x - root.x),
+                    y: Math.round(g.y - root.y),
+                    radius: radius
+                }
+            }
+
+            // Posição do blur por matemática — centro fixo na expansão (evita tremor nos cantos)
+            function computeBlurStableRect(bw, bh) {
+                var radius = Math.min(
+                    Math.round(dockBg.radius),
+                    Math.floor(Math.min(bw, bh) / 2)
+                )
+                var slideY = Math.round(dockContainer.dockSlidePixels)
+                var margin = Math.round(root.liveDockMargin * root.liveScaleFactor)
+                var bx, by
+
+                if (!root.dockLayoutVertical) {
+                    var cx = (waveBlurAnimating && blurStableCx >= 0)
+                            ? blurStableCx
+                            : (Math.round(root.width / 2) + Math.round(root.liveDockOffsetX))
+                    bx = cx - (bw >> 1)
+                    if (root.liveDockEdge === 0) {
+                        var bottomMargin = Math.round(margin - dockContainer.startupOffsetY + root.liveDockOffsetY)
+                        by = Math.round(root.height - bh - bottomMargin + slideY)
+                    } else {
+                        var topMargin = Math.round(margin + dockContainer.startupOffsetY + root.liveDockOffsetY)
+                        by = Math.round(topMargin + slideY)
+                    }
+                } else {
+                    var cy = (waveBlurAnimating && blurStableCy >= 0)
+                            ? blurStableCy
+                            : (Math.round(root.height / 2) + Math.round(root.liveDockOffsetY))
+                    by = cy - (bh >> 1)
+                    if (root.liveDockEdge === 2) {
+                        bx = Math.round(margin + root.liveDockOffsetX)
+                    } else {
+                        bx = Math.round(root.width - bw - margin - root.liveDockOffsetX)
+                    }
+                }
+
+                return { x: bx, y: by, radius: radius }
+            }
+
+            function flushCollapseBlur() {
+                resetBlurCache()
                 updateBlurNative(true)
                 Qt.callLater(function() { dockBg.updateBlurNative(true) })
             }
@@ -1525,7 +1640,7 @@ Window {
 
             // Um flush por frame na onda (sem debounce de 40ms — ponta direita atrasava)
             function scheduleWaveBlurFrame() {
-                if (!waveBlurAnimating || dockBg.bgIsFlat)
+                if (!waveBlurAnimating)
                     return
                 if (blurWaveFramePending)
                     return
@@ -1536,44 +1651,11 @@ Window {
                 })
             }
 
-            // Posição do blur por matemática (mapToItem oscila quando a largura anima)
-            function computeBlurStableRect(bw, bh) {
-                var radius = Math.min(
-                    Math.round(dockBg.radius),
-                    Math.floor(Math.min(bw, bh) / 2)
-                )
-                var slideY = Math.round(dockContainer.dockSlidePixels)
-                var margin = Math.round(root.liveDockMargin * root.liveScaleFactor)
-                var bx, by
-
-                if (!root.dockLayoutVertical) {
-                    var cx = (waveBlurAnimating && blurStableCx >= 0)
-                            ? blurStableCx
-                            : (Math.round(root.width / 2) + Math.round(root.liveDockOffsetX))
-                    // bw sempre par: divisão inteira evita tremor na ponta direita
-                    bx = cx - (bw >> 1)
-                    if (root.liveDockEdge === 0) {
-                        var bottomMargin = Math.round(margin - dockContainer.startupOffsetY + root.liveDockOffsetY)
-                        by = Math.round(root.height - bh - bottomMargin + slideY)
-                    } else {
-                        var topMargin = Math.round(margin + dockContainer.startupOffsetY + root.liveDockOffsetY)
-                        by = Math.round(topMargin + slideY)
-                    }
-                } else {
-                    var cy = (waveBlurAnimating && blurStableCy >= 0)
-                            ? blurStableCy
-                            : (Math.round(root.height / 2) + Math.round(root.liveDockOffsetY))
-                    by = cy - (bh >> 1)
-                    if (root.liveDockEdge === 2) {
-                        var leftMargin = Math.round(margin + root.liveDockOffsetX)
-                        bx = leftMargin
-                    } else {
-                        var rightMargin = Math.round(margin - root.liveDockOffsetX)
-                        bx = Math.round(root.width - bw - rightMargin)
-                    }
-                }
-
-                return { x: bx, y: by, radius: radius }
+            function invalidateBlurGeometry() {
+                resetBlurCache()
+                blurStableCx = -1
+                blurStableCy = -1
+                updateBlurNative(true)
             }
 
             onWaveBlurAnimatingChanged: {
@@ -1608,22 +1690,18 @@ Window {
             }
 
             readonly property bool bgIsFlat: root.liveBg3dStyle === 0
-            readonly property bool bgIsPremium: root.liveBg3dStyle === 2
-            readonly property bool bgIsGlass2d: root.liveBg3dStyle === 3
-            readonly property bool bgIs3d: root.liveBg3dStyle === 1 || root.liveBg3dStyle === 2
+            readonly property bool bgIsGlass: root.liveBg3dStyle !== 0
 
             width: root.dockLayoutVertical
-                   ? Math.round(root.dockBarHeightPx * root.liveScaleFactor)
-                   : Math.round(rawBgWidth / 2) * 2
+                   ? barThickness
+                   : dockSpanEvenPx
             height: root.dockLayoutVertical
-                    ? Math.round(rawBgWidth / 2) * 2
-                    : Math.round(root.dockBarHeightPx * root.liveScaleFactor)
+                    ? dockSpanEvenPx
+                    : barThickness
 
-            color: dockBg.bgIsFlat
-                   ? Qt.rgba(root.themeColors.dockR, root.themeColors.dockG, root.themeColors.dockB, root.liveBgOpacity)
-                   : "transparent"
+            color: "transparent"
             radius: Math.round(root.liveDockRadius * root.liveScaleFactor)
-            border.color: Qt.rgba(1, 1, 1, root.liveBorderGlow)
+            border.color: Qt.rgba(1, 1, 1, Math.max(0.26, root.liveBorderGlow))
             border.width: Math.max(1, Math.round(root.liveBorderWidth))
             antialiasing: true
             clip: true
@@ -1637,7 +1715,7 @@ Window {
             }
 
             function requestBlurUpdate() {
-                if (dockBg.bgIsFlat || waveBlurAnimating)
+                if (waveBlurAnimating)
                     return
                 if (!blurThrottleTimer.running)
                     blurThrottleTimer.start()
@@ -1651,9 +1729,6 @@ Window {
                 if (dockContainer.startupOffsetY > 0.5)
                     return
 
-                if (dockBg.bgIsFlat)
-                    return
-
                 var bw = Math.round(dockBg.width)
                 var bh = Math.round(dockBg.height)
                 if (bw < 10 || bh < 10)
@@ -1661,46 +1736,59 @@ Window {
                 if (bw > root.width * 0.92 && bh > root.height * 0.92)
                     return
 
-                if (bw === blurLastSentW && bh === blurLastSentH)
+                var rect = waveBlurAnimating
+                        ? computeBlurStableRect(bw, bh)
+                        : readBlurRectFromScene(bw, bh)
+                var bx = rect.x
+                var by = rect.y
+                var radius = rect.radius
+
+                if (bw === blurLastSentW && bh === blurLastSentH
+                        && bx === blurLastSentX && by === blurLastSentY)
                     return
 
-                var rect = computeBlurStableRect(bw, bh)
                 blurLastSentW = bw
                 blurLastSentH = bh
-                taskBackend.setBlurRegion(rect.x, rect.y, bw, bh, rect.radius, immediate || waveBlurAnimating)
+                blurLastSentX = bx
+                blurLastSentY = by
+                taskBackend.setBlurRegion(bx, by, bw, bh, radius, immediate || waveBlurAnimating)
             }
 
             onXChanged: requestBlurUpdate()
             onYChanged: requestBlurUpdate()
             onWidthChanged: {
-                if (waveBlurAnimating) {
-                    if (waveBlurCollapsing)
-                        updateBlurNative(true)
-                    else
-                        scheduleWaveBlurFrame()
-                } else {
+                if (waveBlurAnimating)
+                    updateBlurNative(true)
+                else
                     requestBlurUpdate()
-                }
             }
             onHeightChanged: {
-                if (waveBlurAnimating) {
-                    if (waveBlurCollapsing)
-                        updateBlurNative(true)
-                    else
-                        scheduleWaveBlurFrame()
-                } else {
+                if (waveBlurAnimating)
+                    updateBlurNative(true)
+                else
                     requestBlurUpdate()
-                }
             }
             onRadiusChanged: requestBlurUpdate()
 
-            Component.onCompleted: requestBlurUpdate()
+            Component.onCompleted: syncBlurAfterStyleChange()
             // =============================
 
+            // Padrão: tinta uniforme sobre o blur KWin
+            Rectangle {
+                anchors.fill: parent
+                anchors.margins: 1
+                radius: Math.max(0, dockBg.radius - 1)
+                visible: dockBg.bgIsFlat
+                color: Qt.rgba(root.themeColors.dockR, root.themeColors.dockG, root.themeColors.dockB,
+                                root.liveBgOpacity)
+                antialiasing: true
+            }
+
+            // Vidro sem 3D — gradiente suave sobre blur KWin (como versão definitiva)
             Rectangle {
                 anchors.fill: parent
                 radius: parent.radius
-                visible: !dockBg.bgIsFlat
+                visible: dockBg.bgIsGlass
                 antialiasing: true
                 gradient: Gradient {
                     orientation: Gradient.Vertical
@@ -1708,21 +1796,21 @@ Window {
                         position: 0.0
                         color: Qt.tint(
                             root.liveGradientColorA,
-                            Qt.rgba(1, 1, 1, Math.max(0.0, root.liveGradientMix * (dockBg.bgIsPremium ? 0.58 : (dockBg.bgIsGlass2d ? 0.26 : 0.40)))))
+                            Qt.rgba(1, 1, 1, Math.max(0.0, root.liveGradientMix * 0.26)))
                     }
                     GradientStop {
                         position: 0.38
-                        color: Qt.tint(root.liveGradientColorB, Qt.rgba(1, 1, 1, dockBg.bgIsPremium ? 0.12 : (dockBg.bgIsGlass2d ? 0.03 : 0.06)))
+                        color: Qt.tint(root.liveGradientColorB, Qt.rgba(1, 1, 1, 0.03))
                     }
                     GradientStop {
                         position: 0.72
-                        color: Qt.tint(root.liveGradientColorB, Qt.rgba(0, 0, 0, dockBg.bgIsPremium ? 0.09 : (dockBg.bgIsGlass2d ? 0.03 : 0.05)))
+                        color: Qt.tint(root.liveGradientColorB, Qt.rgba(0, 0, 0, 0.03))
                     }
                     GradientStop {
                         position: 1.0
                         color: Qt.tint(
                             root.liveGradientColorC,
-                            Qt.rgba(0, 0, 0, Math.max(0.0, (dockBg.bgIsPremium ? 0.40 : (dockBg.bgIsGlass2d ? 0.16 : 0.28)) - (root.liveGradientMix * 0.20))))
+                            Qt.rgba(0, 0, 0, Math.max(0.0, 0.16 - (root.liveGradientMix * 0.20))))
                     }
                 }
                 opacity: root.liveBgOpacity
@@ -1730,54 +1818,7 @@ Window {
                 border.width: Math.max(1, Math.round(root.liveBorderWidth))
             }
 
-            // brilho superior de "vidro curvo" (uniforme, sem faixa branca central)
-            Rectangle {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.topMargin: 1
-                height: Math.max(7, Math.round(parent.height * 0.28))
-                radius: parent.radius
-                visible: dockBg.bgIs3d
-                antialiasing: true
-                gradient: Gradient {
-                    orientation: Gradient.Vertical
-                    GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, dockBg.bgIsPremium ? 0.19 : 0.16) }
-                    GradientStop { position: 0.42; color: Qt.rgba(1, 1, 1, dockBg.bgIsPremium ? 0.065 : 0.05) }
-                    GradientStop { position: 1.0; color: Qt.rgba(1, 1, 1, 0.0) }
-                }
-
-                // Vinheta horizontal para evitar "bloco branco" no miolo.
-                Rectangle {
-                    anchors.fill: parent
-                    radius: parent.radius
-                    antialiasing: true
-                    gradient: Gradient {
-                        orientation: Gradient.Horizontal
-                        GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, 0.0) }
-                        GradientStop { position: 0.22; color: Qt.rgba(1, 1, 1, dockBg.bgIsPremium ? 0.045 : 0.035) }
-                        GradientStop { position: 0.50; color: Qt.rgba(1, 1, 1, dockBg.bgIsPremium ? 0.04 : 0.03) }
-                        GradientStop { position: 0.78; color: Qt.rgba(1, 1, 1, dockBg.bgIsPremium ? 0.045 : 0.035) }
-                        GradientStop { position: 1.0; color: Qt.rgba(1, 1, 1, 0.0) }
-                    }
-                }
-            }
-
-            // vinheta lateral para dar profundidade sem escurecer a base inteira
-            Rectangle {
-                anchors.fill: parent
-                radius: parent.radius
-                visible: dockBg.bgIs3d
-                antialiasing: true
-                gradient: Gradient {
-                    orientation: Gradient.Horizontal
-                    GradientStop { position: 0.0; color: Qt.rgba(0, 0, 0, root.liveShadowStrength * (dockBg.bgIsPremium ? 0.30 : 0.24)) }
-                    GradientStop { position: 0.18; color: Qt.rgba(0, 0, 0, 0.02) }
-                    GradientStop { position: 0.82; color: Qt.rgba(0, 0, 0, 0.02) }
-                    GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, root.liveShadowStrength * (dockBg.bgIsPremium ? 0.30 : 0.24)) }
-                }
-            }
-
+            // Linha superior fina — destaque de vidro sem brilho 3D
             Rectangle {
                 anchors.top: parent.top
                 anchors.left: parent.left
@@ -1787,7 +1828,7 @@ Window {
                 anchors.rightMargin: 15
                 height: 1
                 color: root.themeColors.dockTopLine
-                visible: dockBg.bgIsFlat || dockBg.bgIsGlass2d
+                visible: dockBg.bgIsFlat || dockBg.bgIsGlass
                 radius: parent.radius
                 antialiasing: true
             }
@@ -1803,20 +1844,6 @@ Window {
                     }
                 }
             }
-        }
-
-        // Sombra 3D externa (fora do clip da dock) para responder ao slider.
-        Rectangle {
-            anchors.horizontalCenter: dockBg.horizontalCenter
-            anchors.top: dockBg.bottom
-            anchors.topMargin: Math.round(3 * root.liveScaleFactor)
-            width: Math.round(dockBg.width * 0.88)
-            height: Math.max(8, Math.round(dockBg.height * 0.20))
-            radius: height / 2
-            visible: dockBg.bgIs3d
-            color: Qt.rgba(0, 0, 0, root.liveShadowStrength * (dockBg.bgIsPremium ? 0.62 : 0.52))
-            opacity: dockBg.bgIsPremium ? 0.42 : 0.36
-            z: -2
         }
 
         Row {

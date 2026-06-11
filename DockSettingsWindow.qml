@@ -75,7 +75,7 @@ Window {
         dock.liveMonochromeIcons = dock.appSettings.monochromeIcons
         dock.liveIndicatorStyle = dock.appSettings.indicatorStyle
         dock.liveIndicatorScale = dock.appSettings.indicatorScale
-        dock.liveBg3dStyle = dock.appSettings.bg3dStyle
+        dock.liveBg3dStyle = dock.normalizeBg3dStyle(dock.appSettings.bg3dStyle)
         dock.liveGradientColorA = dock.appSettings.gradientColorA
         dock.liveGradientColorB = dock.appSettings.gradientColorB
         dock.liveGradientColorC = dock.appSettings.gradientColorC
@@ -214,6 +214,19 @@ Window {
                                       Math.min(settingsWin.maximumHeight, settingsWin.height))
     }
 
+    function adicionarWidgetPreset(preset) {
+        let widgets = []
+        try {
+            widgets = JSON.parse(dock.liveWidgetsJson || "[]")
+            if (!Array.isArray(widgets))
+                widgets = []
+        } catch (e) {
+            widgets = []
+        }
+        widgets.push(preset)
+        dock.liveWidgetsJson = JSON.stringify(widgets, null, 2)
+    }
+
     function salvarPerfil(nomePerfil) {
         let profiles = {}
         try { profiles = JSON.parse(dock.liveProfilesJson || "{}") } catch (e) { profiles = {} }
@@ -261,7 +274,7 @@ Window {
             // aparência
             if (p.themeMode    !== undefined) dock.liveThemeMode    = p.themeMode
             if (p.accentMode   !== undefined) dock.liveAccentMode   = p.accentMode
-            if (p.bg3dStyle    !== undefined) dock.liveBg3dStyle    = p.bg3dStyle
+            if (p.bg3dStyle    !== undefined) dock.liveBg3dStyle    = dock.normalizeBg3dStyle(p.bg3dStyle)
             if (p.bgOpacity    !== undefined) dock.liveBgOpacity    = p.bgOpacity
             if (p.gradientColorA !== undefined) dock.liveGradientColorA = p.gradientColorA
             if (p.gradientColorB !== undefined) dock.liveGradientColorB = p.gradientColorB
@@ -452,9 +465,9 @@ Window {
                                 Label { text: qsTr("Fundo"); color: "#CCCCCC"; font.pixelSize: 12 }
                                 ComboBox {
                                     Layout.fillWidth: true
-                                    model: [qsTr("Plano"), qsTr("Vidro 3D (suave)"), qsTr("Vidro Premium"), qsTr("Vidro (sem 3D)")]
-                                    currentIndex: dock.liveBg3dStyle
-                                    onActivated: dock.liveBg3dStyle = currentIndex
+                                    model: [qsTr("Padrão"), qsTr("Vidro")]
+                                    currentIndex: dock.liveBg3dStyle === 0 ? 0 : 1
+                                    onActivated: dock.liveBg3dStyle = currentIndex === 0 ? 0 : 3
                                 }
                             }
                         }
@@ -518,25 +531,6 @@ Window {
                             spacing: 6
                             Label { text: qsTr("Brilho da borda: %1%").arg(Math.round(dock.liveBorderGlow * 100)); color: "#CCCCCC"; font.pixelSize: 12 }
                             Slider { Layout.fillWidth: true; from: 0.05; to: 0.60; stepSize: 0.01; value: dock.liveBorderGlow; onMoved: dock.liveBorderGlow = value }
-                        }
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 6
-                            readonly property bool shadowEnabled: dock.liveBg3dStyle === 1 || dock.liveBg3dStyle === 2
-                            Label {
-                                text: qsTr("Sombra 3D: %1%").arg(Math.round(dock.liveShadowStrength * 100))
-                                color: parent.shadowEnabled ? "#CCCCCC" : "#555555"
-                                font.pixelSize: 12
-                            }
-                            Slider {
-                                Layout.fillWidth: true
-                                from: 0.05
-                                to: 0.80
-                                stepSize: 0.01
-                                value: dock.liveShadowStrength
-                                enabled: parent.shadowEnabled
-                                onMoved: dock.liveShadowStrength = value
-                            }
                         }
                     }
                 }
@@ -851,6 +845,34 @@ Window {
                         }
 
                         Label { text: qsTr("Widgets/Plugins leves (JSON array)"); color: "#CCCCCC"; font.pixelSize: 12 }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 6
+                            Button {
+                                text: qsTr("+ Monitor")
+                                onClicked: adicionarWidgetPreset({
+                                    name: qsTr("Monitor"),
+                                    icon: "utilities-system-monitor",
+                                    cmd: "plasma-systemmonitor"
+                                })
+                            }
+                            Button {
+                                text: qsTr("+ Separador")
+                                onClicked: adicionarWidgetPreset({
+                                    name: qsTr("Separador"),
+                                    icon: "draw-separator",
+                                    type: "separator"
+                                })
+                            }
+                            Button {
+                                text: qsTr("+ Relógio")
+                                onClicked: adicionarWidgetPreset({
+                                    name: qsTr("Relógio"),
+                                    icon: "clock",
+                                    type: "clock"
+                                })
+                            }
+                        }
                         JsonEditor {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 56

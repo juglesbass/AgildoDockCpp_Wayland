@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(agildodock VERSION 1.3.3 LANGUAGES CXX)
+project(agildodock VERSION 1.3.4 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -8,7 +8,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick WaylandClient Concurrent DBus Sql LinguistTools)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick WaylandClient Concurrent DBus Sql LinguistTools Test)
 qt_policy(SET QTP0001 NEW)
 find_package(KF6WindowSystem REQUIRED)
 find_package(KF6GlobalAccel REQUIRED)
@@ -23,7 +23,8 @@ add_executable(agildodock
     dock_global_shortcuts.cpp
     dock_unity_launcher.cpp
     dock_browser_integration.cpp
-    dock_zen_downloads.cpp
+    dock_browser_downloads.cpp
+    dock_browser_utils.cpp
 )
 
 target_compile_definitions(agildodock PRIVATE AGILDO_DOCK_VERSION="${PROJECT_VERSION}")
@@ -127,8 +128,24 @@ install(FILES
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/metainfo/org.agildosoft.agildodock.metainfo.xml"
     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/metainfo")
 
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE"
+    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/licenses/${PROJECT_NAME}")
+
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/plasmoid/agildodock-preview/metadata.json")
+    install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/plasmoid/agildodock-preview/"
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/plasma/plasmoids/org.agildosoft.agildodock.preview")
+endif()
+
 include(CTest)
 enable_testing()
 add_test(NAME agildodock_version COMMAND $<TARGET_FILE:agildodock> --version)
 set_tests_properties(agildodock_version PROPERTIES
     PASS_REGULAR_EXPRESSION "AgildoDock ${PROJECT_VERSION}")
+
+add_executable(test_dock_browser_utils
+    tests/test_dock_browser_utils.cpp
+    dock_browser_utils.cpp
+)
+target_include_directories(test_dock_browser_utils PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(test_dock_browser_utils PRIVATE Qt6::Core Qt6::Test)
+add_test(NAME dock_browser_utils COMMAND test_dock_browser_utils)

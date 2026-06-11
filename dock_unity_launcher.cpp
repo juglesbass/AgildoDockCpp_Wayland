@@ -35,8 +35,18 @@ void DockUnityLauncherService::setDesktopMaps(const QHash<QString, QString> *bas
 void DockUnityLauncherService::registerUnityService()
 {
     QDBusConnection session = QDBusConnection::sessionBus();
+    const QString unityService = QStringLiteral("com.canonical.Unity");
+
+    // Latte/outra dock pode já possuir o nome — só escutamos LauncherEntry nesse caso.
+    if (QDBusConnectionInterface *bus = session.interface()) {
+        if (bus->isServiceRegistered(unityService)) {
+            m_unityServiceRegistered = false;
+            return;
+        }
+    }
+
     session.registerObject(QStringLiteral("/Unity"), this);
-    m_unityServiceRegistered = session.registerService(QStringLiteral("com.canonical.Unity"));
+    m_unityServiceRegistered = session.registerService(unityService);
 }
 
 void DockUnityLauncherService::connectUpdateSignal()

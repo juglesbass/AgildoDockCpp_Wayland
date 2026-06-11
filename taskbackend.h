@@ -16,7 +16,7 @@
 
 
 class DockUnityLauncherService;
-class DockZenDownloadWatcher;
+class DockBrowserDownloadWatcher;
 
 class TaskBackend : public QObject
 {
@@ -45,6 +45,8 @@ public:
     /// Define a borda Layer Shell: 0 baixo, 1 topo, 2 esquerda, 3 direita.
     Q_INVOKABLE void applyLayerShellEdge(int edge);
     Q_INVOKABLE void setBlurRegion(int x, int y, int w, int h, int radius, bool immediate = false);
+    /// Desliga blur KWin (estilo plano ou doca oculta).
+    Q_INVOKABLE void clearBlurRegion();
     /// Wayland: remove a faixa superior (em px) da região que recebe ponteiro — cliques passam atrás.
     /// excludeTopPixels <= 0 repõe a superfície completa. Não altera o layout nem os tooltips.
     Q_INVOKABLE void setPointerInputExcludeTop(int excludeTopPixels);
@@ -95,11 +97,11 @@ private slots:
     void completeCloseApp(const QString &command, const QString &winId);
     void flushBlurRegion();
     void mergeUnityLauncherUpdate(const QString &appUri, const QMap<QString, QVariant> &properties);
-    void mergeZenDownloadProgress(const QString &command,
-                                  double progress,
-                                  bool visible,
-                                  const QString &filePath,
-                                  const QString &fileName);
+    void mergeBrowserDownloadProgress(const QString &command,
+                                      double progress,
+                                      bool visible,
+                                      const QString &filePath,
+                                      const QString &fileName);
 
 private:
     void updateSystemState();
@@ -122,8 +124,8 @@ private:
     void setupNotificationBadgeWatcher();
     void refreshNotificationBadgesFromSni();
     void setupUnityLauncherProgressWatcher();
-    void setupZenDownloadWatcher();
-    void updateZenDownloadCommand();
+    void setupBrowserDownloadWatcher();
+    void updateBrowserDownloadCommand();
     QString commandForUnityAppUri(const QString &appUri) const;
     void applyLauncherProgressForCommand(const QString &cmd, QVariantMap entry, QVariantMap &next) const;
     void notifyLauncherProgressForCommand(const QString &command, bool urgent = false);
@@ -133,7 +135,6 @@ private:
     void enrichLauncherProgressEntry(QVariantMap &entry) const;
     void reapplyActiveDownloadMetadata();
     static QString iconThemeForDownloadFile(const QString &filePath);
-    static bool commandLooksLikeBrowser(const QString &command);
     static QString dockAppsSnapshotPath();
     static QString dockAppsSnapshotBackupPath();
     static QString appDataPathForFile(const QString &relativeName);
@@ -145,7 +146,7 @@ private:
     QHash<QString, QString> m_desktopEntryToCmd;
     QHash<QString, QString> m_execBasenameToCmd;
     DockUnityLauncherService *m_unityLauncher = nullptr;
-    DockZenDownloadWatcher *m_zenDownloadWatcher = nullptr;
+    DockBrowserDownloadWatcher *m_browserDownloadWatcher = nullptr;
     QWindow *m_mainWindow = nullptr;
 
     QSet<QString> m_runningCmdLines;

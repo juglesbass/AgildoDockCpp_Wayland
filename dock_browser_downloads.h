@@ -1,5 +1,5 @@
-#ifndef DOCK_ZEN_DOWNLOADS_H
-#define DOCK_ZEN_DOWNLOADS_H
+#ifndef DOCK_BROWSER_DOWNLOADS_H
+#define DOCK_BROWSER_DOWNLOADS_H
 
 #include <QObject>
 #include <QString>
@@ -8,17 +8,17 @@ class QTimer;
 class QFileSystemWatcher;
 
 /*!
- * Metadados de download ativos: Gecko (downloads.json), Chromium (History SQLite)
- * e ficheiros .crdownload — para ícone do arquivo e fallback de progresso.
+ * Metadados de downloads ativos: Gecko (downloads.json), Chromium (History SQLite),
+ * ficheiros .crdownload e pastas XDG — para ícone do arquivo e progresso real.
  */
-class DockZenDownloadWatcher : public QObject
+class DockBrowserDownloadWatcher : public QObject
 {
     Q_OBJECT
 
 public:
-    explicit DockZenDownloadWatcher(QObject *parent = nullptr);
+    explicit DockBrowserDownloadWatcher(QObject *parent = nullptr);
 
-    void setZenCommand(const QString &command);
+    void setBrowserCommand(const QString &command);
     void resetLastEmittedState();
     /// Atualiza caminho/nome/progresso lendo fontes do sistema (sem esperar o timer).
     void refreshActiveDownloadScan();
@@ -28,16 +28,16 @@ public:
     double activeDownloadProgress() const { return m_activeProgress; }
 
 signals:
-    void zenDownloadProgress(const QString &command,
-                             double progress,
-                             bool visible,
-                             const QString &filePath,
-                             const QString &fileName);
-    /// Caminho/nome do arquivo mudou (ex.: .crdownload criado) — re-enriquecer ícone na doca.
+    void browserDownloadProgress(const QString &command,
+                                 double progress,
+                                 bool visible,
+                                 const QString &filePath,
+                                 const QString &fileName);
+    /// Caminho/nome do arquivo mudou — re-enriquecer ícone na doca.
     void activeDownloadMetadataChanged();
 
 private:
-    void pollZenDownloads();
+    void pollActiveDownloads();
     void setupDownloadDirectoryWatcher();
     void setupChromiumHistoryWatcher();
     void onDownloadSourcesChanged();
@@ -49,7 +49,7 @@ private:
     QFileSystemWatcher *m_downloadFsWatcher = nullptr;
     QStringList m_watchedDownloadDirs;
     QStringList m_watchedHistoryFiles;
-    QString m_zenCommand;
+    QString m_browserCommand;
     double m_lastEmittedProgress = -1.0;
     bool m_lastEmittedVisible = false;
     QString m_lastEmittedFilePath;
@@ -58,4 +58,4 @@ private:
     double m_activeProgress = 0.0;
 };
 
-#endif // DOCK_ZEN_DOWNLOADS_H
+#endif // DOCK_BROWSER_DOWNLOADS_H

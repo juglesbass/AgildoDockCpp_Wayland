@@ -295,23 +295,13 @@
     </message>
     <message>
         <location line="+3"/>
-        <source>Plano</source>
-        <translation>Plano</translation>
+        <source>Padrão</source>
+        <translation>Padrão</translation>
     </message>
     <message>
         <location line="+0"/>
-        <source>Vidro 3D (suave)</source>
-        <translation>Vidro 3D (suave)</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Vidro Premium</source>
-        <translation>Vidro Premium</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Vidro (sem 3D)</source>
-        <translation>Vidro (sem 3D)</translation>
+        <source>Vidro</source>
+        <translation>Vidro</translation>
     </message>
     <message>
         <location line="+13"/>

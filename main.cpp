@@ -158,6 +158,7 @@ int main(int argc, char *argv[]) {
     // MOSTRAMOS NOVAMENTE: Aplica o blur e a animação nativa!
     window->show();
     QMetaObject::invokeMethod(rootObject, "refreshPointerInputMask", Qt::QueuedConnection);
+    QMetaObject::invokeMethod(rootObject, "refreshDockBlur", Qt::QueuedConnection);
 
     return app.exec();
 }

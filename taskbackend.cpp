@@ -1,4 +1,5 @@
 #include "taskbackend.h"
+#include "dock_browser_utils.h"
 #include "dock_window_management.h"
 #include "dock_browser_integration.h"
 
@@ -349,9 +350,7 @@ QString TaskBackend::readProcCmdlineFile(const QString &path)
 
 QString TaskBackend::execBasenameFromCommand(const QString &command)
 {
-    QString exec = command.split(' ').first().split('/').last().toLower();
-    exec.remove('"').remove('\'');
-    return exec;
+    return DockBrowserUtils::execBasenameFromCommand(command);
 }
 
 TaskBackend::TaskBackend(QObject *parent)
@@ -372,7 +371,7 @@ TaskBackend::TaskBackend(QObject *parent)
 
     setupNotificationBadgeWatcher();
     setupUnityLauncherProgressWatcher();
-    setupZenDownloadWatcher();
+    setupBrowserDownloadWatcher();
 
     m_progressNotifyTimer = new QTimer(this);
     m_progressNotifyTimer->setSingleShot(true);
@@ -859,7 +858,9 @@ void TaskBackend::flushBlurRegion()
         return;
     }
 
-    const int radius = qBound(0, m_pendingBlurRadius, qMin(safeW, safeH) / 2);
+    // Mesmo retângulo visual — sem expandir (expansão criava “fade”/halo em toda a borda).
+    // +1 no raio cobre o AA dos cantos sem blur a extravasar nas arestas retas.
+    const int radius = qBound(0, m_pendingBlurRadius + 1, qMin(safeW, safeH) / 2);
 
     if (m_hasLastBlur && m_lastBlurX == safeX && m_lastBlurY == safeY
         && m_lastBlurW == safeW && m_lastBlurH == safeH && m_lastBlurRadius == radius) {
@@ -883,6 +884,18 @@ void TaskBackend::flushBlurRegion()
     KWindowEffects::enableBlurBehind(m_mainWindow, true, QRegion(poly));
 }
 
+void TaskBackend::clearBlurRegion()
+{
+    m_blurFlushPending = false;
+    m_hasLastBlur = false;
+    m_pendingBlurW = 0;
+    m_pendingBlurH = 0;
+    if (!m_mainWindow) {
+        return;
+    }
+    KWindowEffects::enableBlurBehind(m_mainWindow, false);
+}
+
 void TaskBackend::loadKnownApps()
 {
     QStringList sysPaths = {QStringLiteral("/usr/share/applications"), QStringLiteral("/usr/local/share/applications")};
@@ -891,7 +904,7 @@ void TaskBackend::loadKnownApps()
     sysPaths << homePath;
 
     const QStringList blacklist = {
-        QStringLiteral("steam"),     QStringLiteral("discord"), QStringLiteral("telegram-desktop"),
+        QStringLiteral("discord"), QStringLiteral("telegram-desktop"),
         QStringLiteral("obsidian"), QStringLiteral("kded5"),     QStringLiteral("kded6"), QStringLiteral("polkit"),
         QStringLiteral("kwallet"),  QStringLiteral("powerdevil"), QStringLiteral("ksmserver"), QStringLiteral("plasmashell"),
         QStringLiteral("kwin_wayland"), QStringLiteral("agent"), QStringLiteral("agildo thermo"), QStringLiteral("agildothermo"),
@@ -962,7 +975,7 @@ void TaskBackend::rebuildExecIndex()
             m_desktopEntryToCmd.insert(entryId.toLower(), cmd);
         }
     }
-    updateZenDownloadCommand();
+    updateBrowserDownloadCommand();
 }
 
 bool TaskBackend::appMatchesRunningCmdLine(const QString &cmdLineLower, const QVariantMap &app)

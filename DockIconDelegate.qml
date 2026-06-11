@@ -36,6 +36,8 @@ Item {
         && downloadProgressFileName.length > 0
         && downloadProgressIcon.length > 0
         && isDownloadsSystemItem
+        && !downloadCompleteFlash
+    property bool downloadCompleteFlash: false
 
     function syncDownloadProgress() {
         if (!model.cmd) {
@@ -71,7 +73,18 @@ Item {
             downloadProgressVisible = false
             downloadProgressIcon = ""
             downloadProgressFileName = ""
+            if (isDownloadsSystemItem) {
+                downloadCompleteFlash = true
+                downloadFolderFlashTimer.restart()
+            }
         }
+    }
+
+    Timer {
+        id: downloadFolderFlashTimer
+        interval: dock.animationDuration(700)
+        repeat: false
+        onTriggered: delegateRoot.downloadCompleteFlash = false
     }
 
     Accessible.role: Accessible.Button

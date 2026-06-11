@@ -1,4 +1,5 @@
-#include "dock_zen_downloads.h"
+#include "dock_browser_downloads.h"
+#include "dock_browser_utils.h"
 
 #include <QDir>
 #include <QFile>
@@ -58,6 +59,25 @@ bool pathHasActivePartial(const QString &finalPath)
     }
     return QFile::exists(finalPath + QStringLiteral(".crdownload"))
         || QFile::exists(finalPath + QStringLiteral(".part"));
+}
+
+/// Só metadados de caminho — não inventa progresso (ex.: .crdownload antes do SQL).
+void considerPathOnly(DownloadScanBest &best, const QString &filePath)
+{
+    const QString normalized = normalizedFinalPath(filePath);
+    if (normalized.isEmpty()) {
+        return;
+    }
+
+    const bool newHasPartial = pathHasActivePartial(normalized);
+    const bool bestHasPartial = pathHasActivePartial(best.filePath);
+    const bool fillsMissingPath = best.active && best.filePath.isEmpty();
+
+    if (!best.active || fillsMissingPath || (newHasPartial && !bestHasPartial)) {
+        best.filePath = normalized;
+        best.fileName = QFileInfo(normalized).fileName();
+        best.active = true;
+    }
 }
 
 void considerCandidate(DownloadScanBest &best, double progress, const QString &filePath)
@@ -287,17 +307,8 @@ void scanCrdownloadInDirectory(const QString &directoryPath, DownloadScanBest &b
     const QStringList partials = dir.entryList({QStringLiteral("*.crdownload")}, QDir::Files);
     for (const QString &partialName : partials) {
         const QString partialPath = dir.filePath(partialName);
-        const QString finalPath = normalizedFinalPath(partialPath);
-        if (finalPath.isEmpty()) {
-            continue;
-        }
-
-        const qint64 received = QFileInfo(partialPath).size();
-        double progress = 0.01;
-        if (received > 0) {
-            progress = 0.08;
-        }
-        considerCandidate(best, progress, finalPath);
+        // Progresso real vem do History SQLite ou downloads.json — aqui só o caminho.
+        considerPathOnly(best, partialPath);
     }
 }
 
@@ -322,17 +333,19 @@ DownloadScanBest scanAllActiveDownloads(qint64 &lastChromiumHistoryScanMs)
     for (const QString &dirPath : downloadDirectoriesToScan()) {
         scanCrdownloadInDirectory(dirPath, best);
     }
-    scanGeckoProfiles(QStringLiteral("zen"), best);
-    scanGeckoProfiles(QStringLiteral("mozilla/firefox"), best);
+    for (const QString &root : DockBrowserUtils::geckoConfigRoots()) {
+        scanGeckoProfiles(root, best);
+    }
 
-    // History SQLite só quando ainda não há .crdownload/.part (pastas custom ex.: /mnt)
-    const bool needsHistoryScan = !best.active || !pathHasActivePartial(best.filePath);
+    // History SQLite quando ainda não há progresso confiável ou ficheiro parcial desconhecido
+    const bool needsHistoryScan = !best.active || best.progress <= 0.001
+        || !pathHasActivePartial(best.filePath);
     const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
     if (needsHistoryScan && (nowMs - lastChromiumHistoryScanMs) >= 400) {
         lastChromiumHistoryScanMs = nowMs;
-        scanChromiumProfiles(QStringLiteral("chromium"), best);
-        scanChromiumProfiles(QStringLiteral("google-chrome"), best);
-        scanChromiumProfiles(QStringLiteral("microsoft-edge"), best);
+        for (const QString &root : DockBrowserUtils::chromiumConfigRoots()) {
+            scanChromiumProfiles(root, best);
+        }
     }
 
     return best;
@@ -340,7 +353,7 @@ DownloadScanBest scanAllActiveDownloads(qint64 &lastChromiumHistoryScanMs)
 
 } // namespace
 
-DockZenDownloadWatcher::DockZenDownloadWatcher(QObject *parent)
+DockBrowserDownloadWatcher::DockBrowserDownloadWatcher(QObject *parent)
     : QObject(parent)
 {
     setupDownloadDirectoryWatcher();
@@ -348,22 +361,22 @@ DockZenDownloadWatcher::DockZenDownloadWatcher(QObject *parent)
 
     m_pollTimer = new QTimer(this);
     m_pollTimer->setInterval(250);
-    connect(m_pollTimer, &QTimer::timeout, this, &DockZenDownloadWatcher::pollZenDownloads);
+    connect(m_pollTimer, &QTimer::timeout, this, &DockBrowserDownloadWatcher::pollActiveDownloads);
     m_pollTimer->start();
 
     m_sourceChangeDebounce = new QTimer(this);
     m_sourceChangeDebounce->setSingleShot(true);
     m_sourceChangeDebounce->setInterval(100);
-    connect(m_sourceChangeDebounce, &QTimer::timeout, this, &DockZenDownloadWatcher::applyDownloadSourcesRefresh);
+    connect(m_sourceChangeDebounce, &QTimer::timeout, this, &DockBrowserDownloadWatcher::applyDownloadSourcesRefresh);
 }
 
-void DockZenDownloadWatcher::setupDownloadDirectoryWatcher()
+void DockBrowserDownloadWatcher::setupDownloadDirectoryWatcher()
 {
     m_downloadFsWatcher = new QFileSystemWatcher(this);
     connect(m_downloadFsWatcher, &QFileSystemWatcher::directoryChanged,
-            this, &DockZenDownloadWatcher::onDownloadSourcesChanged);
+            this, &DockBrowserDownloadWatcher::onDownloadSourcesChanged);
     connect(m_downloadFsWatcher, &QFileSystemWatcher::fileChanged,
-            this, &DockZenDownloadWatcher::onDownloadSourcesChanged);
+            this, &DockBrowserDownloadWatcher::onDownloadSourcesChanged);
 
     for (const QString &dirPath : downloadDirectoriesToScan()) {
         if (QDir(dirPath).exists() && !m_watchedDownloadDirs.contains(dirPath)) {
@@ -373,17 +386,16 @@ void DockZenDownloadWatcher::setupDownloadDirectoryWatcher()
     }
 }
 
-void DockZenDownloadWatcher::setupChromiumHistoryWatcher()
+void DockBrowserDownloadWatcher::setupChromiumHistoryWatcher()
 {
     if (!m_downloadFsWatcher) {
         return;
     }
 
-    const QStringList browserRoots = {
-        geckoConfigRoot(QStringLiteral("chromium")),
-        geckoConfigRoot(QStringLiteral("google-chrome")),
-        geckoConfigRoot(QStringLiteral("microsoft-edge")),
-    };
+    QStringList browserRoots;
+    for (const QString &relativeRoot : DockBrowserUtils::chromiumConfigRoots()) {
+        browserRoots << geckoConfigRoot(relativeRoot);
+    }
 
     for (const QString &browserRootPath : browserRoots) {
         const QDir browserRoot(browserRootPath);
@@ -402,14 +414,14 @@ void DockZenDownloadWatcher::setupChromiumHistoryWatcher()
     }
 }
 
-void DockZenDownloadWatcher::onDownloadSourcesChanged()
+void DockBrowserDownloadWatcher::onDownloadSourcesChanged()
 {
     if (!m_sourceChangeDebounce->isActive()) {
         m_sourceChangeDebounce->start();
     }
 }
 
-void DockZenDownloadWatcher::applyDownloadSourcesRefresh()
+void DockBrowserDownloadWatcher::applyDownloadSourcesRefresh()
 {
     m_lastChromiumHistoryScanMs = 0;
     const QString previousPath = m_activeFilePath;
@@ -418,16 +430,16 @@ void DockZenDownloadWatcher::applyDownloadSourcesRefresh()
     if (m_activeFilePath != previousPath || m_activeFileName != previousName) {
         emit activeDownloadMetadataChanged();
     }
-    pollZenDownloads();
+    pollActiveDownloads();
 }
 
-void DockZenDownloadWatcher::setZenCommand(const QString &command)
+void DockBrowserDownloadWatcher::setBrowserCommand(const QString &command)
 {
-    m_zenCommand = command.trimmed();
+    m_browserCommand = command.trimmed();
     resetLastEmittedState();
 }
 
-void DockZenDownloadWatcher::resetLastEmittedState()
+void DockBrowserDownloadWatcher::resetLastEmittedState()
 {
     m_lastEmittedProgress = -1.0;
     m_lastEmittedVisible = false;
@@ -437,7 +449,7 @@ void DockZenDownloadWatcher::resetLastEmittedState()
     m_activeProgress = 0.0;
 }
 
-void DockZenDownloadWatcher::refreshActiveDownloadScan()
+void DockBrowserDownloadWatcher::refreshActiveDownloadScan()
 {
     const DownloadScanBest best = scanAllActiveDownloads(m_lastChromiumHistoryScanMs);
     m_activeFilePath = best.active ? best.filePath : QString();
@@ -445,7 +457,7 @@ void DockZenDownloadWatcher::refreshActiveDownloadScan()
     m_activeProgress = best.active ? best.progress : 0.0;
 }
 
-void DockZenDownloadWatcher::pollZenDownloads()
+void DockBrowserDownloadWatcher::pollActiveDownloads()
 {
     const QString previousPath = m_activeFilePath;
     const QString previousName = m_activeFileName;
@@ -454,7 +466,7 @@ void DockZenDownloadWatcher::pollZenDownloads()
         emit activeDownloadMetadataChanged();
     }
 
-    if (m_zenCommand.isEmpty()) {
+    if (m_browserCommand.isEmpty()) {
         return;
     }
 
@@ -471,9 +483,9 @@ void DockZenDownloadWatcher::pollZenDownloads()
     m_lastEmittedVisible = anyActive;
     m_lastEmittedProgress = m_activeProgress;
     m_lastEmittedFilePath = m_activeFilePath;
-    emit zenDownloadProgress(m_zenCommand,
-                             m_activeProgress,
-                             anyActive,
-                             m_activeFilePath,
-                             m_activeFileName);
+    emit browserDownloadProgress(m_browserCommand,
+                                 m_activeProgress,
+                                 anyActive,
+                                 m_activeFilePath,
+                                 m_activeFileName);
 }

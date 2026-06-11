@@ -1,4 +1,5 @@
 #include "dock_window_management.h"
+#include "dock_browser_utils.h"
 
 #include <QCoreApplication>
 #include <QGuiApplication>
@@ -27,10 +28,7 @@ struct KdotoolSearchFilter {
 
 static QString strippedExecBasename(const QString &command)
 {
-    QString exec =
-        command.split(QLatin1Char(' '), Qt::SkipEmptyParts).value(0).split(QLatin1Char('/')).last().toLower();
-    exec.remove(QLatin1Char('"')).remove(QLatin1Char('\''));
-    return exec;
+    return DockBrowserUtils::execBasenameFromCommand(command);
 }
 
 static bool exeLooksLikeChromFamily(QStringView exe)
@@ -357,7 +355,16 @@ QString runFirstKdotoolSearchHit(const QStringList &args, int timeoutMs)
 {
     QProcess p;
     p.start(QStringLiteral("kdotool"), args);
-    p.waitForFinished(timeoutMs);
+    if (!p.waitForFinished(timeoutMs)) {
+        qWarning() << "AgildoDock kdotool: timeout" << args;
+        p.kill();
+        return {};
+    }
+    if (p.exitStatus() != QProcess::NormalExit || p.exitCode() != 0) {
+        const QString err = QString::fromUtf8(p.readAllStandardError()).trimmed();
+        qWarning() << "AgildoDock kdotool:" << args.join(QLatin1Char(' '))
+                   << "exit" << p.exitCode() << err;
+    }
     return QString::fromUtf8(p.readAllStandardOutput()).trimmed().split(QLatin1Char('\n')).value(0).trimmed();
 }
 
@@ -365,7 +372,16 @@ static QStringList runAllKdotoolSearchHits(const QStringList &args, int timeoutM
 {
     QProcess p;
     p.start(QStringLiteral("kdotool"), args);
-    p.waitForFinished(timeoutMs);
+    if (!p.waitForFinished(timeoutMs)) {
+        qWarning() << "AgildoDock kdotool: timeout" << args;
+        p.kill();
+        return {};
+    }
+    if (p.exitStatus() != QProcess::NormalExit || p.exitCode() != 0) {
+        const QString err = QString::fromUtf8(p.readAllStandardError()).trimmed();
+        qWarning() << "AgildoDock kdotool:" << args.join(QLatin1Char(' '))
+                   << "exit" << p.exitCode() << err;
+    }
     const QString out = QString::fromUtf8(p.readAllStandardOutput()).trimmed();
     if (out.isEmpty()) {
         return {};

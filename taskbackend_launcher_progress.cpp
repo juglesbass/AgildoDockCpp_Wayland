@@ -1,7 +1,8 @@
 #include "taskbackend.h"
 #include "dock_unity_launcher.h"
 #include "dock_browser_integration.h"
-#include "dock_zen_downloads.h"
+#include "dock_browser_downloads.h"
+#include "dock_browser_utils.h"
 
 #include <QFileInfo>
 #include <QMimeDatabase>
@@ -17,20 +18,14 @@ QString downloadsDockCommand()
 
 } // namespace
 
-bool TaskBackend::commandLooksLikeBrowser(const QString &command)
+namespace {
+
+bool commandLooksLikeBrowser(const QString &command)
 {
-    if (command.isEmpty()) {
-        return false;
-    }
-    const QString lower = command.toLower();
-    const QString exec = execBasenameFromCommand(command).toLower();
-    const auto looksLikeBrowser = [](const QString &s) {
-        return s.contains(QLatin1String("zen")) || s.contains(QLatin1String("firefox"))
-            || s.contains(QLatin1String("mozilla")) || s.contains(QLatin1String("chromium"))
-            || s.contains(QLatin1String("chrome")) || s.contains(QLatin1String("edge"));
-    };
-    return looksLikeBrowser(lower) || looksLikeBrowser(exec);
+    return DockBrowserUtils::commandLooksLikeBrowser(command);
 }
+
+} // namespace
 
 QString TaskBackend::iconThemeForDownloadFile(const QString &filePath)
 {
@@ -97,8 +92,8 @@ void TaskBackend::enrichLauncherProgressEntry(QVariantMap &entry) const
         return;
     }
 
-    if (m_zenDownloadWatcher) {
-        m_zenDownloadWatcher->refreshActiveDownloadScan();
+    if (m_browserDownloadWatcher) {
+        m_browserDownloadWatcher->refreshActiveDownloadScan();
     }
 
     QString filePath = entry.value(QStringLiteral("progressFilePathHint")).toString().trimmed();
@@ -106,9 +101,9 @@ void TaskBackend::enrichLauncherProgressEntry(QVariantMap &entry) const
     entry.remove(QStringLiteral("progressFilePathHint"));
     entry.remove(QStringLiteral("progressFileNameHint"));
 
-    if (filePath.isEmpty() && m_zenDownloadWatcher) {
-        filePath = m_zenDownloadWatcher->activeDownloadFilePath();
-        fileName = m_zenDownloadWatcher->activeDownloadFileName();
+    if (filePath.isEmpty() && m_browserDownloadWatcher) {
+        filePath = m_browserDownloadWatcher->activeDownloadFilePath();
+        fileName = m_browserDownloadWatcher->activeDownloadFileName();
     }
 
     if (!filePath.isEmpty()) {
@@ -137,8 +132,8 @@ void TaskBackend::setDownloadProgressDisplayMode(int mode)
     for (const QString &cmd : affected) {
         emit launcherProgressForCommandChanged(cmd);
     }
-    if (m_zenDownloadWatcher) {
-        m_zenDownloadWatcher->resetLastEmittedState();
+    if (m_browserDownloadWatcher) {
+        m_browserDownloadWatcher->resetLastEmittedState();
     }
 }
 
@@ -162,27 +157,27 @@ void TaskBackend::setupUnityLauncherProgressWatcher()
     }
 }
 
-void TaskBackend::setupZenDownloadWatcher()
+void TaskBackend::setupBrowserDownloadWatcher()
 {
-    m_zenDownloadWatcher = new DockZenDownloadWatcher(this);
-    connect(m_zenDownloadWatcher,
-            &DockZenDownloadWatcher::zenDownloadProgress,
+    m_browserDownloadWatcher = new DockBrowserDownloadWatcher(this);
+    connect(m_browserDownloadWatcher,
+            &DockBrowserDownloadWatcher::browserDownloadProgress,
             this,
-            &TaskBackend::mergeZenDownloadProgress);
-    connect(m_zenDownloadWatcher,
-            &DockZenDownloadWatcher::activeDownloadMetadataChanged,
+            &TaskBackend::mergeBrowserDownloadProgress);
+    connect(m_browserDownloadWatcher,
+            &DockBrowserDownloadWatcher::activeDownloadMetadataChanged,
             this,
             &TaskBackend::reapplyActiveDownloadMetadata);
-    updateZenDownloadCommand();
+    updateBrowserDownloadCommand();
 }
 
 void TaskBackend::reapplyActiveDownloadMetadata()
 {
-    if (m_downloadProgressDisplayMode != 2 || !m_zenDownloadWatcher) {
+    if (m_downloadProgressDisplayMode != 2 || !m_browserDownloadWatcher) {
         return;
     }
 
-    m_zenDownloadWatcher->refreshActiveDownloadScan();
+    m_browserDownloadWatcher->refreshActiveDownloadScan();
 
     const QString downloadsCmd = QStringLiteral("dolphin ~/Downloads");
     if (m_launcherProgress.contains(downloadsCmd)) {
@@ -208,33 +203,20 @@ void TaskBackend::reapplyActiveDownloadMetadata()
     }
 }
 
-void TaskBackend::updateZenDownloadCommand()
+void TaskBackend::updateBrowserDownloadCommand()
 {
-    if (!m_zenDownloadWatcher) {
+    if (!m_browserDownloadWatcher) {
         return;
     }
 
     QString browserCmd;
-    QString chromiumCmd;
     for (auto it = m_execBasenameToCmd.constBegin(); it != m_execBasenameToCmd.constEnd(); ++it) {
-        const QString key = it.key();
-        if (key.contains(QLatin1String("zen"))) {
+        if (DockBrowserUtils::commandLooksLikeBrowser(it.value())) {
             browserCmd = it.value();
             break;
         }
-        if (key.contains(QLatin1String("firefox")) && browserCmd.isEmpty()) {
-            browserCmd = it.value();
-        }
-        if ((key.contains(QLatin1String("chromium")) || key.contains(QLatin1String("chrome"))
-             || key.contains(QLatin1String("edge")))
-            && chromiumCmd.isEmpty()) {
-            chromiumCmd = it.value();
-        }
     }
-    if (browserCmd.isEmpty()) {
-        browserCmd = chromiumCmd;
-    }
-    m_zenDownloadWatcher->setZenCommand(browserCmd);
+    m_browserDownloadWatcher->setBrowserCommand(browserCmd);
 }
 
 void TaskBackend::applyLauncherProgressForCommand(const QString &cmd, QVariantMap entry, QVariantMap &next) const
@@ -358,11 +340,11 @@ void TaskBackend::notifyLauncherProgressForCommand(const QString &command, bool 
     }
 }
 
-void TaskBackend::mergeZenDownloadProgress(const QString &command,
-                                           double progress,
-                                           bool visible,
-                                           const QString &filePath,
-                                           const QString &fileName)
+void TaskBackend::mergeBrowserDownloadProgress(const QString &command,
+                                               double progress,
+                                               bool visible,
+                                               const QString &filePath,
+                                               const QString &fileName)
 {
     if (command.isEmpty()) {
         return;
@@ -375,7 +357,7 @@ void TaskBackend::mergeZenDownloadProgress(const QString &command,
     }
 
     QVariantMap entry = m_launcherProgress.value(targetCmd).toMap();
-    entry.insert(QStringLiteral("progressSource"), QStringLiteral("zen"));
+    entry.insert(QStringLiteral("progressSource"), QStringLiteral("browser"));
     if (visible) {
         entry.insert(QStringLiteral("progress"), qBound(0.0, progress, 0.999));
         entry.insert(QStringLiteral("progressVisible"), true);
@@ -461,11 +443,11 @@ void TaskBackend::mergeUnityLauncherUpdate(const QString &appUri, const QMap<QSt
     }
     if (entry.value(QStringLiteral("progressVisible")).toBool()) {
         entry.insert(QStringLiteral("progressSource"), QStringLiteral("unity"));
-        if (m_zenDownloadWatcher) {
-            const QString filePath = m_zenDownloadWatcher->activeDownloadFilePath();
+        if (m_browserDownloadWatcher) {
+            const QString filePath = m_browserDownloadWatcher->activeDownloadFilePath();
             if (!filePath.isEmpty()) {
                 entry.insert(QStringLiteral("progressFilePathHint"), filePath);
-                entry.insert(QStringLiteral("progressFileNameHint"), m_zenDownloadWatcher->activeDownloadFileName());
+                entry.insert(QStringLiteral("progressFileNameHint"), m_browserDownloadWatcher->activeDownloadFileName());
             }
         }
     }
