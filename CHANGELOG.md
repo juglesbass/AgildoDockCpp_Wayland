@@ -17,7 +17,7 @@ Todas as alterações notáveis deste projeto são documentadas neste ficheiro.
 - Descrição acessível correcta para dock vertical/superior.
 
 ### Alterado
-- README actualizado (v1.3.4, funcionalidades, atalhos Meta+D).
+- README actualizado (v1.3.5, funcionalidades, atalhos Meta+D).
 - Atalhos KGlobalAccel traduzíveis; `nameFilters` deduplicados no menu de contexto.
 
 ## [1.3.4] — 2026-05-30
