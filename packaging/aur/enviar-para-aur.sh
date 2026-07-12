@@ -1,78 +1,91 @@
-#!/usr/bin/env bash
-# Primeiro envio (ou atualização) ao repositório Git da AUR: ramo obrigatório «master».
-# Pré‑requisito: conta em aur.archlinux.org + chave SSH pública lá colada (~/.ssh configurado para Host aur.archlinux.org).
-set -euo pipefail
+#!/bin/bash
+# Script para enviar/atualizar pacote no AUR
+# Pré-requisitos:
+#   - SSH configurado com chave para aur.archlinux.org
+#   - .SRCINFO já gerado (rode prepare-for-aur.sh primeiro)
 
-# Pasta onde está este script (PKGBUILD, .SRCINFO, *.install e LICENSE devem estar aqui)
-FONTES="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PKG="$(grep -m1 '^pkgname=' "${FONTES}/PKGBUILD" | cut -d= -f2 | tr -d ' \"')"
-readonly PKG
-
-if grep -qE 'sha256sums=\([^)]*SKIP[^)]*\)' "${FONTES}/PKGBUILD"; then
-  echo 'Corrige primeiro: ./prepare-for-aur.sh (não pode haver SKIP no PKGBUILD).'
-  exit 1
-fi
-
-echo 'A regenerar .SRCINFO…'
-(cd "${FONTES}" && makepkg --printsrcinfo >.SRCINFO)
-
-echo 'Teste rápido de SSH ao servidor da AUR (se falhar, configura ~/.ssh antes de continuares):'
-set +e
-ssh -o BatchMode=yes -T aur@aur.archlinux.org 2>&1
-ssh_ok=$?
 set -e
 
-echo ""
-if [[ "${ssh_ok}" -ne 0 ]]; then
-  echo 'NOTA: o comando ssh acima costuma dar código ≠0 mesmo quando a conta está bem; desde que apareça algo como permissão/recusa de shell interactivo está OK.'
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PKGBUILD="${SCRIPT_DIR}/PKGBUILD"
+SRCINFO="${SCRIPT_DIR}/.SRCINFO"
+
+# Extrair informações do PKGBUILD
+PKGNAME=$(grep "^pkgname=" "$PKGBUILD" | cut -d= -f2 | tr -d '"' | tr -d "'")
+
+echo "🚀 Enviando $PKGNAME para AUR..."
+
+if [ ! -f "$SRCINFO" ]; then
+    echo "❌ .SRCINFO não encontrado. Execute prepare-for-aur.sh primeiro:"
+    echo "   ./prepare-for-aur.sh"
+    exit 1
 fi
 
-WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/aur-${PKG}-XXXXXX")"
-
-cleanup() { rm -rf "${WORKDIR}"; }
-trap cleanup EXIT
-
-echo ""
-echo 'A clonar repositório vazio/hosteado na AUR (git, ramo master)…'
-
-git -c init.defaultBranch=master clone ssh://aur@aur.archlinux.org/"${PKG}.git" "${WORKDIR}/repo"
-
-cd "${WORKDIR}/repo"
-
-git config user.email 'agomesdasilva99@gmail.com'
-git config user.name 'Agildo Gomes da Silva'
-
-# Garantimos ramo «master»: a AUR só aceita push para master.
-CURRENT_BRANCH="$(git branch --show-current 2>/dev/null || echo master)"
-if [[ "${CURRENT_BRANCH}" != master ]]; then
-  git branch -m master || true
+# Verificar SSH
+if ! ssh -T aur@aur.archlinux.org &>/dev/null; then
+    echo "⚠️  Testando SSH..."
+    if ssh -T aur@aur.archlinux.org 2>&1 | grep -q "git-receive-pack"; then
+        echo "✅ SSH configurado corretamente"
+    else
+        echo "❌ SSH não configurado. Siga:"
+        echo "   1. Gere chave SSH: ssh-keygen -t ed25519 -f ~/.ssh/aur_arch"
+        echo "   2. Copie a chave pública para My Account → SSH Keys em aur.archlinux.org"
+        echo "   3. Configure ~/.ssh/config conforme descrito em packaging/aur/README.txt"
+        exit 1
+    fi
 fi
 
-cp "${FONTES}/PKGBUILD" .
-cp "${FONTES}/.SRCINFO" .
-cp "${FONTES}/agildodock.install" .
-
-if [[ ! -f "${FONTES}/LICENSE" ]]; then
-  echo 'Falta o ficheiro LICENSE ao lado do PKGBUILD (licença 0BSD dos ficheiros AUR).' >&2
-  exit 1
-fi
-
-cp "${FONTES}/LICENSE" .
-
-git add PKGBUILD .SRCINFO agildodock.install LICENSE
-
-pkgver="$(grep ^pkgver= PKGBUILD | head -1 | cut -d= -f2)"
-pkgrel="$(grep ^pkgrel= PKGBUILD | head -1 | cut -d= -f2)"
-
-if git rev-parse -q --verify HEAD >/dev/null 2>&1; then
-  git commit -m "Atualizar para ${pkgver}-${pkgrel}"
+# Criar/clonar repositório AUR
+AUR_REPO="/tmp/aur-${PKGNAME}"
+if [ ! -d "$AUR_REPO" ]; then
+    echo "📥 Clonando repositório AUR..."
+    git clone "ssh://aur@aur.archlinux.org/${PKGNAME}.git" "$AUR_REPO" 2>/dev/null || {
+        echo "ℹ️  Repositório não existe. Será criado na primeira submissão."
+        mkdir -p "$AUR_REPO"
+        cd "$AUR_REPO"
+        git init
+        git remote add origin "ssh://aur@aur.archlinux.org/${PKGNAME}.git"
+    }
 else
-  git commit -m "Publicação inicial: ${pkgver}-${pkgrel}"
+    echo "♻️  Atualizando repositório AUR local..."
+    cd "$AUR_REPO"
+    git fetch origin master 2>/dev/null || true
 fi
 
-git push origin master
+cd "$AUR_REPO"
 
-echo ''
-echo 'Concluído. Em alguns minutos procura:'
-echo "  https://aur.archlinux.org/packages/${PKG}"
-echo 'Depois: paru -Sy '"${PKG}"'   # primeira vez faz -Sy para actualizar lista da AUR'
+# Copiar ficheiros
+echo "📋 Copiando ficheiros..."
+cp "$PKGBUILD" .
+cp "$SRCINFO" .
+
+if [ -f "${SCRIPT_DIR}/${PKGNAME}.install" ]; then
+    cp "${SCRIPT_DIR}/${PKGNAME}.install" .
+fi
+
+if [ -f "${SCRIPT_DIR}/LICENSE" ]; then
+    cp "${SCRIPT_DIR}/LICENSE" .
+fi
+
+# Git add, commit e push
+echo "💾 Fazendo commit..."
+git add -A
+git commit -m "Update to $(grep 'pkgver=' PKGBUILD | cut -d= -f2 | tr -d '\"' | tr -d "'" )" || {
+    echo "ℹ️  Sem mudanças para commit"
+}
+
+echo "🔗 Enviando para AUR..."
+if git push origin master; then
+    echo "✅ Pacote enviado com sucesso!"
+    echo ""
+    echo "📦 Instalação:"
+    echo "   paru -S $PKGNAME"
+    echo "   # ou"
+    echo "   yay -S $PKGNAME"
+else
+    echo "❌ Erro ao enviar. Verifique SSH e permissões."
+    exit 1
+fi
+
+echo ""
+echo "🎉 Concluído!"
