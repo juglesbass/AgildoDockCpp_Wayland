@@ -24,8 +24,8 @@ Window {
     // Zoom máximo em % acima do ícone base (teto 100% = no máximo o dobro do mínimo)
     readonly property real maxIconZoomPercentCap: 100.0
     readonly property real liveMaxIconZoomPercent: liveMinIconSize > 0
-            ? Math.max(0, Math.min(maxIconZoomPercentCap, ((liveMaxIconSize / liveMinIconSize) - 1.0) * 100.0))
-            : 0
+    ? Math.max(0, Math.min(maxIconZoomPercentCap, ((liveMaxIconSize / liveMinIconSize) - 1.0) * 100.0))
+    : 0
 
     function clampMaxIconSizeForZoomCap() {
         var lo = liveMinIconSize
@@ -51,7 +51,7 @@ Window {
     function normalizeBg3dStyle(style) {
         if (style === 1 || style === 2)
             return 3
-        return style === 0 ? 0 : 3
+            return style === 0 ? 0 : 3
     }
     property string liveGradientColorA: "#111111"
     property string liveGradientColorB: "#191D22"
@@ -189,18 +189,18 @@ Window {
 
     function animationDuration(baseMs) {
         if (liveAnimationProfile === 3) return 0
-        if (liveAnimationProfile === 1) return Math.max(60, Math.round(baseMs * 0.65))
-        if (liveAnimationProfile === 2) return Math.round(baseMs * 1.2)
-        return baseMs
+            if (liveAnimationProfile === 1) return Math.max(60, Math.round(baseMs * 0.65))
+                if (liveAnimationProfile === 2) return Math.round(baseMs * 1.2)
+                    return baseMs
     }
 
     function applyThemeForCommand(cmd) {
         if (!liveAutoThemeByActiveApp || !cmd) return
-        let c = String(cmd).toLowerCase()
-        if (c.indexOf("dolphin") >= 0) liveAccentMode = 2
-        else if (c.indexOf("firefox") >= 0 || c.indexOf("chrom") >= 0) liveAccentMode = 0
-        else if (c.indexOf("steam") >= 0) liveAccentMode = 3
-        else if (c.indexOf("code") >= 0 || c.indexOf("cursor") >= 0) liveAccentMode = 1
+            let c = String(cmd).toLowerCase()
+            if (c.indexOf("dolphin") >= 0) liveAccentMode = 2
+                else if (c.indexOf("firefox") >= 0 || c.indexOf("chrom") >= 0) liveAccentMode = 0
+                    else if (c.indexOf("steam") >= 0) liveAccentMode = 3
+                        else if (c.indexOf("code") >= 0 || c.indexOf("cursor") >= 0) liveAccentMode = 1
     }
 
     function customCommandsFor(cmd) {
@@ -252,17 +252,17 @@ Window {
     function effectiveLeftClickAction(cmd) {
         const rule = appRuleForCommand(cmd)
         if (rule.leftClickAction !== undefined) return rule.leftClickAction
-        return liveLeftClickAction
+            return liveLeftClickAction
     }
     function effectiveMiddleClickAction(cmd) {
         const rule = appRuleForCommand(cmd)
         if (rule.middleClickAction !== undefined) return rule.middleClickAction
-        return liveMiddleClickAction
+            return liveMiddleClickAction
     }
     function effectiveRightClickAction(cmd) {
         const rule = appRuleForCommand(cmd)
         if (rule.rightClickAction !== undefined) return rule.rightClickAction
-        return liveRightClickAction
+            return liveRightClickAction
     }
 
     function setAppClickRule(cmd, field, value) {
@@ -345,7 +345,7 @@ Window {
         })
         customizationUndoStack.push(snap)
         if (customizationUndoStack.length > 40) customizationUndoStack.shift()
-        customizationRedoStack = []
+            customizationRedoStack = []
     }
 
     function restoreCustomizationSnapshot(snap, fromUndo) {
@@ -387,14 +387,14 @@ Window {
 
     function undoCustomization() {
         if (customizationUndoStack.length === 0) return
-        let snap = customizationUndoStack.pop()
-        restoreCustomizationSnapshot(snap, true)
+            let snap = customizationUndoStack.pop()
+            restoreCustomizationSnapshot(snap, true)
     }
 
     function redoCustomization() {
         if (customizationRedoStack.length === 0) return
-        let snap = customizationRedoStack.pop()
-        restoreCustomizationSnapshot(snap, false)
+            let snap = customizationRedoStack.pop()
+            restoreCustomizationSnapshot(snap, false)
     }
 
     function applyAppearancePreset(presetName) {
@@ -429,9 +429,9 @@ Window {
 
     function applyScheduledThemeByClock() {
         if (!liveScheduleThemeEnabled) return
-        const hour = (new Date()).getHours()
-        const isNight = (hour >= liveNightStartHour || hour < liveDayStartHour)
-        liveThemeMode = isNight ? liveNightThemeMode : liveDayThemeMode
+            const hour = (new Date()).getHours()
+            const isNight = (hour >= liveNightStartHour || hour < liveDayStartHour)
+            liveThemeMode = isNight ? liveNightThemeMode : liveDayThemeMode
     }
 
     // Cópias “live” só para a janela de configurações
@@ -475,15 +475,15 @@ Window {
         const info = taskBackend.parseDropInfo(urlStr)
         if (!info.cmd)
             return false
-        if (isCommandPinned(info.cmd))
-            return false
-        appModel.append({
-            name: info.name,
-            icon: info.icon,
-            cmd: info.cmd
-        })
-        saveApps()
-        return true
+            if (isCommandPinned(info.cmd))
+                return false
+                appModel.append({
+                    name: info.name,
+                    icon: info.icon,
+                    cmd: info.cmd
+                })
+                saveApps()
+                return true
     }
 
     function systemModelContainsCmd(cmd) {
@@ -492,10 +492,10 @@ Window {
             const item = systemModel.get(i)
             if (!item || !item.cmd)
                 continue
-            if (item.cmd === cmd)
-                return true
-            if (norm.length > 0 && normalizeAppCommandKey(item.cmd) === norm)
-                return true
+                if (item.cmd === cmd)
+                    return true
+                    if (norm.length > 0 && normalizeAppCommandKey(item.cmd) === norm)
+                        return true
         }
         return false
     }
@@ -504,28 +504,28 @@ Window {
         const info = taskBackend.parseDropInfo(urlStr)
         if (!info.cmd)
             return false
-        if (systemModelContainsCmd(info.cmd))
-            return false
-        let arr = []
-        try {
-            arr = JSON.parse(liveWidgetsJson || "[]")
-        } catch (e) {
-            arr = []
-        }
-        if (!Array.isArray(arr))
-            arr = []
-        arr.push({
-            name: info.name,
-            icon: info.icon || "applications-system",
-            cmd: info.cmd
-        })
-        liveWidgetsJson = JSON.stringify(arr)
-        dockSettings.userWidgetsJson = liveWidgetsJson
-        if (typeof dockSettings.sync === "function")
-            dockSettings.sync()
-        taskBackend.writeUserJsonFile("widgets.json", liveWidgetsJson)
-        reloadCustomWidgets()
-        return true
+            if (systemModelContainsCmd(info.cmd))
+                return false
+                let arr = []
+                try {
+                    arr = JSON.parse(liveWidgetsJson || "[]")
+                } catch (e) {
+                    arr = []
+                }
+                if (!Array.isArray(arr))
+                    arr = []
+                    arr.push({
+                        name: info.name,
+                        icon: info.icon || "applications-system",
+                        cmd: info.cmd
+                    })
+                    liveWidgetsJson = JSON.stringify(arr)
+                    dockSettings.userWidgetsJson = liveWidgetsJson
+                    if (typeof dockSettings.sync === "function")
+                        dockSettings.sync()
+                        taskBackend.writeUserJsonFile("widgets.json", liveWidgetsJson)
+                        reloadCustomWidgets()
+                        return true
     }
 
     function lockDockForContextMenu(locked, anchorLogicalX) {
@@ -611,8 +611,8 @@ Window {
     property real rawWinWidth: baseRowWidth + maxIconsExpansion + (winEdgeSlopPx * 2)
     readonly property int maxWinWidth: root.screen ? root.screen.width : 16777215
     width: dockLayoutVertical
-           ? Math.min(maxWinWidth, Math.max(120, Math.round((dockBarHeightPx + liveDockMargin * 2) * liveScaleFactor + dockIconTopOverflowPx + 48)))
-           : Math.min(maxWinWidth, Math.max(420, Math.round(rawWinWidth / 2) * 2))
+    ? Math.min(maxWinWidth, Math.max(120, Math.round((dockBarHeightPx + liveDockMargin * 2) * liveScaleFactor + dockIconTopOverflowPx + 48)))
+    : Math.min(maxWinWidth, Math.max(420, Math.round(rawWinWidth / 2) * 2))
 
     readonly property real dockExpandedHeight: Math.round(
         (root.liveDockMargin + root.dockBarHeightPx) * root.liveScaleFactor
@@ -626,8 +626,8 @@ Window {
     readonly property real dockRetractSlidePixels: Math.max(0, root.dockExpandedHeight - root.dockPeekHeight)
 
     height: dockLayoutVertical
-            ? Math.min(maxWinHeight, Math.max(420, Math.round(rawWinWidth / 2) * 2))
-            : (root.dockRetracted ? root.dockPeekHeight : root.dockExpandedHeight)
+    ? Math.min(maxWinHeight, Math.max(420, Math.round(rawWinWidth / 2) * 2))
+    : (root.dockRetracted ? root.dockPeekHeight : root.dockExpandedHeight)
 
     onHeightChanged: pointerMaskDebouncer.restart()
     onWidthChanged: pointerMaskDebouncer.restart()
@@ -728,34 +728,34 @@ Window {
 
     property bool dockHovered: {
         if (!globalHover.hovered) return false
-        if (root.dockRetracted) return false
+            if (root.dockRetracted) return false
 
-        var maxIcon = Math.max(root.liveMinIconSize, root.liveMaxIconSize) * root.liveScaleFactor
-        var waveExtra = root.wavePeakDeltaPx * 3.15 * root.liveScaleFactor * root.liveWaveIntensity
-        var hoverSpan = root.baseRowWidth + (30 * root.liveScaleFactor) + waveExtra
+                var maxIcon = Math.max(root.liveMinIconSize, root.liveMaxIconSize) * root.liveScaleFactor
+                var waveExtra = root.wavePeakDeltaPx * 3.15 * root.liveScaleFactor * root.liveWaveIntensity
+                var hoverSpan = root.baseRowWidth + (30 * root.liveScaleFactor) + waveExtra
 
-        if (root.dockLayoutVertical) {
-            var safeHitX = root.liveDockEdge === 2
+                if (root.dockLayoutVertical) {
+                    var safeHitX = root.liveDockEdge === 2
                     ? (maxIcon + 25)
                     : (root.width - (maxIcon + 25))
-            var dockTop = (root.height / 2) - (hoverSpan / 2)
-            var dockBottom = dockTop + hoverSpan
-            if (root.liveDockEdge === 2) {
-                return (dockMouseX < safeHitX) && (dockMouseY >= dockTop) && (dockMouseY <= dockBottom)
-            }
-            return (dockMouseX > safeHitX) && (dockMouseY >= dockTop) && (dockMouseY <= dockBottom)
-        }
+                    var dockTop = (root.height / 2) - (hoverSpan / 2)
+                    var dockBottom = dockTop + hoverSpan
+                    if (root.liveDockEdge === 2) {
+                        return (dockMouseX < safeHitX) && (dockMouseY >= dockTop) && (dockMouseY <= dockBottom)
+                    }
+                    return (dockMouseX > safeHitX) && (dockMouseY >= dockTop) && (dockMouseY <= dockBottom)
+                }
 
-        var safeHitY = root.height - (maxIcon + 25)
-        var dockLeft = (root.width / 2) - (hoverSpan / 2)
-        var dockRight = dockLeft + hoverSpan
-        return (dockMouseY > safeHitY) && (dockMouseX >= dockLeft) && (dockMouseX <= dockRight)
+                var safeHitY = root.height - (maxIcon + 25)
+                var dockLeft = (root.width / 2) - (hoverSpan / 2)
+                var dockRight = dockLeft + hoverSpan
+                return (dockMouseY > safeHitY) && (dockMouseX >= dockLeft) && (dockMouseX <= dockRight)
     }
 
     property real waveAmplitude: 0.0
     property bool waveCollapseArmed: false
     readonly property bool waveBlurAnimating:
-            waveAmpAnim.running || waveCollapseTimer.running || waveCollapseArmed
+    waveAmpAnim.running || waveCollapseTimer.running || waveCollapseArmed
 
     onWaveBlurAnimatingChanged: taskBackend.setDockWaveAnimating(waveBlurAnimating)
 
@@ -807,13 +807,13 @@ Window {
     function dockRevealEdgeHovered() {
         if (!globalHover.hovered)
             return false
-        var band = root.dockRevealBandPx
-        switch (root.liveDockEdge) {
-        case 1: return root.dockMouseY < band
-        case 2: return root.dockMouseX < band
-        case 3: return root.dockMouseX > root.width - band
-        default: return root.dockMouseY > root.height - band
-        }
+            var band = root.dockRevealBandPx
+            switch (root.liveDockEdge) {
+                case 1: return root.dockMouseY < band
+                case 2: return root.dockMouseX < band
+                case 3: return root.dockMouseX > root.width - band
+                default: return root.dockMouseY > root.height - band
+            }
     }
 
     function applyDockRetractedState() {
@@ -854,8 +854,8 @@ Window {
             onRunningChanged: {
                 if (running)
                     root.waveCollapseArmed = false
-                else if (!root.dockHovered && root.waveAmplitude < 0.02)
-                    root.waveCollapseArmed = false
+                    else if (!root.dockHovered && root.waveAmplitude < 0.02)
+                        root.waveCollapseArmed = false
             }
         }
     }
@@ -1028,7 +1028,7 @@ Window {
             destX: center.x,
             destY: center.y,
             size: Math.max(10, 14 * root.liveScaleFactor),
-            durationMs: 210
+                                 durationMs: 210
         })
     }
 
@@ -1127,31 +1127,31 @@ Window {
     function saveLastSeenDynamic() {
         if (!root.liveBehaviorRememberRecentApps)
             return
-        let apps = []
-        for (let i = 0; i < dynamicModel.count; i++) {
-            let e = dynamicModel.get(i)
-            if (!e.isGhost) {
-                apps.push({ name: e.name, icon: e.icon, cmd: e.cmd })
+            let apps = []
+            for (let i = 0; i < dynamicModel.count; i++) {
+                let e = dynamicModel.get(i)
+                if (!e.isGhost) {
+                    apps.push({ name: e.name, icon: e.icon, cmd: e.cmd })
+                }
             }
-        }
-        taskBackend.writeUserJsonFile("last_seen_dynamic.json", JSON.stringify(apps))
+            taskBackend.writeUserJsonFile("last_seen_dynamic.json", JSON.stringify(apps))
     }
 
     // Carrega ghosts do arranque anterior (só se o utilizador activou a opção).
     function loadLastSeenDynamic() {
         if (!root.liveBehaviorRememberRecentApps)
             return
-        let raw = taskBackend.readUserJsonFile("last_seen_dynamic.json")
-        if (!raw || raw === "") return
-        let apps = []
-        try { apps = JSON.parse(raw) } catch (e) { return }
-        for (let i = 0; i < apps.length; i++) {
-            let a = apps[i]
-            if (!a.cmd || !a.name) continue
-            if (isCommandPinned(a.cmd)) continue
-            dynamicModel.append({ name: a.name, icon: a.icon || "", cmd: a.cmd,
-                                  isDynamic: true, removing: false, isGhost: true })
-        }
+            let raw = taskBackend.readUserJsonFile("last_seen_dynamic.json")
+            if (!raw || raw === "") return
+                let apps = []
+                try { apps = JSON.parse(raw) } catch (e) { return }
+                for (let i = 0; i < apps.length; i++) {
+                    let a = apps[i]
+                    if (!a.cmd || !a.name) continue
+                        if (isCommandPinned(a.cmd)) continue
+                            dynamicModel.append({ name: a.name, icon: a.icon || "", cmd: a.cmd,
+                                isDynamic: true, removing: false, isGhost: true })
+                }
     }
 
     // Remove todos os ghosts restantes (chamado por timer após arranque).
@@ -1185,17 +1185,17 @@ Window {
         try {
             let arr = JSON.parse(liveWidgetsJson || "[]")
             if (!Array.isArray(arr)) return
-            for (let j = 0; j < arr.length; j++) {
-                let w = arr[j]
-                if (!w || !w.name || !w.cmd) continue
-                systemModel.append({
-                    name: w.name,
-                    icon: w.icon || "applications-system",
-                    cmd: w.cmd,
-                    isSystem: true,
-                    isWidget: true
-                })
-            }
+                for (let j = 0; j < arr.length; j++) {
+                    let w = arr[j]
+                    if (!w || !w.name || !w.cmd) continue
+                        systemModel.append({
+                            name: w.name,
+                            icon: w.icon || "applications-system",
+                            cmd: w.cmd,
+                            isSystem: true,
+                            isWidget: true
+                        })
+                }
         } catch (e) {
             taskBackend.debugLog("persist", "Falha ao carregar widgets customizados.")
         }
@@ -1219,7 +1219,7 @@ Window {
         if (!root.liveBehaviorShowUnpinnedApps) {
             if (dynamicModel.count > 0)
                 clearDynamicModel()
-            return
+                return
         }
 
         let pinned = []
@@ -1234,7 +1234,7 @@ Window {
             if (taskBackend.shouldHideFromDock(rawRunning[k].cmd, rawRunning[k].name)) continue
                 let rule = appRuleForCommand(rawRunning[k].cmd)
                 if (rule.hideFromDock === true) continue
-                running.push(rawRunning[k])
+                    running.push(rawRunning[k])
         }
 
         for (let i = dynamicModel.count - 1; i >= 0; i--) {
@@ -1248,8 +1248,8 @@ Window {
             if (!found) {
                 let row = dynamicModel.get(i)
                 if (row.removing === true) continue
-                if (row.isGhost === true) continue  // ghost aguarda o timer de limpeza
-                dynamicModel.setProperty(i, "removing", true)
+                    if (row.isGhost === true) continue  // ghost aguarda o timer de limpeza
+                        dynamicModel.setProperty(i, "removing", true)
             }
         }
 
@@ -1398,8 +1398,8 @@ Window {
                 if (recovered !== "" && recovered !== savedData && populatePinnedAppsFromJson(recovered)) {
                     dockSettings.dockApps = recovered
                     if (typeof dockSettings.sync === "function") dockSettings.sync()
-                    taskBackend.saveDockAppsSnapshot(dockSettings.dockApps)
-                    console.warn(qsTr("Configuração recuperada do backup local de segurança."))
+                        taskBackend.saveDockAppsSnapshot(dockSettings.dockApps)
+                        console.warn(qsTr("Configuração recuperada do backup local de segurança."))
                 } else {
                     console.warn(qsTr("Configuração de apps inválida; a usar lista vazia."))
                     dockSettings.dockApps = JSON.stringify({ version: 2, savedAt: Date.now(), apps: [] })
@@ -1454,10 +1454,10 @@ Window {
         Accessible.name: qsTr("AgildoDock")
         Accessible.description: {
             switch (root.liveDockEdge) {
-            case 1: return qsTr("Dock de aplicações na margem superior do ecrã.")
-            case 2: return qsTr("Dock de aplicações na margem esquerda do ecrã.")
-            case 3: return qsTr("Dock de aplicações na margem direita do ecrã.")
-            default: return qsTr("Dock de aplicações na margem inferior do ecrã.")
+                case 1: return qsTr("Dock de aplicações na margem superior do ecrã.")
+                case 2: return qsTr("Dock de aplicações na margem esquerda do ecrã.")
+                case 3: return qsTr("Dock de aplicações na margem direita do ecrã.")
+                default: return qsTr("Dock de aplicações na margem inferior do ecrã.")
             }
         }
 
@@ -1528,7 +1528,7 @@ Window {
             dockContainer: dockContainer
             waveAmpAnim: waveAmpAnim
             onSurfaceContextMenuRequested: (surface, globalX, globalY) =>
-                root.showDockSurfaceContextMenu(surface, globalX, globalY)
+            root.showDockSurfaceContextMenu(surface, globalX, globalY)
         }
 
         Row {
