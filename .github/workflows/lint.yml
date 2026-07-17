@@ -1,0 +1,45 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format
+
+      - name: Check C++ code formatting
+        run: |
+          find . -name "*.cpp" -o -name "*.h" | while read file; do
+            clang-format --dry-run -Werror "$file" || echo "::warning::File $file needs formatting"
+          done
+
+      - name: Check for common issues
+        run: |
+          if grep -r "TODO\|FIXME\|XXX" --include="*.cpp" --include="*.h" .; then
+            echo "⚠️ Found TODO/FIXME/XXX comments - please review"
+          fi
+
+  cmake-lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install cmake-format
+        run: sudo apt-get install -y cmake-format
+
+      - name: Check CMakeLists.txt
+        run: cmake-format --check CMakeLists.txt || echo "::warning::CMakeLists.txt needs formatting"
