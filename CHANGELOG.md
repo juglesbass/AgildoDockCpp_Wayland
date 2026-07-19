@@ -2,6 +2,13 @@
 
 Todas as alterações notáveis deste projeto são documentadas neste ficheiro.
 
+## [1.3.6] — 2026-07-18
+
+### Corrigido
+- Removida a borda duplicada do modo Vidro (3D) no fundo da dock.
+- Corrigida a espessura anormal da borda superior ao desativar a `dockTopLine`, garantindo 1px exato em todos os estilos.
+
+
 ## [1.3.5] — 2026-05-30
 
 ### Adicionado

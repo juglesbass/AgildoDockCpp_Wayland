@@ -274,7 +274,8 @@ Rectangle {
 
     Rectangle {
         anchors.fill: parent
-        radius: parent.radius
+        anchors.margins: 1
+        radius: Math.max(0, dockBg.radius - 1)
         visible: dockBg.bgIsGlass
         antialiasing: true
         gradient: Gradient {
@@ -301,8 +302,6 @@ Rectangle {
             }
         }
         opacity: dockRoot.liveBgOpacity
-        border.color: Qt.rgba(1, 1, 1, dockRoot.liveBorderGlow)
-        border.width: Math.max(1, Math.round(dockRoot.liveBorderWidth))
     }
 
     Rectangle {
@@ -314,7 +313,7 @@ Rectangle {
         anchors.rightMargin: 15
         height: 1
         color: dockRoot.themeColors.dockTopLine
-        visible: dockBg.bgIsFlat || dockBg.bgIsGlass
+        visible: false // Desativado para evitar engrossamento da borda superior (border + topline)
         radius: parent.radius
         antialiasing: true
     }
