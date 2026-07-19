@@ -377,6 +377,7 @@ Window {
 
                 Frame {
                     Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignTop
                     padding: 12
                     background: Rectangle {
                         color: "#141414"
@@ -481,7 +482,7 @@ Window {
                                 Label { text: qsTr("Fundo"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                                 ComboBox {
                                     Layout.fillWidth: true
-                                    model: [qsTr("Padrão"), qsTr("Vidro")]
+                                    model: [qsTr("Padrão", "Fundo"), qsTr("Vidro")]
                                     currentIndex: dock.liveBg3dStyle === 0 ? 0 : 1
                                     onActivated: dock.liveBg3dStyle = currentIndex === 0 ? 0 : 3
                                 }
@@ -548,11 +549,118 @@ Window {
                             Label { text: qsTr("Brilho da borda: %1%").arg(Math.round(dock.liveBorderGlow * 100)); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                             Slider { Layout.fillWidth: true; from: 0.05; to: 0.60; stepSize: 0.01; value: dock.liveBorderGlow; onMoved: dock.liveBorderGlow = value }
                         }
+
+                        Rectangle { Layout.fillWidth: true; height: 1; color: "#22FFFFFF"; Layout.topMargin: 8; Layout.bottomMargin: 4 }
+                        Label { text: qsTr("Avançado e Perfis"); font.bold: true; color: "#FFFFFF" }
+
+                        CheckBox {
+                            text: qsTr("Tema dinâmico por app em foco")
+                            checked: dock.liveAutoThemeByActiveApp
+                            onToggled: dock.liveAutoThemeByActiveApp = checked
+                            palette.text: "#DDDDDD"
+                            Layout.fillWidth: true
+                        }
+                        CheckBox {
+                            text: qsTr("Agenda automática de tema")
+                            checked: dock.liveScheduleThemeEnabled
+                            onToggled: dock.liveScheduleThemeEnabled = checked
+                            palette.text: "#DDDDDD"
+                            Layout.fillWidth: true
+                        }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            visible: dock.liveScheduleThemeEnabled
+                            spacing: 10
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 6
+                                Label { text: qsTr("Início do dia: %1h").arg(dock.liveDayStartHour); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
+                                Slider { Layout.fillWidth: true; from: 0; to: 23; stepSize: 1; value: dock.liveDayStartHour; onMoved: dock.liveDayStartHour = Math.round(value) }
+                            }
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 6
+                                Label { text: qsTr("Início da noite: %1h").arg(dock.liveNightStartHour); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
+                                Slider { Layout.fillWidth: true; from: 0; to: 23; stepSize: 1; value: dock.liveNightStartHour; onMoved: dock.liveNightStartHour = Math.round(value) }
+                            }
+                        }
+                        Label { text: qsTr("Widgets/Plugins leves (JSON array)"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 6
+                            Button {
+                                text: qsTr("+ Monitor")
+                                onClicked: adicionarWidgetPreset({
+                                    name: qsTr("Monitor"),
+                                    icon: "utilities-system-monitor",
+                                    cmd: "plasma-systemmonitor"
+                                })
+                            }
+                            Button {
+                                text: qsTr("+ Separador")
+                                onClicked: adicionarWidgetPreset({
+                                    name: qsTr("Separador"),
+                                    icon: "draw-separator",
+                                    type: "separator"
+                                })
+                            }
+                            Button {
+                                text: qsTr("+ Relógio")
+                                onClicked: adicionarWidgetPreset({
+                                    name: qsTr("Relógio"),
+                                    icon: "clock",
+                                    type: "clock"
+                                })
+                            }
+                        }
+                        JsonEditor {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 56
+                            text: dock.liveWidgetsJson
+                            onTextChanged: dock.liveWidgetsJson = text
+                            placeholderText: "[{\"name\":\"CPU\",\"icon\":\"utilities-system-monitor\",\"cmd\":\"plasma-systemmonitor\"}]"
+                        }
+
+                        Label { text: qsTr("Perfis rápidos"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 6
+                            Button { text: qsTr("Salvar Trabalho"); onClicked: salvarPerfil("Trabalho") }
+                            Button { text: qsTr("Salvar Gaming"); onClicked: salvarPerfil("Gaming") }
+                            Button { text: qsTr("Salvar Streaming"); onClicked: salvarPerfil("Streaming") }
+                        }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 6
+                            Button { text: qsTr("Aplicar Trabalho"); onClicked: aplicarPerfil("Trabalho") }
+                            Button { text: qsTr("Aplicar Gaming"); onClicked: aplicarPerfil("Gaming") }
+                            Button { text: qsTr("Aplicar Streaming"); onClicked: aplicarPerfil("Streaming") }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 6
+                            Button { text: qsTr("Exportar perfis"); onClicked: taskBackend.writeUserJsonFile("profiles_export.json", dock.liveProfilesJson) }
+                            Button {
+                                text: qsTr("Importar perfis")
+                                onClicked: {
+                                    const raw = taskBackend.readUserJsonFile("profiles_export.json")
+                                    if (raw !== "") dock.liveProfilesJson = raw
+                                }
+                            }
+                        }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 6
+                            Button { text: qsTr("Desfazer"); onClicked: dock.undoCustomization() }
+                            Button { text: qsTr("Refazer"); onClicked: dock.redoCustomization() }
+                        }
                     }
                 }
 
                 Frame {
                     Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignTop
                     padding: 12
                     background: Rectangle {
                         color: "#141414"
@@ -764,7 +872,7 @@ Window {
                                 Label { text: qsTr("Ação clique esquerdo"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                                 ComboBox {
                                     Layout.fillWidth: true
-                                    model: [qsTr("Padrão"), qsTr("Abrir menu"), qsTr("Sempre nova janela")]
+                                    model: [qsTr("Padrão", "Ação clique esquerdo"), qsTr("Abrir menu"), qsTr("Sempre nova janela")]
                                     currentIndex: dock.liveLeftClickAction
                                     onActivated: dock.liveLeftClickAction = currentIndex
                                 }
@@ -780,7 +888,7 @@ Window {
                                 Label { text: qsTr("Ação clique do meio"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                                 ComboBox {
                                     Layout.fillWidth: true
-                                    model: [qsTr("Padrão"), qsTr("Fechar app"), qsTr("Nova janela"), qsTr("Minimizar/Restaurar")]
+                                    model: [qsTr("Padrão", "Ação clique do meio"), qsTr("Fechar app"), qsTr("Nova janela"), qsTr("Minimizar/Restaurar")]
                                     currentIndex: dock.liveMiddleClickAction
                                     onActivated: dock.liveMiddleClickAction = currentIndex
                                 }
@@ -811,37 +919,9 @@ Window {
                             Slider { Layout.fillWidth: true; from: -300; to: 300; stepSize: 1; value: dock.liveDockOffsetY; onMoved: dock.liveDockOffsetY = value }
                         }
 
-                        CheckBox {
-                            text: qsTr("Tema dinâmico por app em foco")
-                            checked: dock.liveAutoThemeByActiveApp
-                            onToggled: dock.liveAutoThemeByActiveApp = checked
-                            palette.text: "#DDDDDD"
-                            Layout.fillWidth: true
-                        }
-                        CheckBox {
-                            text: qsTr("Agenda automática de tema")
-                            checked: dock.liveScheduleThemeEnabled
-                            onToggled: dock.liveScheduleThemeEnabled = checked
-                            palette.text: "#DDDDDD"
-                            Layout.fillWidth: true
-                        }
-                        RowLayout {
-                            Layout.fillWidth: true
-                            visible: dock.liveScheduleThemeEnabled
-                            spacing: 10
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 6
-                                Label { text: qsTr("Início do dia: %1h").arg(dock.liveDayStartHour); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
-                                Slider { Layout.fillWidth: true; from: 0; to: 23; stepSize: 1; value: dock.liveDayStartHour; onMoved: dock.liveDayStartHour = Math.round(value) }
-                            }
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 6
-                                Label { text: qsTr("Início da noite: %1h").arg(dock.liveNightStartHour); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
-                                Slider { Layout.fillWidth: true; from: 0; to: 23; stepSize: 1; value: dock.liveNightStartHour; onMoved: dock.liveNightStartHour = Math.round(value) }
-                            }
-                        }
+                        Rectangle { Layout.fillWidth: true; height: 1; color: "#22FFFFFF"; Layout.topMargin: 8; Layout.bottomMargin: 4 }
+                        Label { text: qsTr("Regras Avançadas"); font.bold: true; color: "#FFFFFF" }
+
                         Label { text: qsTr("Regras por app (JSON)"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
                         JsonEditor {
                             Layout.fillWidth: true
@@ -860,77 +940,7 @@ Window {
                             placeholderText: "{\"konsole\":[{\"label\":\"Abrir htop\",\"command\":\"konsole -e htop\"}]}"
                         }
 
-                        Label { text: qsTr("Widgets/Plugins leves (JSON array)"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 6
-                            Button {
-                                text: qsTr("+ Monitor")
-                                onClicked: adicionarWidgetPreset({
-                                    name: qsTr("Monitor"),
-                                    icon: "utilities-system-monitor",
-                                    cmd: "plasma-systemmonitor"
-                                })
-                            }
-                            Button {
-                                text: qsTr("+ Separador")
-                                onClicked: adicionarWidgetPreset({
-                                    name: qsTr("Separador"),
-                                    icon: "draw-separator",
-                                    type: "separator"
-                                })
-                            }
-                            Button {
-                                text: qsTr("+ Relógio")
-                                onClicked: adicionarWidgetPreset({
-                                    name: qsTr("Relógio"),
-                                    icon: "clock",
-                                    type: "clock"
-                                })
-                            }
-                        }
-                        JsonEditor {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 56
-                            text: dock.liveWidgetsJson
-                            onTextChanged: dock.liveWidgetsJson = text
-                            placeholderText: "[{\"name\":\"CPU\",\"icon\":\"utilities-system-monitor\",\"cmd\":\"plasma-systemmonitor\"}]"
-                        }
 
-                        Label { text: qsTr("Perfis rápidos"); color: settingsWin.uiLabelColor; font.pixelSize: 12 }
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 6
-                            Button { text: qsTr("Salvar Trabalho"); onClicked: salvarPerfil("Trabalho") }
-                            Button { text: qsTr("Salvar Gaming"); onClicked: salvarPerfil("Gaming") }
-                            Button { text: qsTr("Salvar Streaming"); onClicked: salvarPerfil("Streaming") }
-                        }
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 6
-                            Button { text: qsTr("Aplicar Trabalho"); onClicked: aplicarPerfil("Trabalho") }
-                            Button { text: qsTr("Aplicar Gaming"); onClicked: aplicarPerfil("Gaming") }
-                            Button { text: qsTr("Aplicar Streaming"); onClicked: aplicarPerfil("Streaming") }
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 6
-                            Button { text: qsTr("Exportar perfis"); onClicked: taskBackend.writeUserJsonFile("profiles_export.json", dock.liveProfilesJson) }
-                            Button {
-                                text: qsTr("Importar perfis")
-                                onClicked: {
-                                    const raw = taskBackend.readUserJsonFile("profiles_export.json")
-                                    if (raw !== "") dock.liveProfilesJson = raw
-                                }
-                            }
-                        }
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 6
-                            Button { text: qsTr("Desfazer"); onClicked: dock.undoCustomization() }
-                            Button { text: qsTr("Refazer"); onClicked: dock.redoCustomization() }
-                        }
                     }
                 }
             }

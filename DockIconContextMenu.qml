@@ -157,7 +157,7 @@ Window {
     function openRecentItem(url) {
         const u = String(url || "")
         if (u.length > 0) {
-            taskBackend.forceLaunchApp("xdg-open \"" + u.replace(/"/g, "") + "\"")
+            Qt.openUrlExternally(u)
         }
         closeMenu()
     }

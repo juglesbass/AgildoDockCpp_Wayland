@@ -204,33 +204,22 @@ namespace {
         qint64 timestampMs = 0;
     };
     static DolphinWindowCache s_dolphinCache;
-    constexpr qint64 kDolphinCacheTtlMs = 1800;
+    constexpr qint64 kDolphinWindowCacheTtlMs = 1800;
 
     // Preenche/renova o cache de IDs+títulos Dolphin se necessário.
-    static void ensureDolphinCache(bool kdotoolAvailable)
+    static DolphinWindowCache fetchDolphinWindowCache(bool kdotoolAvailable)
     {
+        DolphinWindowCache cache;
         if (!kdotoolAvailable) {
-            return;
+            return cache;
         }
-        QElapsedTimer t;
-        t.start();
-        const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-        if (s_dolphinCache.valid && (nowMs - s_dolphinCache.timestampMs) < kDolphinCacheTtlMs) {
-            return;
-        }
-
-        s_dolphinCache.ids.clear();
-        s_dolphinCache.titlesLower.clear();
-        s_dolphinCache.valid = false;
 
         QProcess search;
         search.start(QStringLiteral("kdotool"),
                      {QStringLiteral("search"), QStringLiteral("--class"), QStringLiteral("dolphin")});
         if (!search.waitForFinished(220)) {
             search.kill();
-            s_dolphinCache.valid = true;
-            s_dolphinCache.timestampMs = nowMs;
-            return;
+            return cache;
         }
 
         const QString out = QString::fromUtf8(search.readAllStandardOutput()).trimmed();
@@ -248,13 +237,11 @@ namespace {
                     continue;
                 }
                 const QString title = QString::fromUtf8(nameP.readAllStandardOutput()).trimmed().toLower();
-                s_dolphinCache.ids << id;
-                s_dolphinCache.titlesLower << title;
+                cache.ids << id;
+                cache.titlesLower << title;
             }
         }
-
-        s_dolphinCache.valid = true;
-        s_dolphinCache.timestampMs = nowMs;
+        return cache;
     }
 
     static bool anyDolphinWindowMatchesScopedTarget(const QString &commandLower,
@@ -263,7 +250,7 @@ namespace {
         if (!kdotoolAvailable) {
             return false;
         }
-        ensureDolphinCache(kdotoolAvailable);
+        
 
         const bool isTrash = commandLower.contains(QStringLiteral("trash:/"));
         for (const QString &title : std::as_const(s_dolphinCache.titlesLower)) {
@@ -284,8 +271,8 @@ namespace {
             return {};
         }
         // Ao lançar app, invalida o cache para obter IDs frescos.
-        s_dolphinCache.valid = false;
-        ensureDolphinCache(kdotoolAvailable);
+        
+        
 
         const bool isTrash = commandLower.contains(QStringLiteral("trash:/"));
         for (int i = 0; i < s_dolphinCache.ids.size(); ++i) {
@@ -306,8 +293,8 @@ namespace {
         if (!kdotoolAvailable) {
             return {};
         }
-        s_dolphinCache.valid = false;
-        ensureDolphinCache(kdotoolAvailable);
+        
+        
 
         QStringList ids;
         const bool isTrash = commandLower.contains(QStringLiteral("trash:/"));
@@ -328,7 +315,7 @@ namespace {
         if (!kdotoolAvailable) {
             return false;
         }
-        ensureDolphinCache(kdotoolAvailable);
+        
         return !s_dolphinCache.ids.isEmpty();
     }
 } // namespace
@@ -635,6 +622,7 @@ void TaskBackend::updateActiveWindowCoversWorkAreaHint()
     }
 
     auto *pg = new QProcess(this);
+    connect(pg, &QProcess::errorOccurred, pg, &QProcess::deleteLater);
     connect(pg, &QProcess::finished, this, [this, pg]() {
         const QString geo = QString::fromUtf8(pg->readAllStandardOutput());
         pg->deleteLater();
@@ -690,6 +678,7 @@ void TaskBackend::pollActiveForegroundHints()
     }
 
     auto *p = new QProcess(this);
+    connect(p, &QProcess::errorOccurred, p, &QProcess::deleteLater);
     connect(p, static_cast<void (QProcess::*)(int, QProcess::ExitStatus)>(&QProcess::finished), this,
             [this, p](int exitCode, QProcess::ExitStatus exitStatus) {
                 QString out = QString::fromUtf8(p->readAllStandardOutput()).trimmed();
@@ -728,7 +717,7 @@ void TaskBackend::updateSystemState()
     m_procScanRunning = true;
     // Invalida o cache Dolphin no início de cada ciclo para que isAppRunning
     // popule dados frescos na primeira consulta do ciclo.
-    s_dolphinCache.valid = false;
+    
     (void)QtConcurrent::run([this]() {
         QSet<QString> next;
         DIR *dir = opendir("/proc");
@@ -745,9 +734,13 @@ void TaskBackend::updateSystemState()
             }
             closedir(dir);
         }
+        
+        DolphinWindowCache newDolphinWindowCache = fetchDolphinWindowCache(m_kdotoolAvailable);
+        
         QMetaObject::invokeMethod(
             this,
-            [this, next]() {
+            [this, next, newDolphinWindowCache]() {
+                s_dolphinCache = newDolphinWindowCache;
                 m_procScanRunning = false;
                 m_runningCmdLines = next;
                 // Indicadores “a correr” baseiam-se em /proc — não esperar pelo kdotool.
@@ -1085,8 +1078,9 @@ bool TaskBackend::lactHasVisibleWindow(const QString &command) const
     if (lactCmd.isEmpty()) {
         lactCmd = QStringLiteral("lact gui");
     }
-    return !DockWindowManagement::resolveAllWindowHandlesForLaunch(
-        lactCmd, knownApps, m_kdotoolAvailable, kKdotoolTimeoutMs).isEmpty();
+    
+    // Usa o const_cast para aproveitar a função assíncrona appWindowCount
+    return const_cast<TaskBackend*>(this)->appWindowCount(lactCmd) > 0;
 }
 
 void TaskBackend::forceLaunchApp(const QString &command)
@@ -1464,10 +1458,22 @@ int TaskBackend::appWindowCount(const QString &command)
     if (it != s_windowCountCache.cend() && (nowMs - it->timestampMs) < kWindowCountCacheTtlMs) {
         return it->count;
     }
-    const QStringList handles = windowHandlesForCommand(command);
-    const int count = handles.size();
-    s_windowCountCache.insert(command, WindowCountCacheEntry{count, nowMs});
-    return count;
+    
+    // Atualiza o TTL temporariamente para evitar múltiplas chamadas simultâneas
+    int lastCount = (it != s_windowCountCache.cend()) ? it->count : 0;
+    s_windowCountCache.insert(command, WindowCountCacheEntry{lastCount, nowMs});
+    
+    (void)QtConcurrent::run([this, command]() {
+        const QStringList handles = windowHandlesForCommand(command);
+        const int count = handles.size();
+        
+        QMetaObject::invokeMethod(this, [this, command, count]() {
+            s_windowCountCache.insert(command, WindowCountCacheEntry{count, QDateTime::currentMSecsSinceEpoch()});
+            emitWindowsUpdatedCoalesced();
+        });
+    });
+    
+    return lastCount;
 }
 
 void TaskBackend::cycleAppWindows(const QString &command, int direction)
@@ -1475,29 +1481,32 @@ void TaskBackend::cycleAppWindows(const QString &command, int direction)
     if (command.isEmpty() || direction == 0 || !m_kdotoolAvailable) {
         return;
     }
-    const QStringList handles = windowHandlesForCommand(command);
-    if (handles.isEmpty()) {
-        return;
-    }
-    if (handles.size() == 1) {
-        QProcess::startDetached(QStringLiteral("kdotool"), {QStringLiteral("windowactivate"), handles.first()});
-        return;
-    }
+    
+    (void)QtConcurrent::run([this, command, direction]() {
+        const QStringList handles = windowHandlesForCommand(command);
+        if (handles.isEmpty()) {
+            return;
+        }
+        if (handles.size() == 1) {
+            QProcess::startDetached(QStringLiteral("kdotool"), {QStringLiteral("windowactivate"), handles.first()});
+            return;
+        }
 
-    QString activeHandle;
-    QProcess activeP;
-    activeP.start(QStringLiteral("kdotool"), {QStringLiteral("getactivewindow")});
-    if (activeP.waitForFinished(kKdotoolTimeoutMs)) {
-        activeHandle = QString::fromUtf8(activeP.readAllStandardOutput()).trimmed();
-    }
+        QString activeHandle;
+        QProcess activeP;
+        activeP.start(QStringLiteral("kdotool"), {QStringLiteral("getactivewindow")});
+        if (activeP.waitForFinished(kKdotoolTimeoutMs)) {
+            activeHandle = QString::fromUtf8(activeP.readAllStandardOutput()).trimmed();
+        }
 
-    int idx = handles.indexOf(activeHandle);
-    if (idx < 0) {
-        idx = 0;
-    } else {
-        idx = (idx + (direction > 0 ? 1 : handles.size() - 1)) % handles.size();
-    }
-    QProcess::startDetached(QStringLiteral("kdotool"), {QStringLiteral("windowactivate"), handles.at(idx)});
+        int idx = handles.indexOf(activeHandle);
+        if (idx < 0) {
+            idx = 0;
+        } else {
+            idx = (idx + (direction > 0 ? 1 : handles.size() - 1)) % handles.size();
+        }
+        QProcess::startDetached(QStringLiteral("kdotool"), {QStringLiteral("windowactivate"), handles.at(idx)});
+    });
 }
 
 void TaskBackend::adjustVolume(int deltaSteps)
@@ -1581,7 +1590,8 @@ QVariantList TaskBackend::recentItemsForCommand(const QString &command, int maxI
     QXmlStreamReader xml(&file);
     QString currentHref;
     QString currentTitle;
-    while (!xml.atEnd() && out.size() < maxItems) {
+    QVariantList allMatches;
+    while (!xml.atEnd()) {
         xml.readNext();
         if (xml.isStartElement() && xml.name() == QLatin1String("bookmark")) {
             currentHref = xml.attributes().value(QStringLiteral("href")).toString();
@@ -1591,13 +1601,19 @@ QVariantList TaskBackend::recentItemsForCommand(const QString &command, int maxI
         } else if (xml.isEndElement() && xml.name() == QLatin1String("bookmark")) {
             if (!currentHref.isEmpty() && recentMatchesCommand(command, currentHref, currentTitle)) {
                 QVariantMap item;
-                item.insert(QStringLiteral("label"), currentTitle.isEmpty() ? currentHref : currentTitle);
+                // Se não houver título, extraímos apenas o nome do arquivo da URL para ficar mais limpo
+                item.insert(QStringLiteral("label"), currentTitle.isEmpty() ? QUrl(currentHref).fileName() : currentTitle);
                 item.insert(QStringLiteral("url"), currentHref);
-                out << item;
+                allMatches << item;
             }
             currentHref.clear();
             currentTitle.clear();
         }
+    }
+    
+    // Os mais recentes ficam no final do arquivo XBEL, então pegamos do fim para o começo
+    for (int i = allMatches.size() - 1; i >= qMax(0, allMatches.size() - maxItems); --i) {
+        out << allMatches[i];
     }
     return out;
 }
@@ -1619,60 +1635,67 @@ void TaskBackend::setupNotificationBadgeWatcher()
 
 void TaskBackend::refreshNotificationBadgesFromSni()
 {
-    QVariantMap nextBadges;
-    const QStringList services = QDBusConnection::sessionBus().interface()->registeredServiceNames();
+    // Cópia thread-safe dos apps conhecidos
+    const QHash<QString, QVariantMap> currentKnownApps = knownApps;
 
-    for (const QString &service : services) {
-        if (!service.startsWith(QLatin1String("org.kde.StatusNotifierItem-"))) {
-            continue;
-        }
-        const QString path = QStringLiteral("/StatusNotifierItem");
-        QDBusInterface item(service, path, QStringLiteral("org.kde.StatusNotifierItem"), QDBusConnection::sessionBus());
-        if (!item.isValid()) {
-            continue;
-        }
+    (void)QtConcurrent::run([this, currentKnownApps]() {
+        QVariantMap nextBadges;
+        const QStringList services = QDBusConnection::sessionBus().interface()->registeredServiceNames();
 
-        const QString desktopId = item.property("Id").toString().toLower();
-        const QString category = item.property("Category").toString();
-        if (category == QLatin1String("SystemServices")) {
-            continue;
-        }
+        for (const QString &service : services) {
+            if (!service.startsWith(QLatin1String("org.kde.StatusNotifierItem-"))) {
+                continue;
+            }
+            const QString path = QStringLiteral("/StatusNotifierItem");
+            QDBusInterface item(service, path, QStringLiteral("org.kde.StatusNotifierItem"), QDBusConnection::sessionBus());
+            if (!item.isValid()) {
+                continue;
+            }
 
-        int badge = 0;
-        if (item.property("NeedsAttention").toBool()) {
-            badge = 1;
-        }
-        const QString overlay = item.property("OverlayIconName").toString();
-        if (!overlay.isEmpty() && overlay.contains(QLatin1String("attention"), Qt::CaseInsensitive)) {
-            badge = qMax(badge, 1);
-        }
-        const QString title = item.property("Title").toString();
-        static const QRegularExpression countRe(QStringLiteral(R"((\d+))"));
-        const QRegularExpressionMatch m = countRe.match(title);
-        if (m.hasMatch()) {
-            badge = qMax(badge, m.captured(1).toInt());
-        }
-        if (badge <= 0) {
-            continue;
-        }
+            const QString desktopId = item.property("Id").toString().toLower();
+            const QString category = item.property("Category").toString();
+            if (category == QLatin1String("SystemServices")) {
+                continue;
+            }
 
-        for (auto it = knownApps.constBegin(); it != knownApps.constEnd(); ++it) {
-            const QString cmd = it.key();
-            const QVariantMap app = it.value();
-            const QString wm = app.value(QStringLiteral("wmclass")).toString().toLower();
-            const QString name = app.value(QStringLiteral("name")).toString().toLower();
-            if ((!desktopId.isEmpty() && (cmd.toLower().contains(desktopId) || wm.contains(desktopId)
-                                          || desktopId.contains(execBasenameFromCommand(cmd))))
-                || (!name.isEmpty() && title.toLower().contains(name))) {
-                nextBadges.insert(cmd, badge);
-                break;
+            int badge = 0;
+            if (item.property("NeedsAttention").toBool()) {
+                badge = 1;
+            }
+            const QString overlay = item.property("OverlayIconName").toString();
+            if (!overlay.isEmpty() && overlay.contains(QLatin1String("attention"), Qt::CaseInsensitive)) {
+                badge = qMax(badge, 1);
+            }
+            const QString title = item.property("Title").toString();
+            static const QRegularExpression countRe(QStringLiteral(R"((\d+))"));
+            const QRegularExpressionMatch m = countRe.match(title);
+            if (m.hasMatch()) {
+                badge = qMax(badge, m.captured(1).toInt());
+            }
+            if (badge <= 0) {
+                continue;
+            }
+
+            for (auto it = currentKnownApps.constBegin(); it != currentKnownApps.constEnd(); ++it) {
+                const QString cmd = it.key();
+                const QVariantMap app = it.value();
+                const QString wm = app.value(QStringLiteral("wmclass")).toString().toLower();
+                const QString name = app.value(QStringLiteral("name")).toString().toLower();
+                if ((!desktopId.isEmpty() && (cmd.toLower().contains(desktopId) || wm.contains(desktopId)
+                                              || desktopId.contains(execBasenameFromCommand(cmd))))
+                    || (!name.isEmpty() && title.toLower().contains(name))) {
+                    nextBadges.insert(cmd, badge);
+                    break;
+                }
             }
         }
-    }
 
-    if (nextBadges != m_notificationBadges) {
-        m_notificationBadges = nextBadges;
-        emit notificationBadgesChanged();
-    }
+        QMetaObject::invokeMethod(this, [this, nextBadges]() {
+            if (nextBadges != m_notificationBadges) {
+                m_notificationBadges = nextBadges;
+                emit notificationBadgesChanged();
+            }
+        });
+    });
 }
 
