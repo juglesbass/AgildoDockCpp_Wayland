@@ -691,9 +691,22 @@ void TaskBackend::pollActiveForegroundHints()
                         m_activeAppClass = out.toLower();
                         m_activeAppTitle.clear();
                     }
+                    
+                    const QSize windowSize = parseWindowGeometryFromKdotool(out);
+                    if (m_mainWindow && m_mainWindow->screen()) {
+                        const QRect sg = m_mainWindow->screen()->geometry();
+                        bool covers = false;
+                        if (windowSize.isValid() && sg.width() > 0 && sg.height() > 0) {
+                            covers = (windowSize.width()  >= int(sg.width()  * 0.88) &&
+                                      windowSize.height() >= int(sg.height() * 0.82));
+                        }
+                        if (covers != m_activeWindowCoversWorkArea) {
+                            m_activeWindowCoversWorkArea = covers;
+                            emit activeWindowCoversWorkAreaChanged();
+                        }
+                    }
                 }
                 p->deleteLater();
-                updateActiveWindowCoversWorkAreaHint();
                 emitWindowsUpdatedCoalesced();
             });
 
@@ -706,7 +719,8 @@ void TaskBackend::pollActiveForegroundHints()
     p->start(QStringLiteral("kdotool"),
              {QStringLiteral("getactivewindow"),
               QStringLiteral("getwindowclassname"),
-              QStringLiteral("getwindowname")});
+              QStringLiteral("getwindowname"),
+              QStringLiteral("getwindowgeometry")});
 }
 
 void TaskBackend::updateSystemState()
@@ -735,7 +749,18 @@ void TaskBackend::updateSystemState()
             closedir(dir);
         }
         
-        DolphinWindowCache newDolphinWindowCache = fetchDolphinWindowCache(m_kdotoolAvailable);
+        bool hasDolphinProcess = false;
+        for (const QString &cmd : std::as_const(next)) {
+            if (cmd.startsWith(QStringLiteral("dolphin")) || cmd.contains(QStringLiteral("/dolphin"))) {
+                hasDolphinProcess = true;
+                break;
+            }
+        }
+        
+        DolphinWindowCache newDolphinWindowCache;
+        if (hasDolphinProcess) {
+            newDolphinWindowCache = fetchDolphinWindowCache(m_kdotoolAvailable);
+        }
         
         QMetaObject::invokeMethod(
             this,
