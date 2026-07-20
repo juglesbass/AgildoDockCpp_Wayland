@@ -2,6 +2,7 @@
 #include "dock_browser_utils.h"
 #include "dock_window_management.h"
 #include "dock_browser_integration.h"
+#include "kwin_dbus_helper.h"
 
 #include <QDateTime>
 #include <QDirIterator>
@@ -210,6 +211,20 @@ namespace {
     static DolphinWindowCache fetchDolphinWindowCache(bool kdotoolAvailable)
     {
         DolphinWindowCache cache;
+        if (KWinDBusHelper::instance()->isAvailable()) {
+            QStringList rawIds = KWinDBusHelper::instance()->searchWindows(QStringLiteral("dolphin"), false);
+            for (const QString &id : rawIds) {
+                if (id.isEmpty()) continue;
+                QString info = KWinDBusHelper::instance()->getWindowInfo(id);
+                QStringList lines = info.split(QLatin1Char('\n'));
+                if (lines.size() >= 2) {
+                    cache.ids << id;
+                    cache.titlesLower << lines[1].trimmed().toLower();
+                }
+            }
+            return cache;
+        }
+
         if (!kdotoolAvailable) {
             return cache;
         }
@@ -671,6 +686,37 @@ void TaskBackend::pollActiveForegroundHints()
         }
         emitWindowsUpdatedCoalesced();
         return;
+    }
+
+    if (KWinDBusHelper::instance()->isAvailable()) {
+        QString info = KWinDBusHelper::instance()->getActiveWindowInfo();
+        if (!info.isEmpty()) {
+            QStringList lines = info.split(QLatin1Char('\n'));
+            if (lines.size() >= 4) {
+                m_activeAppClass = lines[1].toLower();
+                m_activeAppTitle = lines[2].toLower();
+                
+                QString geometry = lines[3];
+                QStringList geomParts = geometry.split(QLatin1Char('x'));
+                if (geomParts.size() == 2) {
+                    QSize windowSize(geomParts[0].toInt(), geomParts[1].toInt());
+                    if (m_mainWindow && m_mainWindow->screen()) {
+                        const QRect sg = m_mainWindow->screen()->geometry();
+                        bool covers = false;
+                        if (windowSize.isValid() && sg.width() > 0 && sg.height() > 0) {
+                            covers = (windowSize.width()  >= int(sg.width()  * 0.88) &&
+                                      windowSize.height() >= int(sg.height() * 0.82));
+                        }
+                        if (covers != m_activeWindowCoversWorkArea) {
+                            m_activeWindowCoversWorkArea = covers;
+                            emit activeWindowCoversWorkAreaChanged();
+                        }
+                    }
+                }
+            }
+            emitWindowsUpdatedCoalesced();
+            return;
+        }
     }
 
     if (!m_kdotoolAvailable) {

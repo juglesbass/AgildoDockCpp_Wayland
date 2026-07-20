@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(agildodock VERSION 1.3.8 LANGUAGES CXX)
+project(agildodock VERSION 1.3.9 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -25,6 +25,7 @@ add_executable(agildodock
     dock_browser_integration.cpp
     dock_browser_downloads.cpp
     dock_browser_utils.cpp
+    kwin_dbus_helper.cpp
 )
 
 target_compile_definitions(agildodock PRIVATE AGILDO_DOCK_VERSION="${PROJECT_VERSION}")
