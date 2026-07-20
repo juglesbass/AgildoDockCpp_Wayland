@@ -211,6 +211,7 @@ namespace {
     static DolphinWindowCache fetchDolphinWindowCache(bool kdotoolAvailable)
     {
         DolphinWindowCache cache;
+        qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
         if (KWinDBusHelper::instance()->isAvailable()) {
             QStringList rawIds = KWinDBusHelper::instance()->searchWindows(QStringLiteral("dolphin"), false);
             for (const QString &id : rawIds) {
@@ -222,6 +223,8 @@ namespace {
                     cache.titlesLower << lines[1].trimmed().toLower();
                 }
             }
+            cache.valid = true;
+            cache.timestampMs = nowMs;
             return cache;
         }
 
@@ -256,6 +259,9 @@ namespace {
                 cache.titlesLower << title;
             }
         }
+        
+        cache.valid = true;
+        cache.timestampMs = nowMs;
         return cache;
     }
 
