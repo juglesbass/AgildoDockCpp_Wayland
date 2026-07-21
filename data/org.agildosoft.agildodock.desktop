@@ -9,3 +9,4 @@ StartupNotify=false
 Terminal=false
 Categories=Utility;Qt;KDE;
 Keywords=dock;plasma;wayland;kde;
+X-KDE-Wayland-Interfaces=org_kde_plasma_window_management

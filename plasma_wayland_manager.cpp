@@ -20,7 +20,7 @@ struct PlasmaWaylandManager::Private {
     wl_registry *registry = nullptr;
     
     static void registry_global(void *data, struct wl_registry *registry, uint32_t name, const char *interface, uint32_t version) {
-        auto *d = static_cast<Private*>(data);
+        auto *d = static_cast<PlasmaWaylandManager::Private *>(data);
         if (qstrcmp(interface, org_kde_plasma_window_management_interface.name) == 0) {
             auto *obj = static_cast<struct ::org_kde_plasma_window_management *>(
                 wl_registry_bind(registry, name, &org_kde_plasma_window_management_interface, qMin(version, 16u))
