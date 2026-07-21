@@ -1,5 +1,6 @@
 #include "dock_window_management.h"
 #include "dock_browser_utils.h"
+#include "kwin_dbus_helper.h"
 
 #include <QCoreApplication>
 #include <QGuiApplication>
@@ -242,7 +243,7 @@ bool nativeX11ClientUsable()
 
 bool fullForeignWindowCtlAvailable(bool kdotoolOnPath)
 {
-    return nativeX11ClientUsable() || kdotoolOnPath;
+    return nativeX11ClientUsable() || kdotoolOnPath || KWinDBusHelper::instance()->isAvailable();
 }
 
 bool commandMatchesForegroundHints(const QString &command,
@@ -346,6 +347,13 @@ bool decodeX11WId(const QString &packed, WId *out)
 
 QString runFirstKdotoolSearchHit(const QStringList &args, int timeoutMs)
 {
+    if (KWinDBusHelper::instance()->isAvailable()) {
+        QString query = args.size() > 2 ? args.last() : QString();
+        bool exact = args.contains(QStringLiteral("--exact"));
+        QStringList res = KWinDBusHelper::instance()->searchWindows(query, exact);
+        if (!res.isEmpty()) return res.first();
+        return {};
+    }
     QProcess p;
     p.start(QStringLiteral("kdotool"), args);
     if (!p.waitForFinished(timeoutMs)) {
@@ -363,6 +371,11 @@ QString runFirstKdotoolSearchHit(const QStringList &args, int timeoutMs)
 
 static QStringList runAllKdotoolSearchHits(const QStringList &args, int timeoutMs)
 {
+    if (KWinDBusHelper::instance()->isAvailable()) {
+        QString query = args.size() > 2 ? args.last() : QString();
+        bool exact = args.contains(QStringLiteral("--exact"));
+        return KWinDBusHelper::instance()->searchWindows(query, exact);
+    }
     QProcess p;
     p.start(QStringLiteral("kdotool"), args);
     if (!p.waitForFinished(timeoutMs)) {
@@ -397,21 +410,28 @@ static QStringList filterKdotoolHandlesForCommand(const QStringList &handles,
         if (id.isEmpty()) {
             continue;
         }
-        QProcess clsP;
-        clsP.start(QStringLiteral("kdotool"), {QStringLiteral("getwindowclassname"), id});
-        if (!clsP.waitForFinished(timeoutMs)) {
-            clsP.kill();
-            continue;
+        QString clsLower, nameLower;
+        if (KWinDBusHelper::instance()->isAvailable()) {
+            QString info = KWinDBusHelper::instance()->getWindowInfo(id);
+            QStringList lines = info.split(QLatin1Char('\n'));
+            if (lines.size() >= 2) {
+                clsLower = lines[0].trimmed().toLower();
+                nameLower = lines[1].trimmed().toLower();
+            }
+        } else {
+            QProcess clsP;
+            clsP.start(QStringLiteral("kdotool"), {QStringLiteral("getwindowclassname"), id});
+            if (clsP.waitForFinished(timeoutMs)) {
+                clsLower = QString::fromUtf8(clsP.readAllStandardOutput()).trimmed().toLower();
+            }
+            
+            QProcess nameP;
+            nameP.start(QStringLiteral("kdotool"), {QStringLiteral("getwindowname"), id});
+            if (nameP.waitForFinished(timeoutMs)) {
+                nameLower = QString::fromUtf8(nameP.readAllStandardOutput()).trimmed().toLower();
+            }
         }
-        QProcess nameP;
-        nameP.start(QStringLiteral("kdotool"), {QStringLiteral("getwindowname"), id});
-        if (!nameP.waitForFinished(timeoutMs)) {
-            nameP.kill();
-            continue;
-        }
-        const QString clsLower = QString::fromUtf8(clsP.readAllStandardOutput()).trimmed().toLower();
-        const QString titleLower = QString::fromUtf8(nameP.readAllStandardOutput()).trimmed().toLower();
-        if (commandMatchesForegroundHints(command, clsLower, titleLower, knownApps)) {
+        if (commandMatchesForegroundHints(command, clsLower, nameLower, knownApps)) {
             filtered << id;
         }
     }
@@ -446,7 +466,7 @@ QString resolveWindowHandleForLaunch(const QString &command,
         buildKdotoolSearchChain(command, strippedExecBasename(command), wmDesk, nameDesk, &appIdDummy);
     Q_UNUSED(appIdDummy);
 
-    if (!kdotoolAvailable) {
+    if (!kdotoolAvailable && !KWinDBusHelper::instance()->isAvailable()) {
         return {};
     }
 
@@ -492,7 +512,7 @@ QStringList resolveAllWindowHandlesForLaunch(const QString &command,
         buildKdotoolSearchChain(command, strippedExecBasename(command), wmDesk, nameDesk, &appIdDummy);
     Q_UNUSED(appIdDummy);
 
-    if (!kdotoolAvailable) {
+    if (!kdotoolAvailable && !KWinDBusHelper::instance()->isAvailable()) {
         return {};
     }
 
@@ -628,11 +648,16 @@ bool closePackedWindow(const QString &packedWin, bool kdotoolAvailable)
     }
 #endif
 
-    if (kdotoolAvailable)
+    if (KWinDBusHelper::instance()->isAvailable()) {
+        return KWinDBusHelper::instance()->closeWindow(packedWin);
+    }
+    
+    if (kdotoolAvailable) {
         QProcess::startDetached(QStringLiteral("kdotool"),
-                                {QStringLiteral("windowclose"),
-                                 QStringLiteral("0x") + QString::number(static_cast<quintptr>(wid), 16)});
-    return kdotoolAvailable;
+                                {QStringLiteral("windowclose"), packedWin});
+        return true;
+    }
+    return false;
 }
 
 } // namespace DockWindowManagement
