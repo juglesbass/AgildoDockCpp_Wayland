@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(agildodock VERSION 1.3.10 LANGUAGES CXX)
+project(agildodock VERSION 1.3.11 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -8,12 +8,19 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick WaylandClient Concurrent DBus Sql LinguistTools Test)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui GuiPrivate Qml Quick WaylandClient Concurrent DBus Sql LinguistTools Test)
 qt_policy(SET QTP0001 NEW)
 find_package(KF6WindowSystem REQUIRED)
 find_package(KF6GlobalAccel REQUIRED)
 find_package(KF6Kirigami REQUIRED)
 find_package(LayerShellQt REQUIRED)
+find_package(LayerShellQt REQUIRED)
+find_package(Wayland REQUIRED Client)
+find_package(WaylandScanner REQUIRED)
+
+set(WAYLAND_PROTOCOLS
+    "/usr/share/plasma-wayland-protocols/plasma-window-management.xml"
+)
 
 add_executable(agildodock
     main.cpp
@@ -26,7 +33,11 @@ add_executable(agildodock
     dock_browser_downloads.cpp
     dock_browser_utils.cpp
     kwin_dbus_helper.cpp
+    plasma_wayland_manager.cpp
 )
+
+qt6_generate_wayland_protocol_client_sources(agildodock FILES ${WAYLAND_PROTOCOLS})
+target_link_libraries(agildodock PRIVATE Wayland::Client Qt6::GuiPrivate)
 
 target_compile_definitions(agildodock PRIVATE AGILDO_DOCK_VERSION="${PROJECT_VERSION}")
 

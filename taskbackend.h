@@ -17,6 +17,7 @@
 
 class DockUnityLauncherService;
 class DockBrowserDownloadWatcher;
+class PlasmaWaylandManager;
 
 class TaskBackend : public QObject
 {
@@ -62,6 +63,9 @@ public:
     Q_INVOKABLE void adjustBrightness(int deltaSteps);
     Q_INVOKABLE QVariantList recentItemsForCommand(const QString &command, int maxItems = 5);
     Q_INVOKABLE QVariantMap parseDropInfo(const QString &urlStr);
+    
+    /// Informa o Wayland sobre a posição de um ícone para animação de minimizar
+    Q_INVOKABLE void reportIconGeometry(const QString &command, int x, int y, int w, int h);
 
     bool windowOverviewOnRefocus() const { return m_windowOverviewOnRefocus; }
     void setWindowOverviewOnRefocus(bool enabled);
@@ -111,6 +115,7 @@ private:
 
     QString resolveWindowTokenForLaunch(const QString &command);
     bool tryShowAppWindowOverview(const QString &command);
+    PlasmaWaylandManager *m_waylandManager = nullptr;
     QStringList windowHandlesForCommand(const QString &command);
     QVariantMap matchRunningLineToApp(const QString &cmdLineLower) const;
     static bool appMatchesRunningCmdLine(const QString &cmdLineLower, const QVariantMap &app);

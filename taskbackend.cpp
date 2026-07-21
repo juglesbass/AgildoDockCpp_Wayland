@@ -3,6 +3,7 @@
 #include "dock_window_management.h"
 #include "dock_browser_integration.h"
 #include "kwin_dbus_helper.h"
+#include "plasma_wayland_manager.h"
 
 #include <QDateTime>
 #include <QDirIterator>
@@ -30,6 +31,9 @@
 #include <QDBusConnectionInterface>
 #include <QDBusInterface>
 #include <QDBusMessage>
+#include <QGuiApplication>
+#include <QQuickWindow>
+#include <QScreen>
 
 #include <LayerShellQt/Window>
 #include <KWindowEffects>
@@ -380,6 +384,13 @@ TaskBackend::TaskBackend(QObject *parent)
     setupNotificationBadgeWatcher();
     setupUnityLauncherProgressWatcher();
     setupBrowserDownloadWatcher();
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    m_waylandManager = PlasmaWaylandManager::instance();
+    if (!m_waylandManager->isAvailable()) {
+        qWarning() << "AgildoDock: plasma-window-management interface indisponivel no Wayland!";
+    }
+#endif
 
     m_progressNotifyTimer = new QTimer(this);
     m_progressNotifyTimer->setSingleShot(true);
@@ -1775,4 +1786,41 @@ void TaskBackend::refreshNotificationBadgesFromSni()
         });
     });
 }
-
+void TaskBackend::reportIconGeometry(const QString &command, int x, int y, int w, int h)
+{
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    if (!m_waylandManager) {
+        return;
+    }
+    
+    // Find the UUID associated with the app command
+    QStringList uuids = windowHandlesForCommand(command);
+    
+    if (uuids.isEmpty()) {
+        return;
+    }
+    QString appUuid = uuids.first();
+    
+    // Attempt to resolve the QQuickWindow representing the dock
+    QQuickWindow *dockWindow = nullptr;
+    const auto topLevelWindows = QGuiApplication::topLevelWindows();
+    for (QWindow *win : topLevelWindows) {
+        if (auto *qw = qobject_cast<QQuickWindow*>(win)) {
+            // Assume the main dock window is the one we want.
+            // In a multi-monitor setup you might need to match the screen.
+            dockWindow = qw;
+            break;
+        }
+    }
+    
+    if (dockWindow) {
+        m_waylandManager->reportIconGeometry(appUuid, x, y, w, h, dockWindow);
+    }
+#else
+    Q_UNUSED(command);
+    Q_UNUSED(x);
+    Q_UNUSED(y);
+    Q_UNUSED(w);
+    Q_UNUSED(h);
+#endif
+}

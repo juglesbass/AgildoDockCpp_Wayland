@@ -240,6 +240,19 @@ Item {
         }
     }
 
+    Timer {
+        id: waylandGeometrySyncTimer
+        interval: 1000
+        running: delegateRoot.isRunning && delegateRoot.isValid && !dock.waveBlurAnimating
+        repeat: true
+        onTriggered: {
+            if (typeof taskBackend.reportIconGeometry === "function") {
+                var pt = delegateRoot.mapToItem(null, 0, 0)
+                taskBackend.reportIconGeometry(model.cmd, Math.round(pt.x), Math.round(pt.y), Math.round(delegateRoot.width), Math.round(delegateRoot.height))
+            }
+        }
+    }
+
     function playFocusBounce() {
         singleJumpAnim.start()
     }
@@ -845,6 +858,10 @@ Item {
                 delegateRoot.isLaunching = true
                 launchAnim.start()
             } else {
+                if (typeof taskBackend.reportIconGeometry === "function" && !isLauncherItem) {
+                    var pt = delegateRoot.mapToItem(null, 0, 0)
+                    taskBackend.reportIconGeometry(model.cmd, Math.round(pt.x), Math.round(pt.y), Math.round(delegateRoot.width), Math.round(delegateRoot.height))
+                }
                 singleJumpAnim.start()
             }
             if (!isLauncherItem && !isSystemItem && delegateRoot.isFocused) {
