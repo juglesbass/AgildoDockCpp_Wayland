@@ -6,6 +6,8 @@
 
 class QTimer;
 class QFileSystemWatcher;
+template <typename T> class QFutureWatcher;
+struct DownloadScanBest;
 
 /*!
  * Metadados de downloads ativos: Gecko (downloads.json), Chromium (History SQLite),
@@ -56,6 +58,8 @@ private:
     QString m_activeFilePath;
     QString m_activeFileName;
     double m_activeProgress = 0.0;
+    
+    QFutureWatcher<DownloadScanBest> *m_scanWatcher = nullptr;
 };
 
 #endif // DOCK_BROWSER_DOWNLOADS_H

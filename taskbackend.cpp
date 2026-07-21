@@ -1420,8 +1420,10 @@ bool TaskBackend::isAppRunning(const QString &command)
         return false;
     }
 
-    if (execName.contains(QStringLiteral("chromium")) || execName.contains(QStringLiteral("chrome")) || execName.contains(QStringLiteral("edge"))
-        || execName.contains(QStringLiteral("zen"))) {
+    const bool isChromiumOrZen = execName.contains(QStringLiteral("chromium")) || execName.contains(QStringLiteral("chrome")) || execName.contains(QStringLiteral("edge"))
+        || execName.contains(QStringLiteral("zen"));
+
+    if (isChromiumOrZen) {
         for (const QString &r : std::as_const(m_runningCmdLines)) {
             if ((r.startsWith(execName) || r.contains(QStringLiteral("/") + execName)) && !r.contains(QStringLiteral("--app-id"))) {
                 return true;
@@ -1430,8 +1432,10 @@ bool TaskBackend::isAppRunning(const QString &command)
         return false;
     }
 
+    const bool isAgildoMonitor = execName.contains(QStringLiteral("agildomonitor"));
+
     for (const QString &r : std::as_const(m_runningCmdLines)) {
-        if (execName.contains(QStringLiteral("agildomonitor"))) {
+        if (isAgildoMonitor) {
             if (r.contains(QStringLiteral("agildomonitor"))) {
                 return true;
             }

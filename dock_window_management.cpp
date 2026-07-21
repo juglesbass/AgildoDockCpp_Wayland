@@ -22,6 +22,16 @@ namespace {
 
 // --- Declarativo para kdotool search (--class / --name) ---
 
+enum class AppType { Generic, AgildoMonitor, Zen, Faugus, Lact, Chromium };
+static AppType identifyApp(const QString &execNameLower) {
+    if (execNameLower.contains(QLatin1String("agildomonitor"))) return AppType::AgildoMonitor;
+    if (execNameLower.contains(QLatin1String("zen"))) return AppType::Zen;
+    if (execNameLower.contains(QLatin1String("faugus"))) return AppType::Faugus;
+    if (execNameLower == QLatin1String("lact")) return AppType::Lact;
+    if (execNameLower.contains(QLatin1String("chrom")) || execNameLower.contains(QLatin1String("edge"))) return AppType::Chromium;
+    return AppType::Generic;
+}
+
 struct KdotoolSearchFilter {
     bool byName = false; // false ⇒ --class; true ⇒ --name
     QString needle;
@@ -67,29 +77,29 @@ buildKdotoolSearchChain(const QString &command,
         return chain;
     }
 
-    if (exeLower.contains(QLatin1String("agildomonitor"))) {
+    switch (identifyApp(exeLower)) {
+    case AppType::AgildoMonitor:
         chain.push_back(KdotoolSearchFilter{true, QStringLiteral("Agildo Monitor")});
         return chain;
-    }
-    if (exeLower.contains(QLatin1String("zen"))) {
+    case AppType::Zen:
         chain.push_back(KdotoolSearchFilter{false, QStringLiteral("zen")});
         return chain;
-    }
-    if (exeLower.contains(QLatin1String("faugus"))) {
+    case AppType::Faugus:
         chain.push_back(KdotoolSearchFilter{false, QStringLiteral("faugus-launcher")});
         return chain;
-    }
-    if (exeLower == QLatin1String("lact")) {
+    case AppType::Lact:
         if (!desktopAppName.trimmed().isEmpty()) {
             chain.push_back(KdotoolSearchFilter{true, desktopAppName});
         }
         return chain;
-    }
-    if (exeLower.contains(QLatin1String("chrom"))) {
+    case AppType::Chromium:
         chain.push_back(KdotoolSearchFilter{false, QStringLiteral("chromium")});
         chain.push_back(KdotoolSearchFilter{false, QStringLiteral("Chromium")});
         chain.push_back(KdotoolSearchFilter{false, QStringLiteral("google-chrome")});
         return chain;
+    case AppType::Generic:
+    default:
+        break;
     }
 
     const bool isBrowserWide = DockBrowserUtils::commandLooksLikeBrowser(exeLower);
@@ -157,23 +167,24 @@ static bool stackingWindowBelongsToCommand(const QString &command,
     const QString execFull = strippedExecBasename(command);
     const bool isBrowserWide = DockBrowserUtils::commandLooksLikeBrowser(execFull);
 
-    if (execFull.contains(QLatin1String("agildomonitor"))) {
+    switch (identifyApp(execFull)) {
+    case AppType::AgildoMonitor:
         return cls.contains(QLatin1String("agildomonitor")) || cap.contains(QLatin1String("agildo monitor"));
-    }
-    if (execFull.contains(QLatin1String("zen"))) {
+    case AppType::Zen:
         return cls.contains(QLatin1String("zen"));
-    }
-    if (execFull.contains(QLatin1String("faugus"))) {
+    case AppType::Faugus:
         return cls.contains(QLatin1String("faugus")) || cls.contains(QLatin1String("faugus-launcher"));
-    }
-    if (execFull == QLatin1String("lact")) {
+    case AppType::Lact:
         return !appNameDesk.isEmpty() && cap.contains(appNameDesk);
-    }
-    if (execFull.contains(QLatin1String("chrom"))) {
+    case AppType::Chromium: {
         const bool chromiumish = cls.contains(QLatin1String("chromium")) || cls.contains(QLatin1String("google-chrome"))
                                  || cls.contains(QLatin1String("chrome"));
         const bool edged = execFull.contains(QLatin1String("edge")) && cls.contains(QLatin1String("edge"));
         return chromiumish || edged;
+    }
+    case AppType::Generic:
+    default:
+        break;
     }
 
     if (!wmClassDesk.isEmpty() && cls.contains(wmClassDesk)) {
@@ -288,7 +299,9 @@ bool commandMatchesForegroundHints(const QString &command,
     }
 
     QString execName = strippedExecBasename(command);
-    if (execName == QLatin1String("lact")) {
+    AppType type = identifyApp(execName);
+
+    if (type == AppType::Lact) {
         return !appName.isEmpty() && cap.toLower().contains(appName);
     }
 
@@ -296,18 +309,14 @@ bool commandMatchesForegroundHints(const QString &command,
         return false;
     }
 
-    if (execName.contains(QLatin1String("faugus"))) {
+    switch (type) {
+    case AppType::Faugus:
         return cls.contains(QLatin1String("faugus"));
-    }
-    if (execName.contains(QLatin1String("zen"))) {
+    case AppType::Zen:
         return cls.contains(QLatin1String("zen"));
-    }
-    if (execName.contains(QLatin1String("agildomonitor"))) {
+    case AppType::AgildoMonitor:
         return cap.contains(QLatin1String("agildo monitor"));
-    }
-
-    if (execName.contains(QLatin1String("chromium")) || execName.contains(QLatin1String("chrome"))
-        || execName.contains(QLatin1String("edge"))) {
+    case AppType::Chromium:
         if (!cls.contains(execName)) {
             return false;
         }
@@ -320,6 +329,9 @@ bool commandMatchesForegroundHints(const QString &command,
             }
         }
         return true;
+    case AppType::Generic:
+    default:
+        break;
     }
 
     return cls.contains(execName) || (!wmClass.isEmpty() && cls.contains(wmClass));
@@ -649,12 +661,12 @@ bool closePackedWindow(const QString &packedWin, bool kdotoolAvailable)
 #endif
 
     if (KWinDBusHelper::instance()->isAvailable()) {
-        return KWinDBusHelper::instance()->closeWindow(packedWin);
+        return KWinDBusHelper::instance()->closeWindow(QString::number(wid));
     }
     
     if (kdotoolAvailable) {
         QProcess::startDetached(QStringLiteral("kdotool"),
-                                {QStringLiteral("windowclose"), packedWin});
+                                {QStringLiteral("windowclose"), QString::number(wid)});
         return true;
     }
     return false;

@@ -84,9 +84,7 @@ void TaskBackend::enrichLauncherProgressEntry(QVariantMap &entry) const
         return;
     }
 
-    if (m_browserDownloadWatcher) {
-        m_browserDownloadWatcher->refreshActiveDownloadScan();
-    }
+
 
     QString filePath = entry.value(QStringLiteral("progressFilePathHint")).toString().trimmed();
     QString fileName = entry.value(QStringLiteral("progressFileNameHint")).toString().trimmed();
@@ -132,7 +130,7 @@ void TaskBackend::setDownloadProgressDisplayMode(int mode)
 void TaskBackend::setupUnityLauncherProgressWatcher()
 {
     m_unityLauncher = new DockUnityLauncherService(this);
-    m_unityLauncher->setDesktopMaps(&m_desktopBasenameToCmd, &m_desktopEntryToCmd);
+
     connect(m_unityLauncher,
             &DockUnityLauncherService::launcherUpdateReceived,
             this,
@@ -443,9 +441,11 @@ QString TaskBackend::commandForUnityAppUri(const QString &appUri) const
     const QString refLower = desktopRef.toLower();
     if (refLower.contains(QLatin1String("zen")) || refLower.contains(QLatin1String("mozilla"))
         || refLower.contains(QLatin1String("firefox"))) {
-        for (auto it = m_execBasenameToCmd.constBegin(); it != m_execBasenameToCmd.constEnd(); ++it) {
-            if (it.key().contains(QLatin1String("zen")) || it.key().contains(QLatin1String("firefox"))) {
-                return it.value();
+        QStringList keys = m_execBasenameToCmd.keys();
+        std::sort(keys.begin(), keys.end());
+        for (const QString &key : std::as_const(keys)) {
+            if (key.contains(QLatin1String("zen")) || key.contains(QLatin1String("firefox"))) {
+                return m_execBasenameToCmd.value(key);
             }
         }
     }

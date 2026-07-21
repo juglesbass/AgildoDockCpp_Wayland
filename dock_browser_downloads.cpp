@@ -1,6 +1,9 @@
 #include "dock_browser_downloads.h"
 #include "dock_browser_utils.h"
 
+#include <chrono>
+#include <QtConcurrent>
+#include <QFutureWatcher>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -15,6 +18,7 @@
 #include <QTemporaryFile>
 #include <QTimer>
 #include <QDateTime>
+#include <QThread>
 
 namespace {
 
@@ -27,7 +31,7 @@ QString normalizedFinalPath(QString path)
 {
     path = path.trimmed();
     if (path.endsWith(QStringLiteral(".crdownload"), Qt::CaseInsensitive)) {
-        path.chop(12);
+        path.chop(11);
     }
     if (path.endsWith(QStringLiteral(".part"), Qt::CaseInsensitive)) {
         path.chop(5);
@@ -45,12 +49,17 @@ QString downloadTargetPath(const QJsonObject &item)
     return normalizedFinalPath(target.value(QStringLiteral("partFilePath")).toString());
 }
 
+} // namespace
+
 struct DownloadScanBest {
     bool active = false;
     double progress = 0.0;
     QString filePath;
     QString fileName;
+    qint64 newHistoryScanMs = -1;
 };
+
+namespace {
 
 bool pathHasActivePartial(const QString &finalPath)
 {
@@ -177,14 +186,7 @@ bool copySqliteHistorySnapshot(const QString &historyPath, const QString &tempPa
     return true;
 }
 
-QSqlDatabase chromiumDownloadsDatabase()
-{
-    static const QString connectionName = QStringLiteral("agildodock_chromium_downloads");
-    if (!QSqlDatabase::contains(connectionName)) {
-        QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName);
-    }
-    return QSqlDatabase::database(connectionName);
-}
+
 
 void ingestChromiumHistoryQuery(QSqlDatabase &db, DownloadScanBest &best)
 {
@@ -258,11 +260,9 @@ bool queryChromiumHistorySnapshot(const QString &historyPath, DownloadScanBest &
     }
 
     bool opened = false;
+    const QString connName = QStringLiteral("agildodock_chromium_downloads_") + QString::number(reinterpret_cast<quintptr>(QThread::currentThreadId()));
     {
-        QSqlDatabase db = chromiumDownloadsDatabase();
-        if (db.isOpen()) {
-            db.close();
-        }
+        QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connName);
         db.setDatabaseName(tempPath);
         if (db.open()) {
             opened = true;
@@ -270,6 +270,7 @@ bool queryChromiumHistorySnapshot(const QString &historyPath, DownloadScanBest &
             db.close();
         }
     }
+    QSqlDatabase::removeDatabase(connName);
 
     if (!opened) {
         chromiumHistoryFailUntil(historyPath) = nowMs + 5000;
@@ -326,7 +327,9 @@ QStringList downloadDirectoriesToScan()
     return dirs;
 }
 
-DownloadScanBest scanAllActiveDownloads(qint64 &lastChromiumHistoryScanMs)
+} // namespace
+
+DownloadScanBest scanAllActiveDownloads(qint64 lastChromiumHistoryScanMs)
 {
     DownloadScanBest best;
 
@@ -342,7 +345,7 @@ DownloadScanBest scanAllActiveDownloads(qint64 &lastChromiumHistoryScanMs)
         || !pathHasActivePartial(best.filePath);
     const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
     if (needsHistoryScan && (nowMs - lastChromiumHistoryScanMs) >= 400) {
-        lastChromiumHistoryScanMs = nowMs;
+        best.newHistoryScanMs = nowMs;
         for (const QString &root : DockBrowserUtils::chromiumConfigRoots()) {
             scanChromiumProfiles(root, best);
         }
@@ -351,13 +354,50 @@ DownloadScanBest scanAllActiveDownloads(qint64 &lastChromiumHistoryScanMs)
     return best;
 }
 
-} // namespace
-
 DockBrowserDownloadWatcher::DockBrowserDownloadWatcher(QObject *parent)
     : QObject(parent)
 {
     setupDownloadDirectoryWatcher();
     setupChromiumHistoryWatcher();
+
+    m_scanWatcher = new QFutureWatcher<DownloadScanBest>(this);
+    connect(m_scanWatcher, &QFutureWatcher<DownloadScanBest>::finished, this, [this]() {
+        const DownloadScanBest best = m_scanWatcher->result();
+        
+        if (best.newHistoryScanMs > 0) {
+            m_lastChromiumHistoryScanMs = best.newHistoryScanMs;
+        }
+
+        const QString previousPath = m_activeFilePath;
+        const QString previousName = m_activeFileName;
+        
+        m_activeFilePath = best.active ? best.filePath : QString();
+        m_activeFileName = best.active ? best.fileName : QString();
+        m_activeProgress = best.active ? best.progress : 0.0;
+        
+        if (m_activeFilePath != previousPath || m_activeFileName != previousName) {
+            emit activeDownloadMetadataChanged();
+        }
+
+        if (m_browserCommand.isEmpty()) {
+            return;
+        }
+
+        const bool anyActive = !m_activeFilePath.isEmpty();
+        if (!anyActive && !m_lastEmittedVisible) {
+            return;
+        }
+        if (anyActive == m_lastEmittedVisible
+            && qAbs(m_activeProgress - m_lastEmittedProgress) < 0.002
+            && m_activeFilePath == m_lastEmittedFilePath) {
+            return;
+        }
+
+        m_lastEmittedProgress = m_activeProgress;
+        m_lastEmittedVisible = anyActive;
+        m_lastEmittedFilePath = m_activeFilePath;
+        emit browserDownloadProgress(m_browserCommand, m_activeProgress, anyActive, m_activeFilePath, m_activeFileName);
+    });
 
     m_pollTimer = new QTimer(this);
     m_pollTimer->setInterval(250);
@@ -424,12 +464,6 @@ void DockBrowserDownloadWatcher::onDownloadSourcesChanged()
 void DockBrowserDownloadWatcher::applyDownloadSourcesRefresh()
 {
     m_lastChromiumHistoryScanMs = 0;
-    const QString previousPath = m_activeFilePath;
-    const QString previousName = m_activeFileName;
-    refreshActiveDownloadScan();
-    if (m_activeFilePath != previousPath || m_activeFileName != previousName) {
-        emit activeDownloadMetadataChanged();
-    }
     pollActiveDownloads();
 }
 
@@ -451,41 +485,13 @@ void DockBrowserDownloadWatcher::resetLastEmittedState()
 
 void DockBrowserDownloadWatcher::refreshActiveDownloadScan()
 {
-    const DownloadScanBest best = scanAllActiveDownloads(m_lastChromiumHistoryScanMs);
-    m_activeFilePath = best.active ? best.filePath : QString();
-    m_activeFileName = best.active ? best.fileName : QString();
-    m_activeProgress = best.active ? best.progress : 0.0;
+    if (m_scanWatcher->isRunning()) {
+        return;
+    }
+    m_scanWatcher->setFuture(QtConcurrent::run(scanAllActiveDownloads, m_lastChromiumHistoryScanMs));
 }
 
 void DockBrowserDownloadWatcher::pollActiveDownloads()
 {
-    const QString previousPath = m_activeFilePath;
-    const QString previousName = m_activeFileName;
     refreshActiveDownloadScan();
-    if (m_activeFilePath != previousPath || m_activeFileName != previousName) {
-        emit activeDownloadMetadataChanged();
-    }
-
-    if (m_browserCommand.isEmpty()) {
-        return;
-    }
-
-    const bool anyActive = !m_activeFilePath.isEmpty();
-    if (!anyActive && !m_lastEmittedVisible) {
-        return;
-    }
-    if (anyActive == m_lastEmittedVisible
-        && qAbs(m_activeProgress - m_lastEmittedProgress) < 0.002
-        && m_activeFilePath == m_lastEmittedFilePath) {
-        return;
-    }
-
-    m_lastEmittedVisible = anyActive;
-    m_lastEmittedProgress = m_activeProgress;
-    m_lastEmittedFilePath = m_activeFilePath;
-    emit browserDownloadProgress(m_browserCommand,
-                                 m_activeProgress,
-                                 anyActive,
-                                 m_activeFilePath,
-                                 m_activeFileName);
 }

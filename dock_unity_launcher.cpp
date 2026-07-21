@@ -5,6 +5,7 @@
 #include <QDBusInterface>
 #include <QDBusReply>
 #include <QXmlStreamReader>
+#include <QtConcurrent>
 
 DockUnityLauncherService::DockUnityLauncherService(QObject *parent)
     : QObject(parent)
@@ -15,21 +16,12 @@ DockUnityLauncherService::DockUnityLauncherService(QObject *parent)
     if (QDBusConnectionInterface *bus = QDBusConnection::sessionBus().interface()) {
         connect(bus, &QDBusConnectionInterface::serviceRegistered, this, [this](const QString &service) {
             if (!service.startsWith(QLatin1Char(':'))) {
-                scanServiceForLauncherEntries(service);
+                (void)QtConcurrent::run(&DockUnityLauncherService::scanServiceForLauncherEntries, this, service);
             }
         });
     }
 
     rescanExistingLauncherEntries();
-}
-
-void DockUnityLauncherService::setDesktopMaps(const QHash<QString, QString> *basenameToCmd,
-                                              const QHash<QString, QString> *entryToCmd)
-{
-    m_basenameToCmd = basenameToCmd;
-    m_entryToCmd = entryToCmd;
-    Q_UNUSED(m_basenameToCmd)
-    Q_UNUSED(m_entryToCmd)
 }
 
 void DockUnityLauncherService::registerUnityService()
@@ -143,7 +135,7 @@ void DockUnityLauncherService::rescanExistingLauncherEntries()
         if (service.startsWith(QLatin1Char(':'))) {
             continue;
         }
-        scanServiceForLauncherEntries(service);
+        (void)QtConcurrent::run(&DockUnityLauncherService::scanServiceForLauncherEntries, this, service);
     }
 }
 
