@@ -112,7 +112,6 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("taskBackend", taskBackend);
 
     // Atalhos globais (KGlobalAccel) — independentes do foco na doca.
-    DockGlobalShortcuts *globalShortcuts = nullptr;
 
     // Com QTP0001 o QML fica em :/qt/qml/<URI>/ (não :/AgildoDock/). main.qml não é tipo no qmldir — carregar por URL.
     const QUrl url(QStringLiteral("qrc:/qt/qml/AgildoDock/main.qml"));
@@ -149,7 +148,7 @@ int main(int argc, char *argv[]) {
     }
 
     QObject *rootObject = engine.rootObjects().first();
-    globalShortcuts = new DockGlobalShortcuts(rootObject, &app);
+    auto *globalShortcuts = new DockGlobalShortcuts(rootObject, &app);
     engine.rootContext()->setContextProperty("globalShortcuts", globalShortcuts);
     QMetaObject::invokeMethod(rootObject, "applyLayerShellFromSettings", Qt::DirectConnection);
     QMetaObject::invokeMethod(rootObject, "updateZone", Qt::DirectConnection);

@@ -129,9 +129,7 @@ Rectangle {
     }
 
     function flushCollapseBlur() {
-        resetBlurCache()
-        updateBlurNative(true)
-        Qt.callLater(function() { dockBg.updateBlurNative(true) })
+        syncBlurAfterStyleChange()
     }
 
     Connections {
@@ -304,19 +302,7 @@ Rectangle {
         opacity: dockRoot.liveBgOpacity
     }
 
-    Rectangle {
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.topMargin: 1
-        anchors.leftMargin: 15
-        anchors.rightMargin: 15
-        height: 1
-        color: dockRoot.themeColors.dockTopLine
-        visible: false // Desativado para evitar engrossamento da borda superior (border + topline)
-        radius: parent.radius
-        antialiasing: true
-    }
+
 
     MouseArea {
         anchors.fill: parent

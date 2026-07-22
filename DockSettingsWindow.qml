@@ -224,11 +224,7 @@ Window {
         settingsWin.close()
     }
 
-    function ajustarAlturaAoConteudo() {
-        // Mantém janela redimensionável sem “encolher” quando conteúdo muda.
-        settingsWin.height = Math.max(settingsWin.minimumHeight,
-                                      Math.min(settingsWin.maximumHeight, settingsWin.height))
-    }
+
 
     function adicionarWidgetPreset(preset) {
         let widgets = []

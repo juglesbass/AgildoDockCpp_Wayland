@@ -22,6 +22,7 @@
 #include <QStringList>
 #include <QTextStream>
 #include <QTimer>
+#include <QPointer>
 #include <QUrl>
 #include <QXmlStreamReader>
 #include <QtConcurrent/QtConcurrentRun>
@@ -360,10 +361,6 @@ QString TaskBackend::readProcCmdlineFile(const QString &path)
     return QString::fromUtf8(raw).toLower().trimmed();
 }
 
-QString TaskBackend::execBasenameFromCommand(const QString &command)
-{
-    return DockBrowserUtils::execBasenameFromCommand(command);
-}
 
 TaskBackend::TaskBackend(QObject *parent)
 : QObject(parent)
@@ -646,43 +643,6 @@ void TaskBackend::applyLayerShellEdge(int edge)
     m_mainWindow->requestUpdate();
 }
 
-// CORREÇÃO: Função assíncrona para não travar a interface da doca
-void TaskBackend::updateActiveWindowCoversWorkAreaHint()
-{
-    if (!m_kdotoolAvailable || !m_mainWindow || !m_mainWindow->screen()) {
-        return;
-    }
-
-    auto *pg = new QProcess(this);
-    connect(pg, &QProcess::errorOccurred, pg, &QProcess::deleteLater);
-    connect(pg, &QProcess::finished, this, [this, pg]() {
-        const QString geo = QString::fromUtf8(pg->readAllStandardOutput());
-        pg->deleteLater();
-
-        const QSize windowSize = parseWindowGeometryFromKdotool(geo);
-        const QRect sg = m_mainWindow->screen()->geometry();
-
-        bool covers = false;
-        if (windowSize.isValid() && sg.width() > 0 && sg.height() > 0) {
-            covers = (windowSize.width()  >= int(sg.width()  * 0.88) &&
-            windowSize.height() >= int(sg.height() * 0.82));
-        }
-
-        if (covers != m_activeWindowCoversWorkArea) {
-            m_activeWindowCoversWorkArea = covers;
-            emit activeWindowCoversWorkAreaChanged();
-        }
-    });
-
-    QTimer::singleShot(kKdotoolGeometryKillMs, pg, [pg]() {
-        if (pg && pg->state() == QProcess::Running) {
-            pg->kill();
-        }
-    });
-
-    pg->start(QStringLiteral("kdotool"), {QStringLiteral("getactivewindow"), QStringLiteral("getwindowgeometry")});
-}
-
 void TaskBackend::pollActiveForegroundHints()
 {
     QString clsNative;
@@ -719,11 +679,8 @@ void TaskBackend::pollActiveForegroundHints()
                     QSize windowSize(geomParts[0].toInt(), geomParts[1].toInt());
                     if (m_mainWindow && m_mainWindow->screen()) {
                         const QRect sg = m_mainWindow->screen()->geometry();
-                        bool covers = false;
-                        if (windowSize.isValid() && sg.width() > 0 && sg.height() > 0) {
-                            covers = (windowSize.width()  >= int(sg.width()  * 0.88) &&
-                                      windowSize.height() >= int(sg.height() * 0.82));
-                        }
+                        const bool covers = DockWindowManagement::activeWindowProbablyCoversWorkArea(
+                            windowSize, QSize(sg.width(), sg.height()));
                         if (covers != m_activeWindowCoversWorkArea) {
                             m_activeWindowCoversWorkArea = covers;
                             emit activeWindowCoversWorkAreaChanged();
@@ -758,11 +715,8 @@ void TaskBackend::pollActiveForegroundHints()
                     const QSize windowSize = parseWindowGeometryFromKdotool(out);
                     if (m_mainWindow && m_mainWindow->screen()) {
                         const QRect sg = m_mainWindow->screen()->geometry();
-                        bool covers = false;
-                        if (windowSize.isValid() && sg.width() > 0 && sg.height() > 0) {
-                            covers = (windowSize.width()  >= int(sg.width()  * 0.88) &&
-                                      windowSize.height() >= int(sg.height() * 0.82));
-                        }
+                        const bool covers = DockWindowManagement::activeWindowProbablyCoversWorkArea(
+                            windowSize, QSize(sg.width(), sg.height()));
                         if (covers != m_activeWindowCoversWorkArea) {
                             m_activeWindowCoversWorkArea = covers;
                             emit activeWindowCoversWorkAreaChanged();
@@ -773,9 +727,9 @@ void TaskBackend::pollActiveForegroundHints()
                 emitWindowsUpdatedCoalesced();
             });
 
-    QTimer::singleShot(kKdotoolActiveWindowKillMs, p, [p]() {
-        if (p && p->state() == QProcess::Running) {
-            p->kill();
+    QTimer::singleShot(kKdotoolActiveWindowKillMs, p, [guard = QPointer<QProcess>(p)]() {
+        if (guard && guard->state() == QProcess::Running) {
+            guard->kill();
         }
     });
 
@@ -1033,7 +987,7 @@ void TaskBackend::rebuildExecIndex()
     for (auto it = knownApps.constBegin(); it != knownApps.constEnd(); ++it) {
         const QString cmd = it.key();
         const QVariantMap &app = it.value();
-        const QString appExec = execBasenameFromCommand(cmd);
+        const QString appExec = DockBrowserUtils::execBasenameFromCommand(cmd);
         if (!appExec.isEmpty()) {
             m_appsByExec.insert(appExec, app);
             if (!m_execBasenameToCmd.contains(appExec)) {
@@ -1271,7 +1225,7 @@ void TaskBackend::completeLaunchApp(const QString &command, const QString &winTo
             emitWindowsUpdatedCoalesced();
         } else {
             QProcess::startDetached(QStringLiteral("kdotool"), {QStringLiteral("windowactivate"), winToken});
-            m_activeAppClass = execBasenameFromCommand(command);
+            m_activeAppClass = DockBrowserUtils::execBasenameFromCommand(command);
             emitWindowsUpdatedCoalesced();
         }
     } else {
@@ -1774,7 +1728,7 @@ void TaskBackend::refreshNotificationBadgesFromSni()
                 const QString wm = app.value(QStringLiteral("wmclass")).toString().toLower();
                 const QString name = app.value(QStringLiteral("name")).toString().toLower();
                 if ((!desktopId.isEmpty() && (cmd.toLower().contains(desktopId) || wm.contains(desktopId)
-                                              || desktopId.contains(execBasenameFromCommand(cmd))))
+                                              || desktopId.contains(DockBrowserUtils::execBasenameFromCommand(cmd))))
                     || (!name.isEmpty() && title.toLower().contains(name))) {
                     nextBadges.insert(cmd, badge);
                     break;

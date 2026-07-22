@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(agildodock VERSION 1.3.13 LANGUAGES CXX C)
+project(agildodock VERSION 1.3.14 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -8,6 +8,9 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+# Oculta o aviso de ligação do módulo privado do Qt (necessário pelo Wayland/KWin)
+set(QT_NO_PRIVATE_MODULE_WARNING ON)
+
 find_package(Qt6 REQUIRED COMPONENTS Core Gui GuiPrivate Qml Quick WaylandClient Concurrent DBus Sql LinguistTools Test)
 qt_policy(SET QTP0001 NEW)
 find_package(KF6WindowSystem REQUIRED)
@@ -15,7 +18,6 @@ find_package(KF6GlobalAccel REQUIRED)
 find_package(KF6Kirigami REQUIRED)
 find_package(LayerShellQt REQUIRED)
 find_package(Wayland REQUIRED Client)
-find_package(WaylandScanner REQUIRED)
 
 set(WAYLAND_PROTOCOLS
     "/usr/share/plasma-wayland-protocols/plasma-window-management.xml"

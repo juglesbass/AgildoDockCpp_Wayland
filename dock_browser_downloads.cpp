@@ -19,6 +19,7 @@
 #include <QTimer>
 #include <QDateTime>
 #include <QThread>
+#include <QMutex>
 
 namespace {
 
@@ -232,10 +233,20 @@ bool isChromiumProfileDirectory(const QDir &browserRoot, const QString &profileN
         && QFile::exists(browserRoot.filePath(profileName + QStringLiteral("/Preferences")));
 }
 
-qint64 &chromiumHistoryFailUntil(const QString &historyPath)
+qint64 chromiumHistoryFailUntil(const QString &historyPath)
 {
+    static QMutex mutex;
     static QHash<QString, qint64> cache;
-    return cache[historyPath];
+    QMutexLocker locker(&mutex);
+    return cache.value(historyPath, 0);
+}
+
+void setChromiumHistoryFailUntil(const QString &historyPath, qint64 value)
+{
+    static QMutex mutex;
+    static QHash<QString, qint64> cache;
+    QMutexLocker locker(&mutex);
+    cache[historyPath] = value;
 }
 
 bool queryChromiumHistorySnapshot(const QString &historyPath, DownloadScanBest &best)
@@ -248,14 +259,14 @@ bool queryChromiumHistorySnapshot(const QString &historyPath, DownloadScanBest &
     QTemporaryFile tempHistory;
     tempHistory.setAutoRemove(true);
     if (!tempHistory.open()) {
-        chromiumHistoryFailUntil(historyPath) = nowMs + 5000;
+        setChromiumHistoryFailUntil(historyPath, nowMs + 5000);
         return false;
     }
     const QString tempPath = tempHistory.fileName();
     tempHistory.close();
 
     if (!copySqliteHistorySnapshot(historyPath, tempPath)) {
-        chromiumHistoryFailUntil(historyPath) = nowMs + 5000;
+        setChromiumHistoryFailUntil(historyPath, nowMs + 5000);
         return false;
     }
 
@@ -273,10 +284,10 @@ bool queryChromiumHistorySnapshot(const QString &historyPath, DownloadScanBest &
     QSqlDatabase::removeDatabase(connName);
 
     if (!opened) {
-        chromiumHistoryFailUntil(historyPath) = nowMs + 5000;
+        setChromiumHistoryFailUntil(historyPath, nowMs + 5000);
         return false;
     }
-    chromiumHistoryFailUntil(historyPath) = 0;
+    setChromiumHistoryFailUntil(historyPath, 0);
     return true;
 }
 

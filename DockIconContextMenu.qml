@@ -117,6 +117,19 @@ Window {
         scheduleRecentSubmenuClose()
     }
 
+    // Garante que targetX/targetY ficam dentro dos limites do ecrã.
+    function clampToScreen(sc, targetX, targetY, w, h) {
+        if (!sc) return { x: targetX, y: targetY }
+        var minX = sc.virtualX + 4
+        var maxX = sc.virtualX + sc.width - w - 4
+        var minY = sc.virtualY + 4
+        var maxY = sc.virtualY + sc.height - h - 4
+        return {
+            x: Math.max(minX, Math.min(targetX, maxX)),
+            y: Math.max(minY, Math.min(targetY, maxY))
+        }
+    }
+
     function repositionRecentSubmenu() {
         if (!recentSubmenuAnchor || !recentSubmenuOpen) {
             return
@@ -129,18 +142,12 @@ Window {
         var targetY = Math.round(gRow.y - menuShadowPad)
 
         var sc = recentSubmenuWin.screen || menuWin.screen
-        if (sc) {
-            var minX = sc.virtualX + 4
-            var maxX = sc.virtualX + sc.width - subW - 4
-            var minY = sc.virtualY + 4
-            var maxY = sc.virtualY + sc.height - subH - 4
-            // Se não couber à direita, abre à esquerda do menu principal
-            if (targetX + subW > sc.virtualX + sc.width - 4) {
-                targetX = Math.round(menuWin.x - subW - gap)
-            }
-            targetX = Math.max(minX, Math.min(targetX, maxX))
-            targetY = Math.max(minY, Math.min(targetY, maxY))
+        if (sc && targetX + subW > sc.virtualX + sc.width - 4) {
+            targetX = Math.round(menuWin.x - subW - gap)
         }
+        var clamped = clampToScreen(sc, targetX, targetY, subW, subH)
+        targetX = clamped.x
+        targetY = clamped.y
 
         recentSubmenuWin.x = targetX
         recentSubmenuWin.y = targetY
@@ -271,18 +278,10 @@ Window {
             targetY = Math.round(gT.y - menuH - menuFloatGap)
         }
 
-        var sc = menuWin.screen
-        if (sc) {
-            var minX = sc.virtualX + 4
-            var maxX = sc.virtualX + sc.width - menuW - 4
-            var minY = sc.virtualY + 4
-            var maxY = sc.virtualY + sc.height - menuH - 4
-            targetX = Math.max(minX, Math.min(targetX, maxX))
-            targetY = Math.max(minY, Math.min(targetY, maxY))
-        }
+        var clamped = clampToScreen(menuWin.screen, targetX, targetY, menuW, menuH)
 
-        menuWin.x = targetX
-        menuWin.y = targetY
+        menuWin.x = clamped.x
+        menuWin.y = clamped.y
     }
 
     function repositionForSurface() {
@@ -315,18 +314,10 @@ Window {
             targetY = Math.round(gT.y - menuH - menuFloatGap)
         }
 
-        var sc = menuWin.screen
-        if (sc) {
-            var minX = sc.virtualX + 4
-            var maxX = sc.virtualX + sc.width - menuW - 4
-            var minY = sc.virtualY + 4
-            var maxY = sc.virtualY + sc.height - menuH - 4
-            targetX = Math.max(minX, Math.min(targetX, maxX))
-            targetY = Math.max(minY, Math.min(targetY, maxY))
-        }
+        var clamped = clampToScreen(menuWin.screen, targetX, targetY, menuW, menuH)
 
-        menuWin.x = targetX
-        menuWin.y = targetY
+        menuWin.x = clamped.x
+        menuWin.y = clamped.y
     }
 
     Timer {

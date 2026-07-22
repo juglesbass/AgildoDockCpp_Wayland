@@ -22,3 +22,8 @@ packaging/aur/src/
 *~
 *.swp
 *.user
+*.old
+
+# Ficheiros de teste e scripts de refactoring descartáveis
+test[0-9]*
+fix_*.py

@@ -122,9 +122,7 @@ private:
     bool lactHasVisibleWindow(const QString &command) const;
 
     static QString readProcCmdlineFile(const QString &path);
-    static QString execBasenameFromCommand(const QString &command);
 
-    void updateActiveWindowCoversWorkAreaHint();
     void emitWindowsUpdatedCoalesced();
     void setupNotificationBadgeWatcher();
     void refreshNotificationBadgesFromSni();

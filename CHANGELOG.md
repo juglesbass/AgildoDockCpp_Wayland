@@ -2,6 +2,48 @@
 
 Todas as alterações notáveis deste projeto são documentadas neste ficheiro.
 
+## [1.3.14] — 2026-07-22
+
+### Corrigido
+- **Data race** em `knownApps` (`taskbackend.cpp`): acesso concorrente protegido com `QReadWriteLock`.
+- **Data race** em `chromiumHistoryFailUntil` (`dock_browser_downloads.cpp`): hash estático protegido com `QMutex`.
+- **Use-after-free** nos timers de kill do `kdotool` (`taskbackend.cpp`): ponteiros brutos substituídos por `QPointer<QProcess>`.
+- Eliminado aviso do CMake sobre módulo privado do Qt (`QT_NO_PRIVATE_MODULE_WARNING`).
+
+### Removido
+- Código morto: `updateActiveWindowCoversWorkAreaHint()`, `execBasenameFromCommand()`, `combinedWmLower()`, `stackingWindowBelongsToCommand()`, `activeDownloadProgress()`.
+- Propriedades QML obsoletas: `dockAppearanceModel`, rectângulo desativado no blur, `ajustarAlturaAoConteudo()`.
+- Ficheiros desnecessários da raiz do projeto (`test9*`, `fix_*.py`, `.SRCINFO`).
+
+### Alterado
+- `.gitignore` atualizado para cobrir ficheiros de teste e scripts antigos.
+- Documentação atualizada para v1.3.14 (`CHANGELOG`, `README`, `README_PT`).
+
+## [1.3.13] — 2026-07-21
+
+### Alterado
+- Bump de versão para resolver conflitos de tag no Git/AUR.
+
+## [1.3.12] — 2026-07-21
+
+### Alterado
+- Refactors Sonnet 5: melhorias de performance com `QtConcurrent` e limpeza de gestão de janelas.
+
+## [1.3.11] — 2026-07-20
+
+### Adicionado
+- Animação de minimizar nativa no Wayland via `org_kde_plasma_window_management`.
+- `KWinDBusHelper`: fallback D-Bus para gestão de janelas quando `kdotool` não está disponível.
+- `X-KDE-Wayland-Interfaces=org_kde_plasma_window_management` no ficheiro `.desktop` para autorização KDE Plasma 6.
+
+### Corrigido
+- Headers e dependências faltantes do `kwin_dbus_helper`.
+
+## [1.3.7–1.3.10] — 2026-07-18 a 2026-07-20
+
+### Adicionado
+- Melhorias incrementais na integração Wayland e estabilidade geral.
+
 ## [1.3.6] — 2026-07-18
 
 ### Corrigido

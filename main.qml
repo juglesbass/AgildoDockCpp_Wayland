@@ -171,21 +171,7 @@ Window {
     readonly property color accentIdle: accentColors.idle
     readonly property color accentFocus: accentColors.focus
 
-    QtObject {
-        id: dockAppearanceModel
-        property real scaleFactor: root.liveScaleFactor
-        property real iconSpacing: root.liveIconSpacing
-        property real dockMargin: root.liveDockMargin
-        property real bgOpacity: root.liveBgOpacity
-        property real minIconSize: root.liveMinIconSize
-        property real maxIconSize: root.liveMaxIconSize
-        property int themeMode: root.liveThemeMode
-        property int accentMode: root.liveAccentMode
-        property real waveIntensity: root.liveWaveIntensity
-        property real dockRadius: root.liveDockRadius
-        property int indicatorStyle: root.liveIndicatorStyle
-        property bool monochromeIcons: root.liveMonochromeIcons
-    }
+
 
     function animationDuration(baseMs) {
         if (liveAnimationProfile === 3) return 0

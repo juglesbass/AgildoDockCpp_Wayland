@@ -39,6 +39,23 @@ Item {
         && !downloadCompleteFlash
     property bool downloadCompleteFlash: false
 
+    function buildContextPayload() {
+        return {
+            cmd: model.cmd,
+            name: model.name,
+            icon: model.icon,
+            logicalCenter: delegateRoot.myLogicalCenter,
+            isLauncher: isLauncherItem,
+            isSeparator: false,
+            isSystem: isSystemItem,
+            isDynamic: isDynamicItem,
+            isRunning: delegateRoot.isRunning,
+            isFocused: delegateRoot.isFocused,
+            itemIndex: delegateRoot.itemIndex,
+            delegate: delegateRoot
+        }
+    }
+
     function syncDownloadProgress() {
         if (!model.cmd) {
             if (downloadProgressVisible)
@@ -796,20 +813,7 @@ Item {
                 return
             }
             if (mouse.button === Qt.RightButton) {
-                dock.showIconContextMenu(appIcon, {
-                    cmd: model.cmd,
-                    name: model.name,
-                    icon: model.icon,
-                    logicalCenter: delegateRoot.myLogicalCenter,
-                    isLauncher: isLauncherItem,
-                    isSeparator: false,
-                    isSystem: isSystemItem,
-                    isDynamic: isDynamicItem,
-                    isRunning: delegateRoot.isRunning,
-                    isFocused: delegateRoot.isFocused,
-                    itemIndex: delegateRoot.itemIndex,
-                    delegate: delegateRoot
-                })
+                dock.showIconContextMenu(appIcon, buildContextPayload())
                 return
             }
             if (mouse.button === Qt.MiddleButton) {
@@ -833,20 +837,7 @@ Item {
             }
             const leftAct = dock.effectiveLeftClickAction(model.cmd)
             if (leftAct === 1) {
-                dock.showIconContextMenu(appIcon, {
-                    cmd: model.cmd,
-                    name: model.name,
-                    icon: model.icon,
-                    logicalCenter: delegateRoot.myLogicalCenter,
-                    isLauncher: isLauncherItem,
-                    isSeparator: false,
-                    isSystem: isSystemItem,
-                    isDynamic: isDynamicItem,
-                    isRunning: delegateRoot.isRunning,
-                    isFocused: delegateRoot.isFocused,
-                    itemIndex: delegateRoot.itemIndex,
-                    delegate: delegateRoot
-                })
+                dock.showIconContextMenu(appIcon, buildContextPayload())
                 return
             }
             if (leftAct === 2) {
