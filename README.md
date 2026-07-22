@@ -2,7 +2,7 @@
 
 Doca de aplicações para **Plasma (KDE) em Wayland**, com Layer Shell, blur KWin, efeito de onda e integração com janelas: **preferencialmente «kdotool»** no Plasma/Wayland, ou **KX11Extras/KWindowInfo** quando a sessão Qt corre em **X11**.
 
-Versão actual: **1.3.6** (ver `CHANGELOG.md`).
+Versão actual: **1.3.14** (ver `CHANGELOG.md`).
 
 ## Requisitos
 
@@ -54,9 +54,9 @@ sudo gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true
 ### Pacote Arch / CachyOS
 
 ```bash
-./packaging/make_dist.sh 1.3.6
+./packaging/make_dist.sh 1.3.14
 cd packaging
-mv ../agildodock-1.3.6.tar.gz .
+mv ../agildodock-1.3.14.tar.gz .
 updpkgsums
 makepkg -sic
 ```
