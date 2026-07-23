@@ -118,7 +118,7 @@ Rectangle {
 
     Timer {
         id: edgeSettleTimer
-        interval: 80
+        interval: 200
         repeat: false
         onTriggered: {
             dockBg.resetBlurCache()
@@ -186,6 +186,8 @@ Rectangle {
     }
 
     function requestBlurUpdate() {
+        if (edgeSettleTimer.running)
+            return
         if (waveBlurAnimating)
             return
         if (!blurThrottleTimer.running)
@@ -193,6 +195,9 @@ Rectangle {
     }
 
     function updateBlurNative(immediate) {
+        if (edgeSettleTimer.running)
+            return
+
         if (immediate === undefined)
             immediate = false
 
@@ -222,13 +227,13 @@ Rectangle {
     onXChanged: requestBlurUpdate()
     onYChanged: requestBlurUpdate()
     onWidthChanged: {
-        if (waveBlurAnimating)
+        if (waveBlurAnimating && !edgeSettleTimer.running)
             updateBlurNative(true)
         else
             requestBlurUpdate()
     }
     onHeightChanged: {
-        if (waveBlurAnimating)
+        if (waveBlurAnimating && !edgeSettleTimer.running)
             updateBlurNative(true)
         else
             requestBlurUpdate()
