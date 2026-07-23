@@ -576,8 +576,8 @@ Window {
     property int totalItemsCount: launcherModel.count + appModel.count + dynamicModel.count + systemModel.count
     property real baseRowWidth: (totalItemsCount * baseItemWidth) + (Math.max(0, totalItemsCount - 1) * baseSpacing) + dividersWidth
 
-    property real smoothedWaveRowWidth: baseRowWidth
-    onBaseRowWidthChanged: smoothedWaveRowWidth = baseRowWidth
+    readonly property alias mainRowRef: mainRow
+    readonly property alias mainColumnRef: mainColumn
 
     readonly property real wavePeakDeltaPx: Math.max(0, root.liveMaxIconSize - root.liveMinIconSize)
     property real maxIconsExpansion: root.wavePeakDeltaPx * 7.0 * root.liveScaleFactor * root.liveWaveIntensity
