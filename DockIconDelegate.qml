@@ -235,8 +235,8 @@ Item {
         return v
     }
 
-    width: isValid ? (targetIconSize + (15 * dock.liveScaleFactor)) : 0
-    height: isValid ? (dock.dockBarHeightPx * dock.liveScaleFactor) : 0
+    width: isValid ? (dock.dockLayoutVertical ? Math.round(dock.dockBarHeightPx * dock.liveScaleFactor) : (targetIconSize + Math.round(15 * dock.liveScaleFactor))) : 0
+    height: isValid ? (dock.dockLayoutVertical ? (targetIconSize + Math.round(15 * dock.liveScaleFactor)) : Math.round(dock.dockBarHeightPx * dock.liveScaleFactor)) : 0
     z: reorderDragging ? 5000 : 0
 
     Connections {
@@ -452,10 +452,16 @@ Item {
             smooth: true
             antialiasing: true
             color: dock.liveMonochromeIcons ? (delegateRoot.isFocused ? dock.accentFocus : dock.themeTextPrimary) : "transparent"
-            transformOrigin: Item.Bottom
-            x: Math.round((parent.width - maxVisualSize) / 2)
-            anchors.bottom: parent.bottom
-            anchors.bottomMargin: 10 * dock.liveScaleFactor
+            transformOrigin: dock.liveDockEdge === 1 ? Item.Top
+                             : dock.liveDockEdge === 2 ? Item.Left
+                             : dock.liveDockEdge === 3 ? Item.Right
+                             : Item.Bottom
+            x: dock.dockLayoutVertical
+               ? (dock.liveDockEdge === 2 ? Math.round(10 * dock.liveScaleFactor) : Math.round(parent.width - maxVisualSize - 10 * dock.liveScaleFactor))
+               : Math.round((parent.width - maxVisualSize) / 2)
+            y: dock.dockLayoutVertical
+               ? Math.round((parent.height - maxVisualSize) / 2)
+               : (dock.liveDockEdge === 1 ? Math.round(10 * dock.liveScaleFactor) : Math.round(parent.height - maxVisualSize - 10 * dock.liveScaleFactor))
 
             // Sombra suave ao arrastar (efeito “levitar”).
             Rectangle {
@@ -535,11 +541,24 @@ Item {
 
         Rectangle {
             id: activeIndicator
-            x: Math.round((parent.width - width) / 2)
-            anchors.bottom: parent.bottom
-            anchors.bottomMargin: 2 * dock.liveScaleFactor
+            anchors.bottom: dock.liveDockEdge === 0 ? parent.bottom : undefined
+            anchors.top: dock.liveDockEdge === 1 ? parent.top : undefined
+            anchors.left: dock.liveDockEdge === 2 ? parent.left : undefined
+            anchors.right: dock.liveDockEdge === 3 ? parent.right : undefined
+            anchors.bottomMargin: dock.liveDockEdge === 0 ? Math.round(2 * dock.liveScaleFactor) : 0
+            anchors.topMargin: dock.liveDockEdge === 1 ? Math.round(2 * dock.liveScaleFactor) : 0
+            anchors.leftMargin: dock.liveDockEdge === 2 ? Math.round(2 * dock.liveScaleFactor) : 0
+            anchors.rightMargin: dock.liveDockEdge === 3 ? Math.round(2 * dock.liveScaleFactor) : 0
+            anchors.horizontalCenter: !dock.dockLayoutVertical ? parent.horizontalCenter : undefined
+            anchors.verticalCenter: dock.dockLayoutVertical ? parent.verticalCenter : undefined
             width: {
                 const scale = dock.liveIndicatorScale
+                if (dock.dockLayoutVertical) {
+                    if (dock.liveIndicatorStyle === 1) return (2 * dock.liveScaleFactor) * scale
+                    if (dock.liveIndicatorStyle === 2) return (6 * dock.liveScaleFactor) * scale
+                    if (dock.liveIndicatorStyle === 3) return (1.5 * dock.liveScaleFactor) * scale
+                    return (delegateRoot.isFocused ? 4 : 6) * dock.liveScaleFactor * scale
+                }
                 if (dock.liveIndicatorStyle === 1) return (22 * dock.liveScaleFactor) * scale
                 if (dock.liveIndicatorStyle === 2) return (26 * dock.liveScaleFactor) * scale
                 if (dock.liveIndicatorStyle === 3) return (30 * dock.liveScaleFactor) * scale
@@ -547,6 +566,12 @@ Item {
             }
             height: {
                 const scale = dock.liveIndicatorScale
+                if (dock.dockLayoutVertical) {
+                    if (dock.liveIndicatorStyle === 1) return (22 * dock.liveScaleFactor) * scale
+                    if (dock.liveIndicatorStyle === 2) return (26 * dock.liveScaleFactor) * scale
+                    if (dock.liveIndicatorStyle === 3) return (30 * dock.liveScaleFactor) * scale
+                    return (delegateRoot.isFocused ? 18 : 6) * dock.liveScaleFactor * scale
+                }
                 if (dock.liveIndicatorStyle === 1) return (2 * dock.liveScaleFactor) * scale
                 if (dock.liveIndicatorStyle === 2) return (6 * dock.liveScaleFactor) * scale
                 if (dock.liveIndicatorStyle === 3) return (1.5 * dock.liveScaleFactor) * scale

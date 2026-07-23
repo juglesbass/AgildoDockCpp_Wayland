@@ -1532,8 +1532,9 @@ Window {
         Row {
             id: mainRow
             visible: !root.dockLayoutVertical
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.bottom: dockBg.bottom
+            anchors.horizontalCenter: dockBg.horizontalCenter
+            anchors.bottom: root.liveDockEdge === 0 ? dockBg.bottom : undefined
+            anchors.top: root.liveDockEdge === 1 ? dockBg.top : undefined
 
             height: Math.round(root.dockBarHeightPx * root.liveScaleFactor)
             spacing: root.baseSpacing
@@ -1626,7 +1627,7 @@ Window {
         Column {
             id: mainColumn
             visible: root.dockLayoutVertical
-            anchors.verticalCenter: parent.verticalCenter
+            anchors.verticalCenter: dockBg.verticalCenter
             anchors.left: root.liveDockEdge === 2 ? dockBg.left : undefined
             anchors.right: root.liveDockEdge === 3 ? dockBg.right : undefined
             width: Math.round(root.dockBarHeightPx * root.liveScaleFactor)
