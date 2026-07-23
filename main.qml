@@ -459,8 +459,8 @@ Window {
     }
 
     function setDockEdge(edge) {
-        liveDockEdge = edge
-        dockSettings.dockEdge = edge
+        liveDockEdge = 0
+        dockSettings.dockEdge = 0
         if (typeof dockSettings.sync === "function")
             dockSettings.sync()
         updateZone()
@@ -1331,7 +1331,7 @@ Window {
         root.liveLaunchBounceIntensity = dockSettings.launchBounceIntensity
         root.liveAutoThemeByActiveApp = dockSettings.autoThemeByActiveApp
         root.liveDockEditMode = dockSettings.dockEditMode
-        root.liveDockEdge = dockSettings.dockEdge
+        root.liveDockEdge = 0
         root.liveDockOffsetX = dockSettings.dockOffsetX
         root.liveDockOffsetY = dockSettings.dockOffsetY
         root.liveLeftClickAction = dockSettings.leftClickAction

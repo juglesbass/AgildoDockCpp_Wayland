@@ -625,6 +625,7 @@ void TaskBackend::setLayerShellActivateOnShow(bool activate)
 
 void TaskBackend::applyLayerShellEdge(int edge)
 {
+    Q_UNUSED(edge);
     if (!m_mainWindow) {
         return;
     }
@@ -632,26 +633,7 @@ void TaskBackend::applyLayerShellEdge(int edge)
     if (!layerWindow) {
         return;
     }
-
-    clearBlurRegion();
-
-    const bool wasVisible = m_mainWindow->isVisible();
-    if (wasVisible) {
-        m_mainWindow->hide();
-    }
-
-    LayerShellQt::Window::Anchors anchor;
-    switch (edge) {
-        case 1:  anchor = LayerShellQt::Window::AnchorTop;    break;
-        case 2:  anchor = LayerShellQt::Window::AnchorLeft;   break;
-        case 3:  anchor = LayerShellQt::Window::AnchorRight;  break;
-        default: anchor = LayerShellQt::Window::AnchorBottom; break;
-    }
-    layerWindow->setAnchors(anchor);
-
-    if (wasVisible) {
-        m_mainWindow->show();
-    }
+    layerWindow->setAnchors(LayerShellQt::Window::AnchorBottom);
     m_mainWindow->requestUpdate();
 }
 

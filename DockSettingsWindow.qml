@@ -550,49 +550,7 @@ Window {
                     Layout.fillWidth: true
                     spacing: 16
 
-                    // LOCALIZAÇÃO DA DOCA (BÁSICO)
-                    Rectangle {
-                        Layout.fillWidth: true
-                        implicitHeight: locCol.implicitHeight + 24
-                        color: settingsWin.uiCardBg
-                        radius: 8
-                        border.color: settingsWin.uiCardBorder
 
-                        ColumnLayout {
-                            id: locCol
-                            anchors.fill: parent
-                            anchors.margins: 12
-                            spacing: 10
-
-                            Label { text: qsTr("Posição da Doca"); font.bold: true; font.pixelSize: 14; color: settingsWin.uiTextPrimary }
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 8
-
-                                SegmentedButton {
-                                    labelText: "▾ Inferior"
-                                    selected: dock.liveDockEdge === 0
-                                    onClicked: dock.liveDockEdge = 0
-                                }
-                                SegmentedButton {
-                                    labelText: "◂ Esquerda"
-                                    selected: dock.liveDockEdge === 2
-                                    onClicked: dock.liveDockEdge = 2
-                                }
-                                SegmentedButton {
-                                    labelText: "▴ Superior"
-                                    selected: dock.liveDockEdge === 1
-                                    onClicked: dock.liveDockEdge = 1
-                                }
-                                SegmentedButton {
-                                    labelText: "▸ Direita"
-                                    selected: dock.liveDockEdge === 3
-                                    onClicked: dock.liveDockEdge = 3
-                                }
-                            }
-                        }
-                    }
 
                     // MODOS DE VISIBILIDADE (BÁSICO)
                     Rectangle {
