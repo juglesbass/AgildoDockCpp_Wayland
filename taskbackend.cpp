@@ -927,10 +927,18 @@ void TaskBackend::clearBlurRegion()
     m_hasLastBlur = false;
     m_pendingBlurW = 0;
     m_pendingBlurH = 0;
+    m_pendingBlurX = 0;
+    m_pendingBlurY = 0;
+    m_pendingBlurRadius = 0;
+    m_lastBlurX = -1;
+    m_lastBlurY = -1;
+    m_lastBlurW = -1;
+    m_lastBlurH = -1;
+    m_lastBlurRadius = -1;
     if (!m_mainWindow) {
         return;
     }
-    KWindowEffects::enableBlurBehind(m_mainWindow, false);
+    KWindowEffects::enableBlurBehind(m_mainWindow, false, QRegion());
 }
 
 void TaskBackend::loadKnownApps()

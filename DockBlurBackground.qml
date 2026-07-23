@@ -113,11 +113,22 @@ Rectangle {
         updateBlurNative(true)
     }
 
+    Timer {
+        id: edgeSettleTimer
+        interval: 80
+        repeat: false
+        onTriggered: {
+            dockBg.resetBlurCache()
+            dockBg.updateBlurNative(true)
+        }
+    }
+
     Connections {
         target: dockRoot
         function onLiveDockEdgeChanged() {
-            dockBg.invalidateBlurGeometry()
-            Qt.callLater(function() { dockBg.syncBlurAfterStyleChange() })
+            taskBackend.clearBlurRegion()
+            dockBg.resetBlurCache()
+            edgeSettleTimer.restart()
         }
         function onWaveBlurAnimatingChanged() {
             blurThrottleTimer.stop()
