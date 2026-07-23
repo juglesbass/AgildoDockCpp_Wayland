@@ -2,6 +2,12 @@
 
 Todas as alterações notáveis deste projeto são documentadas neste ficheiro.
 
+## [1.3.15] — 2026-07-22
+
+### Corrigido
+- Correção definitiva da data race em `knownApps` (`taskbackend.cpp`) através do isolamento de cópias locais por valor nas threads secundárias.
+- Atualização e alinhamento dos relatórios de auditoria e documentação.
+
 ## [1.3.14] — 2026-07-22
 
 ### Corrigido
