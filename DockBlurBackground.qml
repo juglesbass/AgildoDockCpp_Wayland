@@ -80,7 +80,7 @@ Rectangle {
     }
 
     function readBlurRectFromScene(bw, bh) {
-        var p = dockBg.mapToItem(dockRoot, 0, 0)
+        var p = dockBg.mapToItem(null, 0, 0)
         var radius = Math.min(
             Math.round(dockBg.radius),
             Math.floor(Math.min(bw, bh) / 2)
