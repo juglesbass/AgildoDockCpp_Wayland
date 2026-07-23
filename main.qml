@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Window
 import org.kde.kirigami as Kirigami
 import QtCore
@@ -1847,6 +1848,36 @@ Window {
                 }
             }
         }
+    }
+
+    FileDialog {
+        id: pinnedAppPicker
+        title: qsTr("Escolher aplicativo para fixar na doca")
+        nameFilters: [
+            qsTr("Atalhos de aplicação (*.desktop)"),
+            qsTr("Todos os ficheiros (*)")
+        ]
+        fileMode: FileDialog.OpenFile
+        onAccepted: root.addPinnedAppFromDesktopUrl(selectedFile.toString())
+    }
+
+    FileDialog {
+        id: systemShortcutPicker
+        title: qsTr("Escolher atalho do sistema")
+        nameFilters: [
+            qsTr("Atalhos de aplicação (*.desktop)"),
+            qsTr("Todos os ficheiros (*)")
+        ]
+        fileMode: FileDialog.OpenFile
+        onAccepted: root.addWidgetShortcutFromDesktopUrl(selectedFile.toString())
+    }
+
+    function openPinnedAppPicker() {
+        pinnedAppPicker.open()
+    }
+
+    function openSystemShortcutPicker() {
+        systemShortcutPicker.open()
     }
 
     DockSettingsWindow {

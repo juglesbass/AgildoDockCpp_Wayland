@@ -2,6 +2,14 @@
 
 Todas as alterações notáveis deste projeto são documentadas neste ficheiro.
 
+## [1.3.16] — 2026-07-23
+
+### Adicionado / Melhorado
+- **Janela de Configurações Estilo Latte Dock**: Layout de 3 abas (*Comportamento*, *Aparência*, *Efeitos & Ajustes*) 100% traduzido para PT-BR, com chaveador *Avançado* dinâmico e retenção de todas as opções de personalização.
+- **Menu de Contexto Flutuante Estilo Vidro/Latte**: Redesign visual com acentos dinâmicos do tema, cabeçalho de aplicação, suporte a submenus nativos de ficheiros recentes e comandos customizados.
+- **Seletores de Ficheiros Nativos**: Integração de `FileDialog`s no nível raiz do `main.qml` para a adição estável de aplicativos e atalhos do sistema.
+- **Componente ActionBtn Customizado**: Substituição de botões padrão do QtQuick por botões com estilo de vidro, eliminando avisos do tema Breeze no Plasma 6.
+
 ## [1.3.15] — 2026-07-22
 
 ### Corrigido

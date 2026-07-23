@@ -1,9 +1,10 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
+import QtQuick.Layouts
 import QtQuick.Window
 
-// Menu flutuante em janela separada: cliques estáveis no Wayland (layer-shell da doca).
+// Menu flutuante em janela separada: cliques estáveis e estética moderna Latte/Breeze no Wayland.
 Window {
     id: menuWin
 
@@ -43,22 +44,23 @@ Window {
 
     readonly property bool ctxIsAppItem: !ctxIsSurfaceMenu && !ctxIsLauncher && !ctxIsSystem && !ctxIsSeparator
 
-    readonly property real menuPadW: 14
+    readonly property real menuPadW: 10
     readonly property real menuPadH: 10
     readonly property real menuShadowPad: 16 * dock.liveScaleFactor
-    /// Espaço entre o topo do ícone e a base do menu (estilo macOS).
-    readonly property real menuFloatGap: 44 * dock.liveScaleFactor
-    readonly property real menuSideGap: 28 * dock.liveScaleFactor
-    readonly property real rowHeight: Math.round(34 * dock.liveScaleFactor)
-    readonly property real rowSpacing: 2
+    readonly property real menuFloatGap: 12 * dock.liveScaleFactor
+    readonly property real menuSideGap: 14 * dock.liveScaleFactor
+    readonly property real rowHeight: Math.round(40 * dock.liveScaleFactor)
+    readonly property real rowSpacing: 3
 
-    readonly property int iconVisibleRows: (ctxIsAppItem ? 1 : 0) // Nova janela
-                                     + ((ctxIsAppItem && ctxRecentCount > 0) ? 1 : 0) // Recentes (submenu)
+    readonly property int iconHeaderRows: ctxIsAppItem ? 1 : 0
+    readonly property int iconVisibleRows: iconHeaderRows
+                                     + (ctxIsAppItem ? 1 : 0) // Nova janela
+                                     + ((ctxIsAppItem && ctxRecentCount > 0) ? 1 : 0) // Recentes
                                      + ((ctxIsAppItem && !ctxIsRunning) ? 1 : 0) // Abrir
                                      + ((ctxIsAppItem && ctxIsRunning) ? 1 : 0) // Minimizar/Restaurar
                                      + (ctxIsAppItem ? 1 : 0) // Fixar/Desafixar
                                      + ((ctxIsAppItem && ctxIsRunning) ? 1 : 0) // Fechar
-                                     + (ctxIsAppItem ? 2 : 0) // Regras de clique esq/meio
+                                     + (ctxIsAppItem ? 2 : 0) // Regras de clique
                                      + ((ctxIsAppItem && ctxCustomCommands.length > 0) ? 1 : 0)
                                      + ((ctxIsAppItem && ctxCustomCommands.length > 1) ? 1 : 0)
                                      + ((ctxIsSystem || ctxIsLauncher) ? 1 : 0)
@@ -67,12 +69,11 @@ Window {
 
     readonly property int visibleRows: ctxIsSurfaceMenu ? surfaceVisibleRows : iconVisibleRows
 
-    readonly property real menuContentW: Math.round(228 * dock.liveScaleFactor)
+    readonly property real menuContentW: Math.round(270 * dock.liveScaleFactor)
     readonly property real menuContentH: Math.max(40, (menuPadH * 2)
                      + (visibleRows * rowHeight)
                      + (Math.max(0, visibleRows - 1) * rowSpacing))
 
-    // Janela um pouco maior que o painel para a sombra “flutuar”.
     width: Math.round(menuContentW + (menuPadW * 2) + (menuShadowPad * 2))
     height: Math.round(menuContentH + (menuShadowPad * 2))
     flags: Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint
@@ -117,7 +118,6 @@ Window {
         scheduleRecentSubmenuClose()
     }
 
-    // Garante que targetX/targetY ficam dentro dos limites do ecrã.
     function clampToScreen(sc, targetX, targetY, w, h) {
         if (!sc) return { x: targetX, y: targetY }
         var minX = sc.virtualX + 4
@@ -188,23 +188,19 @@ Window {
         ctxLogicalCenter = -1
         ctxCustomCommands = []
         ctxRecentItems = []
-        recentSubmenuOpen = false
-        recentSubmenuAllowed = false
-        recentSubmenuAnchor = null
-        pendingSubmenuAnchor = null
-        submenuHoverOpenTimer.stop()
 
-        repositionAboveIcon()
+        repositionForSurface()
         menuWin.show()
         scheduleReposition()
     }
 
     function openForIcon(anchorItem, data) {
+        if (!data) return
         ctxIsSurfaceMenu = false
         _anchorItem = anchorItem
-        ctxCmd = data.cmd || ""
-        ctxName = data.name || ""
-        ctxIcon = data.icon || ""
+        ctxCmd = String(data.cmd || "")
+        ctxName = String(data.name || "")
+        ctxIcon = String(data.icon || "")
         ctxIsLauncher = data.isLauncher === true
         ctxIsSeparator = data.isSeparator === true
         ctxIsSystem = data.isSystem === true
@@ -238,84 +234,72 @@ Window {
     }
 
     function scheduleReposition() {
-        Qt.callLater(repositionAboveIcon)
         repositionTimer.restart()
     }
 
-    function repositionAboveIcon() {
-        if (!_anchorItem) {
-            return
+    function repositionForSurface() {
+        var menuW = menuWin.width
+        var menuH = menuWin.height
+        var targetX = Math.round(ctxSurfaceGlobalX - menuW / 2)
+        var targetY = Math.round(ctxSurfaceGlobalY - menuH / 2)
+        if (_anchorItem) {
+            var edge = menuWin.dock.liveDockEdge
+            var localClick = _anchorItem.mapFromGlobal(ctxSurfaceGlobalX, ctxSurfaceGlobalY)
+            if (edge === 2) {
+                var gR = _anchorItem.mapToGlobal(_anchorItem.width, localClick.y)
+                targetX = Math.round(gR.x + menuSideGap)
+                targetY = Math.round(gR.y - menuH / 2)
+            } else if (edge === 3) {
+                var gL = _anchorItem.mapToGlobal(0, localClick.y)
+                targetX = Math.round(gL.x - menuW - menuSideGap)
+                targetY = Math.round(gL.y - menuH / 2)
+            } else if (edge === 1) {
+                var gB = _anchorItem.mapToGlobal(localClick.x, _anchorItem.height)
+                targetX = Math.round(gB.x - menuW / 2)
+                targetY = Math.round(gB.y + menuFloatGap)
+            } else {
+                var gT = _anchorItem.mapToGlobal(localClick.x, 0)
+                targetX = Math.round(gT.x - menuW / 2)
+                targetY = Math.round(gT.y - menuH - menuFloatGap)
+            }
         }
-        if (ctxIsSurfaceMenu) {
-            repositionForSurface()
+        var clamped = clampToScreen(menuWin.screen, targetX, targetY, menuW, menuH)
+        menuWin.x = clamped.x
+        menuWin.y = clamped.y
+    }
+
+    function repositionAboveIcon() {
+        if (!_anchorItem || ctxIsSurfaceMenu) {
+            if (ctxIsSurfaceMenu) repositionForSurface()
             return
         }
         var menuW = menuWin.width
         var menuH = menuWin.height
+        var localClick = _anchorItem.mapFromGlobal(ctxSurfaceGlobalX, ctxSurfaceGlobalY)
         var edge = menuWin.dock.liveDockEdge
-        var targetX
-        var targetY
+
+        var targetX = 0
+        var targetY = 0
 
         if (edge === 2) {
-            // Dock à esquerda: menu flutua à direita do ícone
             var gR = _anchorItem.mapToGlobal(_anchorItem.width, _anchorItem.height / 2)
             targetX = Math.round(gR.x + menuSideGap)
             targetY = Math.round(gR.y - menuH / 2)
         } else if (edge === 3) {
-            // Dock à direita: menu flutua à esquerda do ícone
             var gL = _anchorItem.mapToGlobal(0, _anchorItem.height / 2)
             targetX = Math.round(gL.x - menuW - menuSideGap)
             targetY = Math.round(gL.y - menuH / 2)
         } else if (edge === 1) {
-            // Dock no topo: menu abaixo do ícone
             var gB = _anchorItem.mapToGlobal(_anchorItem.width / 2, _anchorItem.height)
             targetX = Math.round(gB.x - menuW / 2)
             targetY = Math.round(gB.y + menuFloatGap)
         } else {
-            // Dock em baixo (padrão): menu acima do ícone, ancorado no topo do ícone
             var gT = _anchorItem.mapToGlobal(_anchorItem.width / 2, 0)
             targetX = Math.round(gT.x - menuW / 2)
             targetY = Math.round(gT.y - menuH - menuFloatGap)
         }
 
         var clamped = clampToScreen(menuWin.screen, targetX, targetY, menuW, menuH)
-
-        menuWin.x = clamped.x
-        menuWin.y = clamped.y
-    }
-
-    function repositionForSurface() {
-        if (!_anchorItem)
-            return
-
-        var menuW = menuWin.width
-        var menuH = menuWin.height
-        const localClick = _anchorItem.mapFromGlobal(ctxSurfaceGlobalX, ctxSurfaceGlobalY)
-        var edge = menuWin.dock.liveDockEdge
-        var targetX
-        var targetY
-
-        if (edge === 2) {
-            var gR = _anchorItem.mapToGlobal(_anchorItem.width, localClick.y)
-            targetX = Math.round(gR.x + menuSideGap)
-            targetY = Math.round(gR.y - menuH / 2)
-        } else if (edge === 3) {
-            var gL = _anchorItem.mapToGlobal(0, localClick.y)
-            targetX = Math.round(gL.x - menuW - menuSideGap)
-            targetY = Math.round(gL.y - menuH / 2)
-        } else if (edge === 1) {
-            var gB = _anchorItem.mapToGlobal(localClick.x, _anchorItem.height)
-            targetX = Math.round(gB.x - menuW / 2)
-            targetY = Math.round(gB.y + menuFloatGap)
-        } else {
-            // Topo da barra (y=0), não o ponto do clique sobre os ícones.
-            var gT = _anchorItem.mapToGlobal(localClick.x, 0)
-            targetX = Math.round(gT.x - menuW / 2)
-            targetY = Math.round(gT.y - menuH - menuFloatGap)
-        }
-
-        var clamped = clampToScreen(menuWin.screen, targetX, targetY, menuW, menuH)
-
         menuWin.x = clamped.x
         menuWin.y = clamped.y
     }
@@ -356,21 +340,7 @@ Window {
         qsTr("Todos os ficheiros (*)")
     ]
 
-    FileDialog {
-        id: pinnedAppPicker
-        title: qsTr("Escolher aplicativo para fixar na doca")
-        nameFilters: menuWin.desktopNameFilters
-        fileMode: FileDialog.OpenFile
-        onAccepted: menuWin.dock.addPinnedAppFromDesktopUrl(selectedFile.toString())
-    }
 
-    FileDialog {
-        id: systemShortcutPicker
-        title: qsTr("Escolher atalho do sistema")
-        nameFilters: menuWin.desktopNameFilters
-        fileMode: FileDialog.OpenFile
-        onAccepted: menuWin.dock.addWidgetShortcutFromDesktopUrl(selectedFile.toString())
-    }
 
     Timer {
         id: menuOpenGraceTimer
@@ -415,37 +385,28 @@ Window {
         id: menuRoot
         anchors.fill: parent
 
-        // Sombra suave em camadas (macOS-like)
+        // Sombra de elevação elegante
         Rectangle {
             width: menuPanel.width
             height: menuPanel.height
             x: menuPanel.x
-            y: menuPanel.y + Math.round(10 * menuWin.dock.liveScaleFactor)
+            y: menuPanel.y + Math.round(6 * menuWin.dock.liveScaleFactor)
             radius: menuPanel.radius
-            color: Qt.rgba(0, 0, 0, 0.28)
-            opacity: 0.55
+            color: Qt.rgba(0, 0, 0, 0.40)
+            opacity: 0.70
             z: 0
         }
-        Rectangle {
-            width: menuPanel.width
-            height: menuPanel.height
-            x: menuPanel.x
-            y: menuPanel.y + Math.round(5 * menuWin.dock.liveScaleFactor)
-            radius: menuPanel.radius
-            color: Qt.rgba(0, 0, 0, 0.18)
-            opacity: 0.65
-            z: 1
-        }
 
+        // Painel Principal do Menu (Estilo Vidro/Latte)
         Rectangle {
             id: menuPanel
             x: menuWin.menuShadowPad
             y: menuWin.menuShadowPad
             width: Math.round(menuWin.menuContentW + (menuWin.menuPadW * 2))
             height: menuWin.menuContentH
-            radius: 14 * menuWin.dock.liveScaleFactor
+            radius: 12 * menuWin.dock.liveScaleFactor
             color: menuWin.dock.themeMenuBg
-            border.color: Qt.rgba(1, 1, 1, 0.14)
+            border.color: Qt.rgba(1, 1, 1, 0.18)
             border.width: 1
             clip: true
             z: 2
@@ -458,231 +419,252 @@ Window {
                              : Item.Bottom
 
             Behavior on scale {
-                NumberAnimation { duration: 180; easing.type: Easing.OutBack; easing.overshoot: 1.08 }
+                NumberAnimation { duration: 160; easing.type: Easing.OutBack; easing.overshoot: 1.06 }
             }
             Behavior on opacity {
-                NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+                NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
             }
 
-        Column {
-            id: column
-            width: menuWin.menuContentW
-            x: menuWin.menuPadW
-            y: menuWin.menuPadH
-            spacing: menuWin.rowSpacing
+            Column {
+                id: column
+                width: menuWin.menuContentW
+                x: menuWin.menuPadW
+                y: menuWin.menuPadH
+                spacing: menuWin.rowSpacing
 
-            ContextMenuRow {
-                label: qsTr("Nova janela")
-                labelColor: menuWin.dock.accentIdle
-                rowVisible: menuWin.ctxIsAppItem
-                onRowClicked: {
-                    if (menuWin.ctxDelegate && !menuWin.ctxDelegate.isLaunching) {
-                        taskBackend.forceLaunchApp(menuWin.ctxCmd)
+                // Header com Nome da App
+                Rectangle {
+                    visible: menuWin.ctxIsAppItem
+                    width: column.width
+                    height: Math.round(32 * menuWin.dock.liveScaleFactor)
+                    color: "transparent"
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
+                        spacing: 8
+
+                        Text {
+                            text: menuWin.ctxName.length > 0 ? menuWin.ctxName : menuWin.ctxCmd
+                            color: menuWin.dock.themeTextPrimary
+                            font.pixelSize: 15 * menuWin.dock.liveScaleFactor
+                            font.bold: true
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+
+                        Rectangle {
+                            visible: menuWin.ctxIsRunning
+                            radius: 4
+                            color: menuWin.dock.accentFocus
+                            implicitWidth: 58 * menuWin.dock.liveScaleFactor
+                            implicitHeight: 20 * menuWin.dock.liveScaleFactor
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: qsTr("Aberto")
+                                color: "#FFFFFF"
+                                font.pixelSize: 11 * menuWin.dock.liveScaleFactor
+                                font.bold: true
+                            }
+                        }
                     }
-                    menuWin.closeMenu()
                 }
-            }
 
-            ContextMenuSubmenuRow {
-                id: recentMenuRow
-                label: qsTr("Recentes")
-                rowVisible: menuWin.ctxIsAppItem && menuWin.ctxRecentCount > 0
-                subMenuOpen: menuWin.recentSubmenuOpen
-                onRowEntered: menuWin.requestRecentSubmenu(recentMenuRow)
-                onRowExited: menuWin.cancelRecentSubmenuHover()
-            }
+                ContextMenuSeparator {
+                    rowVisible: menuWin.ctxIsAppItem
+                }
 
-            ContextMenuRow {
-                label: {
-                    const names = [qsTr("Padrão"), qsTr("Menu"), qsTr("Nova janela")]
-                    const idx = menuWin.dock.effectiveLeftClickAction(menuWin.ctxCmd)
-                    return qsTr("Clique esquerdo: %1").arg(names[idx] || names[0])
-                }
-                rowVisible: menuWin.ctxIsAppItem
-                onRowClicked: {
-                    const cur = menuWin.dock.effectiveLeftClickAction(menuWin.ctxCmd)
-                    menuWin.dock.setAppClickRule(menuWin.ctxCmd, "leftClickAction", (cur + 1) % 3)
-                    menuWin.closeMenu()
-                }
-            }
-
-            ContextMenuRow {
-                label: {
-                    const names = [qsTr("Padrão"), qsTr("Fechar"), qsTr("Nova janela"), qsTr("Minimizar")]
-                    const idx = menuWin.dock.effectiveMiddleClickAction(menuWin.ctxCmd)
-                    return qsTr("Clique do meio: %1").arg(names[idx] || names[0])
-                }
-                rowVisible: menuWin.ctxIsAppItem
-                onRowClicked: {
-                    const cur = menuWin.dock.effectiveMiddleClickAction(menuWin.ctxCmd)
-                    menuWin.dock.setAppClickRule(menuWin.ctxCmd, "middleClickAction", (cur + 1) % 4)
-                    menuWin.closeMenu()
-                }
-            }
-
-            ContextMenuRow {
-                label: qsTr("Abrir")
-                rowVisible: menuWin.ctxIsAppItem && !menuWin.ctxIsRunning
-                onRowClicked: {
-                    taskBackend.launchApp(menuWin.ctxCmd)
-                    menuWin.closeMenu()
-                }
-            }
-
-            ContextMenuRow {
-                label: menuWin.ctxIsFocused ? qsTr("Minimizar") : qsTr("Restaurar")
-                rowVisible: menuWin.ctxIsAppItem && menuWin.ctxIsRunning
-                onRowClicked: {
-                    if (menuWin.ctxIsFocused && menuWin._anchorItem) {
-                        menuWin.dock.playMinimizeSuckAt(menuWin._anchorItem)
+                ContextMenuRow {
+                    iconText: "✦"
+                    label: qsTr("Nova janela")
+                    labelColor: menuWin.dock.accentIdle
+                    rowVisible: menuWin.ctxIsAppItem
+                    onRowClicked: {
+                        if (menuWin.ctxDelegate && !menuWin.ctxDelegate.isLaunching) {
+                            taskBackend.forceLaunchApp(menuWin.ctxCmd)
+                        }
+                        menuWin.closeMenu()
                     }
-                    if (menuWin.ctxDelegate) {
-                        menuWin.ctxDelegate.playFocusBounce()
+                }
+
+                ContextMenuSubmenuRow {
+                    id: recentMenuRow
+                    label: qsTr("Ficheiros recentes")
+                    rowVisible: menuWin.ctxIsAppItem && menuWin.ctxRecentCount > 0
+                    subMenuOpen: menuWin.recentSubmenuOpen
+                    onRowEntered: menuWin.requestRecentSubmenu(recentMenuRow)
+                    onRowExited: menuWin.cancelRecentSubmenuHover()
+                }
+
+                ContextMenuRow {
+                    iconText: "⚡"
+                    label: {
+                        const names = [qsTr("Padrão"), qsTr("Menu"), qsTr("Nova janela")]
+                        const idx = menuWin.dock.effectiveLeftClickAction(menuWin.ctxCmd)
+                        return qsTr("Clique esquerdo: %1").arg(names[idx] || names[0])
                     }
-                    taskBackend.launchApp(menuWin.ctxCmd)
-                    menuWin.closeMenu()
-                }
-            }
-
-            ContextMenuRow {
-                label: menuWin.ctxIsDynamic ? qsTr("Fixar na doca") : qsTr("Desafixar da doca")
-                rowVisible: menuWin.ctxIsAppItem
-                onRowClicked: {
-                    if (menuWin.ctxIsDynamic) {
-                        menuWin.dock.appModel.append({
-                            name: menuWin.ctxName,
-                            icon: menuWin.ctxIcon,
-                            cmd: menuWin.ctxCmd
-                        })
-                        menuWin.dock.saveApps()
-                    } else if (menuWin.ctxItemIndex >= 0) {
-                        menuWin.dock.unpinApp(menuWin.ctxItemIndex)
+                    rowVisible: menuWin.ctxIsAppItem
+                    onRowClicked: {
+                        const cur = menuWin.dock.effectiveLeftClickAction(menuWin.ctxCmd)
+                        menuWin.dock.setAppClickRule(menuWin.ctxCmd, "leftClickAction", (cur + 1) % 3)
+                        menuWin.closeMenu()
                     }
-                    menuWin.closeMenu()
                 }
-            }
 
-            ContextMenuRow {
-                label: qsTr("Fechar programa")
-                labelColor: "#FF5555"
-                labelBold: true
-                rowVisible: menuWin.ctxIsAppItem && menuWin.ctxIsRunning
-                onRowClicked: {
-                    taskBackend.closeApp(menuWin.ctxCmd)
-                    if (menuWin.ctxDelegate) {
-                        menuWin.ctxDelegate.isRunning = false
-                        menuWin.ctxDelegate.isFocused = false
+                ContextMenuRow {
+                    iconText: "⚙"
+                    label: {
+                        const names = [qsTr("Padrão"), qsTr("Fechar"), qsTr("Nova janela"), qsTr("Minimizar")]
+                        const idx = menuWin.dock.effectiveMiddleClickAction(menuWin.ctxCmd)
+                        return qsTr("Clique do meio: %1").arg(names[idx] || names[0])
                     }
-                    menuWin.closeMenu()
-                }
-            }
-
-            ContextMenuRow {
-                label: menuWin.ctxCustomCommands.length > 0 ? String(menuWin.ctxCustomCommands[0].label || qsTr("Comando custom")) : ""
-                labelColor: menuWin.dock.accentIdle
-                rowVisible: menuWin.ctxIsAppItem && menuWin.ctxCustomCommands.length > 0
-                onRowClicked: {
-                    const customCmd = String(menuWin.ctxCustomCommands[0].command || "")
-                    if (customCmd.length > 0) {
-                        taskBackend.forceLaunchApp(customCmd)
+                    rowVisible: menuWin.ctxIsAppItem
+                    onRowClicked: {
+                        const cur = menuWin.dock.effectiveMiddleClickAction(menuWin.ctxCmd)
+                        menuWin.dock.setAppClickRule(menuWin.ctxCmd, "middleClickAction", (cur + 1) % 4)
+                        menuWin.closeMenu()
                     }
-                    menuWin.closeMenu()
                 }
-            }
 
-            ContextMenuRow {
-                label: menuWin.ctxCustomCommands.length > 1 ? String(menuWin.ctxCustomCommands[1].label || qsTr("Comando custom")) : ""
-                labelColor: menuWin.dock.accentFocus
-                rowVisible: menuWin.ctxIsAppItem && menuWin.ctxCustomCommands.length > 1
-                onRowClicked: {
-                    const customCmd = String(menuWin.ctxCustomCommands[1].command || "")
-                    if (customCmd.length > 0) {
-                        taskBackend.forceLaunchApp(customCmd)
+                ContextMenuRow {
+                    iconText: "▶"
+                    label: qsTr("Abrir")
+                    rowVisible: menuWin.ctxIsAppItem && !menuWin.ctxIsRunning
+                    onRowClicked: {
+                        taskBackend.launchApp(menuWin.ctxCmd)
+                        menuWin.closeMenu()
                     }
-                    menuWin.closeMenu()
+                }
+
+                ContextMenuRow {
+                    iconText: menuWin.ctxIsFocused ? "🗕" : "🗖"
+                    label: menuWin.ctxIsFocused ? qsTr("Minimizar") : qsTr("Restaurar")
+                    rowVisible: menuWin.ctxIsAppItem && menuWin.ctxIsRunning
+                    onRowClicked: {
+                        if (menuWin.ctxIsFocused && menuWin._anchorItem) {
+                            menuWin.dock.playMinimizeSuckAt(menuWin._anchorItem)
+                        }
+                        if (menuWin.ctxDelegate) {
+                            menuWin.ctxDelegate.playFocusBounce()
+                        }
+                        taskBackend.launchApp(menuWin.ctxCmd)
+                        menuWin.closeMenu()
+                    }
+                }
+
+                ContextMenuRow {
+                    iconText: menuWin.ctxIsDynamic ? "📌" : "📍"
+                    label: menuWin.ctxIsDynamic ? qsTr("Fixar na doca") : qsTr("Desafixar da doca")
+                    rowVisible: menuWin.ctxIsAppItem
+                    onRowClicked: {
+                        if (menuWin.ctxIsDynamic) {
+                            menuWin.dock.appModel.append({
+                                name: menuWin.ctxName,
+                                icon: menuWin.ctxIcon,
+                                cmd: menuWin.ctxCmd
+                            })
+                            menuWin.dock.saveApps()
+                        } else if (menuWin.ctxItemIndex >= 0) {
+                            menuWin.dock.unpinApp(menuWin.ctxItemIndex)
+                        }
+                        menuWin.closeMenu()
+                    }
+                }
+
+                ContextMenuRow {
+                    iconText: "✖"
+                    label: qsTr("Fechar programa")
+                    labelColor: "#FF5555"
+                    labelBold: true
+                    rowVisible: menuWin.ctxIsAppItem && menuWin.ctxIsRunning
+                    onRowClicked: {
+                        taskBackend.closeApp(menuWin.ctxCmd)
+                        if (menuWin.ctxDelegate) {
+                            menuWin.ctxDelegate.isRunning = false
+                            menuWin.ctxDelegate.isFocused = false
+                        }
+                        menuWin.closeMenu()
+                    }
+                }
+
+                ContextMenuRow {
+                    iconText: "⚙"
+                    label: qsTr("Preferências da doca…")
+                    rowVisible: menuWin.ctxIsSurfaceMenu
+                    onRowClicked: {
+                        menuWin.dock.openSettingsGlobal()
+                        menuWin.closeMenu()
+                    }
+                }
+
+                ContextMenuRow {
+                    iconText: "➕"
+                    label: qsTr("Adicionar aplicativo à doca…")
+                    rowVisible: menuWin.ctxIsSurfaceMenu
+                    onRowClicked: {
+                        menuWin.closeMenu()
+                        menuWin.dock.openPinnedAppPicker()
+                    }
+                }
+
+                ContextMenuRow {
+                    iconText: "🧩"
+                    label: qsTr("Adicionar atalho do sistema…")
+                    rowVisible: menuWin.ctxIsSurfaceMenu
+                    onRowClicked: {
+                        menuWin.closeMenu()
+                        menuWin.dock.openSystemShortcutPicker()
+                    }
+                }
+
+                ContextMenuRow {
+                    iconText: "🔄"
+                    label: qsTr("Atualizar lista de apps")
+                    rowVisible: menuWin.ctxIsSurfaceMenu
+                    onRowClicked: {
+                        menuWin.dock.updateDynamicApps()
+                        menuWin.closeMenu()
+                    }
+                }
+
+                ContextMenuRow {
+                    iconText: menuWin.dock.visible ? "👁" : "🙈"
+                    label: menuWin.dock.visible ? qsTr("Ocultar doca") : qsTr("Mostrar doca")
+                    rowVisible: menuWin.ctxIsSurfaceMenu
+                    onRowClicked: {
+                        menuWin.dock.toggleDockGlobal()
+                        menuWin.closeMenu()
+                    }
+                }
+
+                ContextMenuSeparator {
+                    rowVisible: menuWin.ctxIsSurfaceMenu
+                }
+
+                ContextMenuRow {
+                    iconText: "🚪"
+                    label: qsTr("Sair da AgildoDock")
+                    labelColor: "#FF5555"
+                    labelBold: true
+                    rowVisible: menuWin.ctxIsSurfaceMenu
+                    onRowClicked: {
+                        menuWin.closeMenu()
+                        Qt.quit()
+                    }
                 }
             }
-
-            ContextMenuRow {
-                label: qsTr("Abrir")
-                rowVisible: menuWin.ctxIsSystem || menuWin.ctxIsLauncher
-                onRowClicked: {
-                    taskBackend.launchApp(menuWin.ctxCmd)
-                    menuWin.closeMenu()
-                }
-            }
-
-            ContextMenuRow {
-                label: qsTr("Preferências…")
-                rowVisible: menuWin.ctxIsSurfaceMenu
-                onRowClicked: {
-                    menuWin.dock.openSettingsGlobal()
-                    menuWin.closeMenu()
-                }
-            }
-
-            ContextMenuRow {
-                label: qsTr("Adicionar aplicativo à doca…")
-                rowVisible: menuWin.ctxIsSurfaceMenu
-                onRowClicked: {
-                    menuWin.closeMenu()
-                    pinnedAppPicker.open()
-                }
-            }
-
-            ContextMenuRow {
-                label: qsTr("Adicionar atalho do sistema…")
-                rowVisible: menuWin.ctxIsSurfaceMenu
-                onRowClicked: {
-                    menuWin.closeMenu()
-                    systemShortcutPicker.open()
-                }
-            }
-
-            ContextMenuRow {
-                label: qsTr("Atualizar lista de apps")
-                rowVisible: menuWin.ctxIsSurfaceMenu
-                onRowClicked: {
-                    menuWin.dock.updateDynamicApps()
-                    menuWin.closeMenu()
-                }
-            }
-
-            ContextMenuRow {
-                label: menuWin.dock.visible ? qsTr("Ocultar doca") : qsTr("Mostrar doca")
-                rowVisible: menuWin.ctxIsSurfaceMenu
-                onRowClicked: {
-                    menuWin.dock.toggleDockGlobal()
-                    menuWin.closeMenu()
-                }
-            }
-
-            ContextMenuSeparator {
-                rowVisible: menuWin.ctxIsSurfaceMenu
-            }
-
-            ContextMenuRow {
-                label: qsTr("Sair da AgildoDock")
-                labelColor: "#FF5555"
-                labelBold: true
-                rowVisible: menuWin.ctxIsSurfaceMenu
-                onRowClicked: {
-                    menuWin.closeMenu()
-                    Qt.quit()
-                }
-            }
-
-        }
         }
     }
 
-    // Submenu flutuante de recentes (estilo macOS).
+    // Submenu flutuante de recentes (estilo vidro)
     Window {
         id: recentSubmenuWin
 
-        readonly property real subPadW: 12
+        readonly property real subPadW: 10
         readonly property real subPadH: 10
-        readonly property real subContentW: Math.round(268 * menuWin.dock.liveScaleFactor)
+        readonly property real subContentW: Math.round(260 * menuWin.dock.liveScaleFactor)
         readonly property real subContentH: Math.max(28, (subPadH * 2)
                          + (menuWin.ctxRecentCount * menuWin.rowHeight)
                          + (Math.max(0, menuWin.ctxRecentCount - 1) * menuWin.rowSpacing))
@@ -717,18 +699,9 @@ Window {
                 width: subPanel.width
                 height: subPanel.height
                 x: subPanel.x
-                y: subPanel.y + Math.round(8 * menuWin.dock.liveScaleFactor)
-                radius: subPanel.radius
-                color: Qt.rgba(0, 0, 0, 0.26)
-                opacity: 0.55
-            }
-            Rectangle {
-                width: subPanel.width
-                height: subPanel.height
-                x: subPanel.x
                 y: subPanel.y + Math.round(4 * menuWin.dock.liveScaleFactor)
                 radius: subPanel.radius
-                color: Qt.rgba(0, 0, 0, 0.16)
+                color: Qt.rgba(0, 0, 0, 0.35)
                 opacity: 0.6
             }
 
@@ -740,7 +713,7 @@ Window {
                 height: recentSubmenuWin.subContentH
                 radius: 12 * menuWin.dock.liveScaleFactor
                 color: menuWin.dock.themeMenuBg
-                border.color: Qt.rgba(1, 1, 1, 0.14)
+                border.color: Qt.rgba(1, 1, 1, 0.18)
                 border.width: 1
                 clip: true
 
@@ -752,13 +725,12 @@ Window {
                     NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
                 }
                 Behavior on opacity {
-                    NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+                    NumberAnimation { duration: 100 }
                 }
 
                 Column {
                     width: recentSubmenuWin.subContentW
-                    x: recentSubmenuWin.subPadW
-                    y: recentSubmenuWin.subPadH
+                    anchors.centerIn: parent
                     spacing: menuWin.rowSpacing
 
                     Repeater {
@@ -770,6 +742,8 @@ Window {
                             radius: 6
                             color: itemMouse.containsMouse ? menuWin.dock.themeMenuHover : "transparent"
 
+                            Behavior on color { ColorAnimation { duration: 100 } }
+
                             Text {
                                 anchors.fill: parent
                                 anchors.leftMargin: 10
@@ -777,7 +751,7 @@ Window {
                                 verticalAlignment: Text.AlignVCenter
                                 text: String(modelData.label || modelData.url || "")
                                 color: menuWin.dock.themeTextPrimary
-                                font.pixelSize: 13 * menuWin.dock.liveScaleFactor
+                                font.pixelSize: 14.5 * menuWin.dock.liveScaleFactor
                                 elide: Text.ElideMiddle
                             }
 
@@ -810,13 +784,15 @@ Window {
         color: (subRowMouse.containsMouse || subMenuOpen) ? menuWin.dock.themeMenuHover : "transparent"
         radius: 6
 
+        Behavior on color { ColorAnimation { duration: 100 } }
+
         Text {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
             anchors.leftMargin: 10
-            text: subRow.label
+            text: "📂 " + subRow.label
             color: menuWin.dock.themeTextPrimary
-            font.pixelSize: 14 * menuWin.dock.liveScaleFactor
+            font.pixelSize: 14.5 * menuWin.dock.liveScaleFactor
             elide: Text.ElideRight
             width: parent.width - 28
         }
@@ -826,7 +802,7 @@ Window {
             anchors.verticalCenter: parent.verticalCenter
             anchors.rightMargin: 10
             text: "›"
-            color: Qt.rgba(1, 1, 1, 0.45)
+            color: Qt.rgba(1, 1, 1, 0.5)
             font.pixelSize: 16 * menuWin.dock.liveScaleFactor
         }
 
@@ -843,21 +819,22 @@ Window {
     component ContextMenuSeparator: Item {
         property bool rowVisible: true
         width: column.width
-        height: rowVisible ? Math.round(10 * menuWin.dock.liveScaleFactor) : 0
+        height: rowVisible ? Math.round(8 * menuWin.dock.liveScaleFactor) : 0
         visible: rowVisible
         opacity: rowVisible ? 1 : 0
 
         Rectangle {
             anchors.centerIn: parent
-            width: parent.width - 20
+            width: parent.width - 12
             height: 1
-            color: Qt.rgba(1, 1, 1, 0.12)
+            color: Qt.rgba(1, 1, 1, 0.14)
         }
     }
 
     component ContextMenuRow: Rectangle {
         id: row
         required property string label
+        property string iconText: ""
         property color labelColor: menuWin.dock.themeTextPrimary
         property bool labelBold: false
         property bool rowVisible: true
@@ -870,18 +847,30 @@ Window {
         color: rowMouse.containsMouse ? menuWin.dock.themeMenuHover : "transparent"
         radius: 6
 
-        Text {
-            id: rowLabel
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
+        Behavior on color { ColorAnimation { duration: 100 } }
+
+        RowLayout {
+            anchors.fill: parent
             anchors.leftMargin: 10
             anchors.rightMargin: 10
-            text: row.label
-            color: row.labelColor
-            font.pixelSize: 14 * menuWin.dock.liveScaleFactor
-            font.bold: row.labelBold
-            elide: Text.ElideRight
+            spacing: 8
+
+            Text {
+                visible: row.iconText.length > 0
+                text: row.iconText
+                color: row.labelColor
+                font.pixelSize: 14 * menuWin.dock.liveScaleFactor
+            }
+
+            Text {
+                id: rowLabel
+                Layout.fillWidth: true
+                text: row.label
+                color: row.labelColor
+                font.pixelSize: 14.5 * menuWin.dock.liveScaleFactor
+                font.bold: row.labelBold
+                elide: Text.ElideRight
+            }
         }
 
         MouseArea {
