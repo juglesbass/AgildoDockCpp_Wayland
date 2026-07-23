@@ -114,23 +114,8 @@ Rectangle {
         updateBlurNative(true)
     }
 
-    Timer {
-        id: edgeSettleTimer
-        interval: 200
-        repeat: false
-        onTriggered: {
-            dockBg.resetBlurCache()
-            dockBg.updateBlurNative(true)
-        }
-    }
-
     Connections {
         target: dockRoot
-        function onLiveDockEdgeChanged() {
-            taskBackend.clearBlurRegion()
-            dockBg.resetBlurCache()
-            edgeSettleTimer.restart()
-        }
         function onWaveBlurAnimatingChanged() {
             blurThrottleTimer.stop()
             if (dockRoot.waveBlurAnimating) {
@@ -184,8 +169,6 @@ Rectangle {
     }
 
     function requestBlurUpdate() {
-        if (edgeSettleTimer.running)
-            return
         if (waveBlurAnimating)
             return
         if (!blurThrottleTimer.running)
@@ -193,9 +176,6 @@ Rectangle {
     }
 
     function updateBlurNative(immediate) {
-        if (edgeSettleTimer.running)
-            return
-
         if (immediate === undefined)
             immediate = false
 
@@ -225,13 +205,13 @@ Rectangle {
     onXChanged: requestBlurUpdate()
     onYChanged: requestBlurUpdate()
     onWidthChanged: {
-        if (waveBlurAnimating && !edgeSettleTimer.running)
+        if (waveBlurAnimating)
             updateBlurNative(true)
         else
             requestBlurUpdate()
     }
     onHeightChanged: {
-        if (waveBlurAnimating && !edgeSettleTimer.running)
+        if (waveBlurAnimating)
             updateBlurNative(true)
         else
             requestBlurUpdate()

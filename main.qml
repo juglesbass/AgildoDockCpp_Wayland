@@ -627,19 +627,11 @@ Window {
     ? Math.min(maxWinHeight, Math.max(420, Math.round(rawWinWidth / 2) * 2))
     : (root.dockRetracted ? root.dockPeekHeight : root.dockExpandedHeight)
 
-    property bool edgeChanging: false
-    Timer {
-        id: edgeChangeTimer
-        interval: 350
-        repeat: false
-        onTriggered: root.edgeChanging = false
-    }
-
     onHeightChanged: pointerMaskDebouncer.restart()
     onWidthChanged: pointerMaskDebouncer.restart()
 
     Behavior on height {
-        enabled: !settingsWin.visible && !root.edgeChanging
+        enabled: !settingsWin.visible
         NumberAnimation {
             duration: 280
             easing.type: Easing.OutCubic
@@ -800,11 +792,7 @@ Window {
         autoHideDockTimer.restart()
     }
 
-    onLiveDockEdgeChanged: {
-        root.edgeChanging = true
-        edgeChangeTimer.restart()
-        taskBackend.applyLayerShellEdge(root.liveDockEdge)
-    }
+    onLiveDockEdgeChanged: taskBackend.applyLayerShellEdge(root.liveDockEdge)
     onLiveDownloadProgressDisplayModeChanged: taskBackend.setDownloadProgressDisplayMode(root.liveDownloadProgressDisplayMode)
 
     function applyLayerShellFromSettings() {
