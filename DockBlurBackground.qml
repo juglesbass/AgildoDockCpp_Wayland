@@ -115,6 +115,10 @@ Rectangle {
 
     Connections {
         target: dockRoot
+        function onLiveDockEdgeChanged() {
+            dockBg.invalidateBlurGeometry()
+            Qt.callLater(function() { dockBg.syncBlurAfterStyleChange() })
+        }
         function onWaveBlurAnimatingChanged() {
             blurThrottleTimer.stop()
             if (dockRoot.waveBlurAnimating) {
