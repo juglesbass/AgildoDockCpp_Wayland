@@ -64,9 +64,9 @@ Window {
                                      + ((ctxIsAppItem && ctxCustomCommands.length > 0) ? 1 : 0)
                                      + ((ctxIsAppItem && ctxCustomCommands.length > 1) ? 1 : 0)
                                      + ((ctxIsSystem || ctxIsLauncher) ? 1 : 0)
-                                     + (ctxIsAppItem ? 2 : 0) // Preferências da doca + Posição da doca
+                                     + (ctxIsAppItem ? 1 : 0) // Preferências da doca
 
-    readonly property int surfaceVisibleRows: 8
+    readonly property int surfaceVisibleRows: 7
 
     readonly property int visibleRows: ctxIsSurfaceMenu ? surfaceVisibleRows : iconVisibleRows
 
@@ -84,7 +84,6 @@ Window {
     function closeMenu() {
         recentSubmenuOpen = false
         recentSubmenuAllowed = false
-        posSubmenuOpen = false
         submenuHoverOpenTimer.stop()
         submenuCloseTimer.stop()
         menuOpenGraceTimer.stop()
@@ -96,35 +95,7 @@ Window {
     property Item recentSubmenuAnchor: null
     property Item pendingSubmenuAnchor: null
 
-    property bool posSubmenuOpen: false
-    property Item posSubmenuAnchor: null
 
-    function openPosSubmenu(anchorRow) {
-        posSubmenuAnchor = anchorRow
-        posSubmenuOpen = true
-        repositionPosSubmenu()
-    }
-
-    function cancelPosSubmenuHover() {
-    }
-
-    function repositionPosSubmenu() {
-        if (!posSubmenuAnchor || !posSubmenuOpen) return
-        var subW = posSubmenuWin.width
-        var subH = posSubmenuWin.height
-        var gRow = posSubmenuAnchor.mapToGlobal(0, 0)
-        var gap = Math.round(6 * dock.liveScaleFactor)
-        var targetX = Math.round(gRow.x + posSubmenuAnchor.width + gap)
-        var targetY = Math.round(gRow.y - menuShadowPad)
-
-        var sc = posSubmenuWin.screen || menuWin.screen
-        if (sc && targetX + subW > sc.virtualX + sc.width - 4) {
-            targetX = Math.round(menuWin.x - subW - gap)
-        }
-        var clamped = clampToScreen(sc, targetX, targetY, subW, subH)
-        posSubmenuWin.x = clamped.x
-        posSubmenuWin.y = clamped.y
-    }
 
     function openRecentSubmenu(anchorRow) {
         if (!recentSubmenuAllowed || !anchorRow || ctxRecentCount <= 0) {
@@ -635,15 +606,6 @@ Window {
                     }
                 }
 
-                ContextMenuSubmenuRow {
-                    id: posSubmenuRowApp
-                    label: qsTr("Posição da doca")
-                    rowVisible: menuWin.ctxIsAppItem
-                    subMenuOpen: menuWin.posSubmenuOpen
-                    onRowEntered: menuWin.openPosSubmenu(posSubmenuRowApp)
-                    onRowExited: menuWin.cancelPosSubmenuHover()
-                }
-
                 ContextMenuRow {
                     iconText: "⚙"
                     label: qsTr("Preferências da doca…")
@@ -652,15 +614,6 @@ Window {
                         menuWin.dock.openSettingsGlobal()
                         menuWin.closeMenu()
                     }
-                }
-
-                ContextMenuSubmenuRow {
-                    id: posSubmenuRow
-                    label: qsTr("Posição da doca")
-                    rowVisible: menuWin.ctxIsSurfaceMenu
-                    subMenuOpen: menuWin.posSubmenuOpen
-                    onRowEntered: menuWin.openPosSubmenu(posSubmenuRow)
-                    onRowExited: menuWin.cancelPosSubmenuHover()
                 }
 
                 ContextMenuRow {
@@ -827,134 +780,6 @@ Window {
                                 onClicked: menuWin.openRecentItem(String(modelData.url || ""))
                             }
                         }
-                    }
-                }
-            }
-        }
-    }
-
-    // Submenu flutuante de posição da doca
-    Window {
-        id: posSubmenuWin
-
-        readonly property real subPadW: 10
-        readonly property real subPadH: 10
-        readonly property real subContentW: Math.round(200 * menuWin.dock.liveScaleFactor)
-        readonly property real subContentH: Math.max(28, (subPadH * 2) + (4 * menuWin.rowHeight) + (3 * menuWin.rowSpacing))
-
-        width: Math.round(subContentW + (subPadW * 2) + (menuWin.menuShadowPad * 2))
-        height: Math.round(subContentH + (menuWin.menuShadowPad * 2))
-        visible: menuWin.posSubmenuOpen
-        flags: Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint
-        color: "transparent"
-        transientParent: menuWin
-
-        onVisibleChanged: {
-            if (visible) {
-                menuWin.repositionPosSubmenu()
-            }
-        }
-
-        Item {
-            anchors.fill: parent
-
-            Rectangle {
-                width: posSubPanel.width
-                height: posSubPanel.height
-                x: posSubPanel.x
-                y: posSubPanel.y + Math.round(4 * menuWin.dock.liveScaleFactor)
-                radius: posSubPanel.radius
-                color: Qt.rgba(0, 0, 0, 0.35)
-                opacity: 0.6
-            }
-
-            Rectangle {
-                id: posSubPanel
-                x: menuWin.menuShadowPad
-                y: menuWin.menuShadowPad
-                width: Math.round(posSubmenuWin.subContentW + (posSubmenuWin.subPadW * 2))
-                height: posSubmenuWin.subContentH
-                radius: 12 * menuWin.dock.liveScaleFactor
-                color: menuWin.dock.themeMenuBg
-                border.color: Qt.rgba(1, 1, 1, 0.18)
-                border.width: 1
-                clip: true
-
-                scale: menuWin.posSubmenuOpen ? 1.0 : 0.96
-                opacity: menuWin.posSubmenuOpen ? 1.0 : 0.0
-                transformOrigin: Item.Left
-
-                Column {
-                    width: posSubmenuWin.subContentW
-                    anchors.centerIn: parent
-                    spacing: menuWin.rowSpacing
-
-                    Rectangle {
-                        width: parent.width
-                        height: menuWin.rowHeight
-                        radius: 6
-                        color: pos0Mouse.containsMouse ? menuWin.dock.themeMenuHover : "transparent"
-                        Text {
-                            anchors.fill: parent
-                            anchors.leftMargin: 10
-                            verticalAlignment: Text.AlignVCenter
-                            text: (menuWin.dock.liveDockEdge === 0 ? "✓ " : "   ") + qsTr("Inferior (Baixo)")
-                            color: menuWin.dock.themeTextPrimary
-                            font.pixelSize: 14.5 * menuWin.dock.liveScaleFactor
-                            font.bold: menuWin.dock.liveDockEdge === 0
-                        }
-                        MouseArea { id: pos0Mouse; anchors.fill: parent; hoverEnabled: true; onClicked: { menuWin.dock.setDockEdge(0); menuWin.closeMenu() } }
-                    }
-
-                    Rectangle {
-                        width: parent.width
-                        height: menuWin.rowHeight
-                        radius: 6
-                        color: pos1Mouse.containsMouse ? menuWin.dock.themeMenuHover : "transparent"
-                        Text {
-                            anchors.fill: parent
-                            anchors.leftMargin: 10
-                            verticalAlignment: Text.AlignVCenter
-                            text: (menuWin.dock.liveDockEdge === 1 ? "✓ " : "   ") + qsTr("Superior (Topo)")
-                            color: menuWin.dock.themeTextPrimary
-                            font.pixelSize: 14.5 * menuWin.dock.liveScaleFactor
-                            font.bold: menuWin.dock.liveDockEdge === 1
-                        }
-                        MouseArea { id: pos1Mouse; anchors.fill: parent; hoverEnabled: true; onClicked: { menuWin.dock.setDockEdge(1); menuWin.closeMenu() } }
-                    }
-
-                    Rectangle {
-                        width: parent.width
-                        height: menuWin.rowHeight
-                        radius: 6
-                        color: pos2Mouse.containsMouse ? menuWin.dock.themeMenuHover : "transparent"
-                        Text {
-                            anchors.fill: parent
-                            anchors.leftMargin: 10
-                            verticalAlignment: Text.AlignVCenter
-                            text: (menuWin.dock.liveDockEdge === 2 ? "✓ " : "   ") + qsTr("Esquerda")
-                            color: menuWin.dock.themeTextPrimary
-                            font.pixelSize: 14.5 * menuWin.dock.liveScaleFactor
-                            font.bold: menuWin.dock.liveDockEdge === 2
-                        }
-                        MouseArea { id: pos2Mouse; anchors.fill: parent; hoverEnabled: true; onClicked: { menuWin.dock.setDockEdge(2); menuWin.closeMenu() } }
-                    }
-
-                    Rectangle {
-                        width: parent.width
-                        height: menuWin.rowHeight
-                        radius: 6
-                        color: pos3Mouse.containsMouse ? menuWin.dock.themeMenuHover : "transparent"
-                        Text {
-                            anchors.fill: parent
-                            anchors.leftMargin: 10
-                            verticalAlignment: Text.AlignVCenter
-                            text: (menuWin.dock.liveDockEdge === 3 ? "✓ " : "   ") + qsTr("Direita")
-                            color: menuWin.dock.themeTextPrimary
-                            font.pixelSize: 14.5 * menuWin.dock.liveScaleFactor
-                            font.bold: menuWin.dock.liveDockEdge === 3
-                        }
-                        MouseArea { id: pos3Mouse; anchors.fill: parent; hoverEnabled: true; onClicked: { menuWin.dock.setDockEdge(3); menuWin.closeMenu() } }
                     }
                 }
             }
