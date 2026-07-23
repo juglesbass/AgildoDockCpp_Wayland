@@ -579,6 +579,9 @@ Window {
     readonly property alias mainRowRef: mainRow
     readonly property alias mainColumnRef: mainColumn
 
+    property real smoothedWaveRowWidth: baseRowWidth
+    onBaseRowWidthChanged: smoothedWaveRowWidth = baseRowWidth
+
     readonly property real wavePeakDeltaPx: Math.max(0, root.liveMaxIconSize - root.liveMinIconSize)
     property real maxIconsExpansion: root.wavePeakDeltaPx * 7.0 * root.liveScaleFactor * root.liveWaveIntensity
 

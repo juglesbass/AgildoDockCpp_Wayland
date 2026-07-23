@@ -37,6 +37,7 @@ Rectangle {
     readonly property real expansionAmp: waveBlurAnimating
             ? Math.round(dockRoot.waveAmplitude * 80) / 80
             : dockRoot.waveAmplitude
+    readonly property real waveExtraWidth: dockRoot.wavePeakDeltaPx * 3.15 * dockRoot.liveScaleFactor * dockRoot.liveWaveIntensity
     readonly property real contentSpan: dockRoot.dockLayoutVertical
             ? (dockRoot.mainColumnRef ? dockRoot.mainColumnRef.implicitHeight : dockRoot.baseRowWidth)
             : (dockRoot.mainRowRef ? dockRoot.mainRowRef.implicitWidth : dockRoot.baseRowWidth)
