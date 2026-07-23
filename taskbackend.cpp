@@ -796,13 +796,7 @@ void TaskBackend::updateSystemState()
     });
 }
 
-QString TaskBackend::resolveWindowTokenForLaunch(const QString &command)
-{
-    return DockWindowManagement::resolveWindowHandleForLaunch(command,
-                                                               knownApps,
-                                                               m_kdotoolAvailable,
-                                                               kKdotoolTimeoutMs);
-}
+
 
 void TaskBackend::updateExclusiveZone(int size)
 {
@@ -1159,7 +1153,7 @@ bool TaskBackend::tryShowAppWindowOverview(const QString &command)
         return false;
     }
 
-    QStringList handles = windowHandlesForCommand(command);
+    QStringList handles = windowHandlesForCommand(command, knownApps);
 
     if (handles.isEmpty() || handles.size() < 2) {
         return false;
@@ -1167,7 +1161,7 @@ bool TaskBackend::tryShowAppWindowOverview(const QString &command)
     return DockWindowManagement::activateKWinWindowView(handles);
 }
 
-QStringList TaskBackend::windowHandlesForCommand(const QString &command)
+QStringList TaskBackend::windowHandlesForCommand(const QString &command, const QHash<QString, QVariantMap> &apps)
 {
     if (command.isEmpty()) {
         return {};
@@ -1176,7 +1170,7 @@ QStringList TaskBackend::windowHandlesForCommand(const QString &command)
         return allScopedDolphinWindowIds(command.toLower(), m_kdotoolAvailable);
     }
     return DockWindowManagement::resolveAllWindowHandlesForLaunch(command,
-                                                                  knownApps,
+                                                                  apps,
                                                                   m_kdotoolAvailable,
                                                                   kKdotoolTimeoutMs);
 }
@@ -1267,8 +1261,9 @@ void TaskBackend::launchApp(const QString &command)
     const QString cmdCopy = command;
     const quint64 seq = ++m_launchSeq[cmdCopy];
     // Descobre janela em thread do pool — evita travar a UI durante vários kdotool/waitForFinished.
-    (void)QtConcurrent::run([this, cmdCopy, seq]() {
-        const QString winId = resolveWindowTokenForLaunch(cmdCopy);
+    const QHash<QString, QVariantMap> currentKnownApps = knownApps;
+    (void)QtConcurrent::run([this, cmdCopy, seq, currentKnownApps]() {
+        const QString winId = DockWindowManagement::resolveWindowHandleForLaunch(cmdCopy, currentKnownApps, m_kdotoolAvailable, kKdotoolTimeoutMs);
         QMetaObject::invokeMethod(
             this,
             [this, cmdCopy, winId, seq]() {
@@ -1302,8 +1297,9 @@ void TaskBackend::closeApp(const QString &command)
     }
     const QString cmdCopy = command;
     const quint64 seq = ++m_closeSeq[cmdCopy];
-    (void)QtConcurrent::run([this, cmdCopy, seq]() {
-        const QString winId = resolveWindowTokenForLaunch(cmdCopy);
+    const QHash<QString, QVariantMap> currentKnownApps = knownApps;
+    (void)QtConcurrent::run([this, cmdCopy, seq, currentKnownApps]() {
+        const QString winId = DockWindowManagement::resolveWindowHandleForLaunch(cmdCopy, currentKnownApps, m_kdotoolAvailable, kKdotoolTimeoutMs);
         QMetaObject::invokeMethod(
             this,
             [this, cmdCopy, winId, seq]() {
@@ -1509,8 +1505,9 @@ int TaskBackend::appWindowCount(const QString &command)
     int lastCount = (it != s_windowCountCache.cend()) ? it->count : 0;
     s_windowCountCache.insert(command, WindowCountCacheEntry{lastCount, nowMs});
     
-    (void)QtConcurrent::run([this, command]() {
-        const QStringList handles = windowHandlesForCommand(command);
+    const QHash<QString, QVariantMap> currentKnownApps = knownApps;
+    (void)QtConcurrent::run([this, command, currentKnownApps]() {
+        const QStringList handles = windowHandlesForCommand(command, currentKnownApps);
         const int count = handles.size();
         
         QMetaObject::invokeMethod(this, [this, command, count]() {
@@ -1528,8 +1525,9 @@ void TaskBackend::cycleAppWindows(const QString &command, int direction)
         return;
     }
     
-    (void)QtConcurrent::run([this, command, direction]() {
-        const QStringList handles = windowHandlesForCommand(command);
+    const QHash<QString, QVariantMap> currentKnownApps = knownApps;
+    (void)QtConcurrent::run([this, command, direction, currentKnownApps]() {
+        const QStringList handles = windowHandlesForCommand(command, currentKnownApps);
         if (handles.isEmpty()) {
             return;
         }
@@ -1752,7 +1750,7 @@ void TaskBackend::reportIconGeometry(const QString &command, int x, int y, int w
     }
     
     // Find the UUID associated with the app command
-    QStringList uuids = windowHandlesForCommand(command);
+    QStringList uuids = windowHandlesForCommand(command, knownApps);
     
     if (uuids.isEmpty()) {
         return;

@@ -113,10 +113,10 @@ private:
     void loadKnownApps();
     void rebuildExecIndex();
 
-    QString resolveWindowTokenForLaunch(const QString &command);
+
     bool tryShowAppWindowOverview(const QString &command);
     PlasmaWaylandManager *m_waylandManager = nullptr;
-    QStringList windowHandlesForCommand(const QString &command);
+    QStringList windowHandlesForCommand(const QString &command, const QHash<QString, QVariantMap> &apps);
     QVariantMap matchRunningLineToApp(const QString &cmdLineLower) const;
     static bool appMatchesRunningCmdLine(const QString &cmdLineLower, const QVariantMap &app);
     bool lactHasVisibleWindow(const QString &command) const;
