@@ -633,8 +633,12 @@ void TaskBackend::applyLayerShellEdge(int edge)
         return;
     }
 
-    // Limpa a região de blur antiga no KWin para não deixar um quadrado "fantasma" na borda anterior
     clearBlurRegion();
+
+    const bool wasVisible = m_mainWindow->isVisible();
+    if (wasVisible) {
+        m_mainWindow->hide();
+    }
 
     LayerShellQt::Window::Anchors anchor;
     switch (edge) {
@@ -645,14 +649,10 @@ void TaskBackend::applyLayerShellEdge(int edge)
     }
     layerWindow->setAnchors(anchor);
 
-    // Se a janela já estiver visível no Wayland, desmapeia e remapeia brevemente a superfície
-    // para o KWin descartar a geometria da borda antiga e criar a nova superfície sem fantasmas
-    if (m_mainWindow->isVisible()) {
-        m_mainWindow->hide();
+    if (wasVisible) {
         m_mainWindow->show();
-    } else {
-        m_mainWindow->requestUpdate();
     }
+    m_mainWindow->requestUpdate();
 }
 
 void TaskBackend::pollActiveForegroundHints()
