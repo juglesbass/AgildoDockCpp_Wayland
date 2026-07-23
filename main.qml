@@ -458,6 +458,14 @@ Window {
         iconContextMenu.openForSurface(anchorItem, globalX, globalY)
     }
 
+    function setDockEdge(edge) {
+        liveDockEdge = edge
+        dockSettings.dockEdge = edge
+        if (typeof dockSettings.sync === "function")
+            dockSettings.sync()
+        updateZone()
+    }
+
     function addPinnedAppFromDesktopUrl(urlStr) {
         const info = taskBackend.parseDropInfo(urlStr)
         if (!info.cmd)
