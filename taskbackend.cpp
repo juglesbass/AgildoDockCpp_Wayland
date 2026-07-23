@@ -881,11 +881,7 @@ void TaskBackend::flushBlurRegion()
         return;
     }
 
-    const int winW = m_mainWindow->width();
-    const int winH = m_mainWindow->height();
-    if (safeW >= winW - 4 && safeH >= winH - 4) {
-        return;
-    }
+
 
     // Mesmo retângulo visual — sem expandir (expansão criava “fade”/halo em toda a borda).
     // +1 no raio cobre o AA dos cantos sem blur a extravasar nas arestas retas.

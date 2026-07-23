@@ -1471,7 +1471,10 @@ Window {
 
         property real dockSlidePixels: root.dockRetracted ? root.dockRetractSlidePixels : 0
         Behavior on dockSlidePixels { enabled: !settingsWin.visible; NumberAnimation { duration: 320; easing.type: Easing.OutBack; easing.overshoot: 1.15 } }
-        transform: Translate { y: dockContainer.dockSlidePixels }
+        transform: Translate {
+            x: root.liveDockEdge === 2 ? -dockContainer.dockSlidePixels : (root.liveDockEdge === 3 ? dockContainer.dockSlidePixels : 0)
+            y: root.liveDockEdge === 1 ? -dockContainer.dockSlidePixels : (root.liveDockEdge === 0 ? dockContainer.dockSlidePixels : 0)
+        }
 
         onDockSlidePixelsChanged: dockBg.syncBlurAfterStyleChange()
 

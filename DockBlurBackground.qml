@@ -80,52 +80,16 @@ Rectangle {
     }
 
     function readBlurRectFromScene(bw, bh) {
-        var g = dockBg.mapToGlobal(0, 0)
+        var p = dockBg.mapToItem(dockRoot, 0, 0)
         var radius = Math.min(
             Math.round(dockBg.radius),
             Math.floor(Math.min(bw, bh) / 2)
         )
         return {
-            x: Math.round(g.x - dockRoot.x),
-            y: Math.round(g.y - dockRoot.y),
+            x: Math.round(p.x),
+            y: Math.round(p.y),
             radius: radius
         }
-    }
-
-    function computeBlurStableRect(bw, bh) {
-        var radius = Math.min(
-            Math.round(dockBg.radius),
-            Math.floor(Math.min(bw, bh) / 2)
-        )
-        var slideY = Math.round(dockContainer.dockSlidePixels)
-        var margin = Math.round(dockRoot.liveDockMargin * dockRoot.liveScaleFactor)
-        var bx, by
-
-        if (!dockRoot.dockLayoutVertical) {
-            var cx = (waveBlurAnimating && blurStableCx >= 0)
-                    ? blurStableCx
-                    : (Math.round(dockRoot.width / 2) + Math.round(dockRoot.liveDockOffsetX))
-            bx = cx - (bw >> 1)
-            if (dockRoot.liveDockEdge === 0) {
-                var bottomMargin = Math.round(margin - dockContainer.startupOffsetY + dockRoot.liveDockOffsetY)
-                by = Math.round(dockRoot.height - bh - bottomMargin + slideY)
-            } else {
-                var topMargin = Math.round(margin + dockContainer.startupOffsetY + dockRoot.liveDockOffsetY)
-                by = Math.round(topMargin + slideY)
-            }
-        } else {
-            var cy = (waveBlurAnimating && blurStableCy >= 0)
-                    ? blurStableCy
-                    : (Math.round(dockRoot.height / 2) + Math.round(dockRoot.liveDockOffsetY))
-            by = cy - (bh >> 1)
-            if (dockRoot.liveDockEdge === 2) {
-                bx = Math.round(margin + dockRoot.liveDockOffsetX)
-            } else {
-                bx = Math.round(dockRoot.width - bw - margin - dockRoot.liveDockOffsetX)
-            }
-        }
-
-        return { x: bx, y: by, radius: radius }
     }
 
     function flushCollapseBlur() {
@@ -221,12 +185,7 @@ Rectangle {
         var bh = Math.round(dockBg.height)
         if (bw < 10 || bh < 10)
             return
-        if (bw > dockRoot.width * 0.92 && bh > dockRoot.height * 0.92)
-            return
-
-        var rect = waveBlurAnimating
-                ? computeBlurStableRect(bw, bh)
-                : readBlurRectFromScene(bw, bh)
+        var rect = readBlurRectFromScene(bw, bh)
         var bx = rect.x
         var by = rect.y
         var radius = rect.radius
