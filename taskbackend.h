@@ -10,11 +10,13 @@
 #include <QString>
 #include <QStringList>
 #include <QTimer>
+#include <QFileSystemWatcher>
 #include <QVariantList>
 #include <QVariantMap>
 #include <QWindow>
 
 
+class QQuickWindow;
 class DockUnityLauncherService;
 class DockBrowserDownloadWatcher;
 class PlasmaWaylandManager;
@@ -28,6 +30,8 @@ class TaskBackend : public QObject
     Q_PROPERTY(bool windowOverviewOnRefocus READ windowOverviewOnRefocus WRITE setWindowOverviewOnRefocus NOTIFY windowOverviewOnRefocusChanged)
     Q_PROPERTY(QVariantMap notificationBadges READ notificationBadges NOTIFY notificationBadgesChanged)
     Q_PROPERTY(QVariantMap launcherProgress READ launcherProgress NOTIFY launcherProgressChanged)
+    Q_PROPERTY(int trashCount READ trashCount NOTIFY trashStateChanged)
+    Q_PROPERTY(bool trashIsEmpty READ trashIsEmpty NOTIFY trashStateChanged)
 
 public:
     explicit TaskBackend(QObject *parent = nullptr);
@@ -46,12 +50,15 @@ public:
     /// Define a borda Layer Shell: 0 baixo, 1 topo, 2 esquerda, 3 direita.
     Q_INVOKABLE void applyLayerShellEdge(int edge);
     Q_INVOKABLE void setBlurRegion(int x, int y, int w, int h, int radius, bool immediate = false);
+    /// Habilita ou desabilita blur KWin em qualquer QQuickWindow (ex.: Menu de Aplicativos).
+    Q_INVOKABLE void enableWindowBlur(QQuickWindow *win, bool enable = true, int x = 0, int y = 0, int w = 0, int h = 0, int radius = 24);
     /// Desliga blur KWin (estilo plano ou doca oculta).
     Q_INVOKABLE void clearBlurRegion();
     /// Wayland: remove a faixa superior (em px) da região que recebe ponteiro — cliques passam atrás.
     /// excludeTopPixels <= 0 repõe a superfície completa. Não altera o layout nem os tooltips.
     Q_INVOKABLE void setPointerInputExcludeTop(int excludeTopPixels);
     Q_INVOKABLE QVariantList getUnpinnedApps(const QVariantList &pinnedCmdsVar);
+    Q_INVOKABLE QVariantList getAllInstalledApps() const;
     Q_INVOKABLE void forceLaunchApp(const QString &command);
     Q_INVOKABLE void launchApp(const QString &command);
     Q_INVOKABLE void closeApp(const QString &command);
@@ -86,6 +93,10 @@ public:
     Q_INVOKABLE void setDockWaveAnimating(bool animating);
     /// 0 = ícone do navegador, 1 = pasta Transferências, 2 = Transferências com ícone do arquivo (macOS).
     Q_INVOKABLE void setDownloadProgressDisplayMode(int mode);
+    int trashCount() const { return m_trashCount; }
+    bool trashIsEmpty() const { return m_trashIsEmpty; }
+    Q_INVOKABLE void emptyTrash();
+    Q_INVOKABLE void moveToTrash(const QVariantList &urlsOrPaths);
 
 signals:
     void windowsUpdated();
@@ -95,6 +106,10 @@ signals:
     void launcherProgressChanged();
     /// Só o ícone com cmd correspondente deve reagir (evita repaint global na doca).
     void launcherProgressForCommandChanged(const QString &command);
+    void trashStateChanged();
+
+private slots:
+    void updateTrashStatus();
 
 private slots:
     void completeLaunchApp(const QString &command, const QString &winId);
@@ -185,6 +200,10 @@ private:
     QTimer *m_sniBadgeTimer = nullptr;
     QTimer *m_progressNotifyTimer = nullptr;
     QSet<QString> m_pendingProgressNotifyCmds;
+    void setupTrashWatcher();
+    QFileSystemWatcher *m_trashWatcher = nullptr;
+    int m_trashCount = 0;
+    bool m_trashIsEmpty = true;
     bool m_dockWaveAnimating = false;
     int m_downloadProgressDisplayMode = 2;
 };

@@ -23,6 +23,9 @@
 #include <QTextStream>
 #include <QTimer>
 #include <QPointer>
+#include <QDesktopServices>
+#include <QMimeDatabase>
+#include <QMimeType>
 #include <QUrl>
 #include <QXmlStreamReader>
 #include <QtConcurrent/QtConcurrentRun>
@@ -381,6 +384,7 @@ TaskBackend::TaskBackend(QObject *parent)
     setupNotificationBadgeWatcher();
     setupUnityLauncherProgressWatcher();
     setupBrowserDownloadWatcher();
+    setupTrashWatcher();
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     m_waylandManager = PlasmaWaylandManager::instance();
@@ -811,22 +815,24 @@ void TaskBackend::setPointerInputExcludeTop(int excludeTopPixels)
         return;
     }
 
-    // No Wayland, QWindow::setMask alimenta wl_surface.set_input_region (ver QWaylandWindow::setMask).
-    // No X11 o mesmo API pode recortar a janela visualmente — não tocar.
     if (!QGuiApplication::platformName().contains(QStringLiteral("wayland"), Qt::CaseInsensitive)) {
         return;
     }
 
     const int w = m_mainWindow->width();
     const int h = m_mainWindow->height();
-    if (w <= 0 || h <= 0) {
+    if (w <= 10 || h <= 10) {
         return;
     }
 
-    if (excludeTopPixels <= 0 || excludeTopPixels >= h - 24) {
+    int remainingH = h - excludeTopPixels;
+    if (excludeTopPixels <= 0 || remainingH <= 10) {
         m_mainWindow->setMask(QRegion());
     } else {
-        m_mainWindow->setMask(QRegion(0, excludeTopPixels, w, h - excludeTopPixels));
+        int safeY = qBound(0, excludeTopPixels, h - 10);
+        int safeH = qMax(10, h - safeY);
+        int safeW = qMax(10, w);
+        m_mainWindow->setMask(QRegion(0, safeY, safeW, safeH));
     }
     m_mainWindow->requestUpdate();
 }
@@ -921,6 +927,38 @@ void TaskBackend::clearBlurRegion()
         return;
     }
     KWindowEffects::enableBlurBehind(m_mainWindow, false, QRegion());
+}
+
+void TaskBackend::enableWindowBlur(QQuickWindow *win, bool enable, int x, int y, int w, int h, int radius)
+{
+    if (!win) {
+        return;
+    }
+    if (!win->isVisible() || !win->handle() || win->width() <= 10 || win->height() <= 10) {
+        return;
+    }
+    if (!enable) {
+        KWindowEffects::enableBlurBehind(win, false);
+        return;
+    }
+
+    if (w <= 0 || h <= 0) {
+        w = win->width();
+        h = win->height();
+    }
+
+    if (w < 10 || h < 10) {
+        return;
+    }
+
+    if (radius > 0) {
+        QPainterPath path;
+        path.addRoundedRect(QRectF(x, y, w, h), radius, radius);
+        QPolygon poly = path.toFillPolygon().toPolygon();
+        KWindowEffects::enableBlurBehind(win, true, QRegion(poly));
+    } else {
+        KWindowEffects::enableBlurBehind(win, true);
+    }
 }
 
 void TaskBackend::loadKnownApps()
@@ -1093,6 +1131,36 @@ QVariantList TaskBackend::getUnpinnedApps(const QVariantList &pinnedCmdsVar)
         addedCmds.insert(matchCmd);
     }
     return unpinned;
+}
+
+QVariantList TaskBackend::getAllInstalledApps() const
+{
+    QVariantList list;
+    QSet<QString> seenKeys;
+    QList<QVariantMap> apps = knownApps.values();
+
+    std::sort(apps.begin(), apps.end(), [](const QVariantMap &a, const QVariantMap &b) {
+        return a[QStringLiteral("name")].toString().localeAwareCompare(b[QStringLiteral("name")].toString()) < 0;
+    });
+
+    for (const QVariantMap &app : apps) {
+        const QString name = app[QStringLiteral("name")].toString().trimmed();
+        const QString cmd = app[QStringLiteral("cmd")].toString().trimmed();
+        if (name.isEmpty() || cmd.isEmpty()) {
+            continue;
+        }
+        if (shouldHideFromDock(cmd, name)) {
+            continue;
+        }
+        const QString key = name.toLower() + QLatin1Char('|') + execBasename(cmd);
+        if (seenKeys.contains(key)) {
+            continue;
+        }
+        seenKeys.insert(key);
+        list.append(app);
+    }
+
+    return list;
 }
 
 bool TaskBackend::lactHasVisibleWindow(const QString &command) const
@@ -1457,6 +1525,10 @@ QVariantMap TaskBackend::parseDropInfo(const QString &urlStr)
             } else if (!foundWmClass && line.startsWith(QStringLiteral("StartupWMClass="))) {
                 map[QStringLiteral("wmclass")] = line.mid(15);
                 foundWmClass = true;
+            } else if (line.startsWith(QStringLiteral("Categories="))) {
+                map[QStringLiteral("categories")] = line.mid(11);
+            } else if (line.startsWith(QStringLiteral("Comment="))) {
+                map[QStringLiteral("comment")] = line.mid(8);
             }
         }
         file.close();
@@ -1777,4 +1849,104 @@ void TaskBackend::reportIconGeometry(const QString &command, int x, int y, int w
     Q_UNUSED(w);
     Q_UNUSED(h);
 #endif
+}
+
+void TaskBackend::setupTrashWatcher()
+{
+    m_trashWatcher = new QFileSystemWatcher(this);
+    const QString trashPath = QDir::homePath() + QStringLiteral("/.local/share/Trash/files");
+    QDir trashDir(trashPath);
+    if (!trashDir.exists()) {
+        trashDir.mkpath(QStringLiteral("."));
+    }
+
+    if (trashDir.exists()) {
+        m_trashWatcher->addPath(trashPath);
+    }
+
+    const QString infoPath = QDir::homePath() + QStringLiteral("/.local/share/Trash/info");
+    QDir infoDir(infoPath);
+    if (infoDir.exists()) {
+        m_trashWatcher->addPath(infoPath);
+    }
+
+    connect(m_trashWatcher, &QFileSystemWatcher::directoryChanged, this, &TaskBackend::updateTrashStatus);
+    connect(m_trashWatcher, &QFileSystemWatcher::fileChanged, this, &TaskBackend::updateTrashStatus);
+
+    updateTrashStatus();
+}
+
+void TaskBackend::updateTrashStatus()
+{
+    const QString trashPath = QDir::homePath() + QStringLiteral("/.local/share/Trash/files");
+    QDir trashDir(trashPath);
+    int count = 0;
+    if (trashDir.exists()) {
+        count = trashDir.entryList(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden).count();
+    }
+    const bool isEmpty = (count == 0);
+    if (count != m_trashCount || isEmpty != m_trashIsEmpty) {
+        m_trashCount = count;
+        m_trashIsEmpty = isEmpty;
+        emit trashStateChanged();
+    }
+}
+
+void TaskBackend::emptyTrash()
+{
+    QProcess::startDetached(QStringLiteral("gio"), {QStringLiteral("trash"), QStringLiteral("--empty")});
+    QProcess::startDetached(QStringLiteral("kioclient6"), {QStringLiteral("emptyTrash")});
+    QProcess::startDetached(QStringLiteral("trash-empty"), {});
+
+    const QString filesPath = QDir::homePath() + QStringLiteral("/.local/share/Trash/files");
+    const QString infoPath = QDir::homePath() + QStringLiteral("/.local/share/Trash/info");
+
+    auto clearDir = [](const QString &dirPath) {
+        QDir dir(dirPath);
+        if (!dir.exists()) return;
+        const QFileInfoList entries = dir.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden);
+        for (const QFileInfo &fi : entries) {
+            if (fi.isDir()) {
+                QDir(fi.absoluteFilePath()).removeRecursively();
+            } else {
+                QFile::remove(fi.absoluteFilePath());
+            }
+        }
+    };
+
+    clearDir(filesPath);
+    clearDir(infoPath);
+
+    updateTrashStatus();
+}
+
+void TaskBackend::moveToTrash(const QVariantList &urlsOrPaths)
+{
+    if (urlsOrPaths.isEmpty()) {
+        return;
+    }
+    QStringList paths;
+    for (const QVariant &item : urlsOrPaths) {
+        QString s = item.toString().trimmed();
+        if (s.startsWith(QStringLiteral("file://"))) {
+            const QUrl url(s);
+            s = url.toLocalFile();
+        }
+        if (!s.isEmpty()) {
+            paths << s;
+        }
+    }
+    if (paths.isEmpty()) {
+        return;
+    }
+
+    QStringList gioArgs;
+    gioArgs << QStringLiteral("trash") << paths;
+    bool started = QProcess::startDetached(QStringLiteral("gio"), gioArgs);
+    if (!started) {
+        QStringList kioArgs;
+        kioArgs << QStringLiteral("move") << paths << QStringLiteral("trash:/");
+        QProcess::startDetached(QStringLiteral("kioclient6"), kioArgs);
+    }
+    QTimer::singleShot(500, this, &TaskBackend::updateTrashStatus);
 }

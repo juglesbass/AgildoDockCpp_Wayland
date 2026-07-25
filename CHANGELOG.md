@@ -2,9 +2,20 @@
 
 Todas as alterações notáveis deste projeto são documentadas neste ficheiro.
 
+## [1.3.17] — 2026-07-25
+
+### Adicionado / Melhorado
+- **Menu de Aplicativos Nativizado (`DockAppMenuWindow.qml`)**: Efeito de vidro fosco desfoque KWin nativo em hardware (`enableWindowBlur`), busca instantânea, atalhos de categoria e layout compacto responsivo em PT-BR.
+- **Física de Rolagem da Onda estilo macOS (`Dock.app`)**:
+  - Modo Rápido / Instantâneo (1:1): resposta de hardware 0ms sem lag/filtro e curva **Cosseno Quadrado ($\cos^2$)** exata do macOS.
+  - Precisão subpixel contínua em nível decimal float (0.0px) e cálculo de coordenadas estático em relação à base, eliminando qualquer micro-degrau ou distorção em telas de 60Hz, 120Hz e 144Hz nos 3 modos de inércia (*Rápida*, *Suave*, *Amanteigada*).
+- **Animação de Pulo do Ícone Recalibrada**: Animação de subida elástica macia (`Easing.OutBack` com 300ms) e descida senoidal (`Easing.InSine`) com altura discreta de 20px escalados.
+- **Proteção do Protocolo Wayland**: Validação estrita de dimensões seguras em `setPointerInputExcludeTop` e `enableWindowBlur`, eliminando exceções de superfície com dimensões nulas.
+
 ## [1.3.16] — 2026-07-23
 
 ### Adicionado / Melhorado
+- **Docklet de Lixeira Inteligente**: Monitorização em tempo real via `QFileSystemWatcher` (`setupTrashWatcher`, `updateTrashStatus`), ícone dinâmico (`user-trash`/`user-trash-full`), badge com contagem de itens, ação de esvaziar no menu de contexto (`emptyTrash`) e suporte a *Drag & Drop* de ficheiros (`moveToTrash`).
 - **Janela de Configurações Estilo Latte Dock**: Layout de 3 abas (*Comportamento*, *Aparência*, *Efeitos & Ajustes*) 100% traduzido para PT-BR, com chaveador *Avançado* dinâmico e retenção de todas as opções de personalização.
 - **Menu de Contexto Flutuante Estilo Vidro/Latte**: Redesign visual com acentos dinâmicos do tema, cabeçalho de aplicação, suporte a submenus nativos de ficheiros recentes e comandos customizados.
 - **Seletores de Ficheiros Nativos**: Integração de `FileDialog`s no nível raiz do `main.qml` para a adição estável de aplicativos e atalhos do sistema.
@@ -12,9 +23,8 @@ Todas as alterações notáveis deste projeto são documentadas neste ficheiro.
 
 ## [1.3.15] — 2026-07-22
 
-### Corrigido
-- Correção definitiva da data race em `knownApps` (`taskbackend.cpp`) através do isolamento de cópias locais por valor nas threads secundárias.
-- Atualização e alinhamento dos relatórios de auditoria e documentação.
+### Alterado
+- Auditoria e validação final da correção de data race em `knownApps` e alinhamento da documentação.
 
 ## [1.3.14] — 2026-07-22
 
