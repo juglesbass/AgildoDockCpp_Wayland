@@ -463,8 +463,8 @@ Window {
     }
 
     function setDockEdge(edge) {
-        liveDockEdge = edge
-        dockSettings.dockEdge = edge
+        liveDockEdge = 0
+        dockSettings.dockEdge = 0
         if (typeof dockSettings.sync === "function")
             dockSettings.sync()
         updateZone()
@@ -588,6 +588,9 @@ Window {
 
     property int totalItemsCount: launcherModel.count + appModel.count + dynamicModel.count + systemModel.count
     property real baseRowWidth: (totalItemsCount * baseItemWidth) + (Math.max(0, totalItemsCount - 1) * baseSpacing) + dividersWidth
+
+    readonly property alias mainRowRef: mainRow
+    readonly property alias mainColumnRef: mainColumn
 
     property real smoothedWaveRowWidth: baseRowWidth
     onBaseRowWidthChanged: smoothedWaveRowWidth = baseRowWidth
@@ -1337,7 +1340,7 @@ Window {
         root.liveLaunchBounceIntensity = dockSettings.launchBounceIntensity
         root.liveAutoThemeByActiveApp = dockSettings.autoThemeByActiveApp
         root.liveDockEditMode = dockSettings.dockEditMode
-        root.liveDockEdge = dockSettings.dockEdge
+        root.liveDockEdge = 0
         root.liveDockOffsetX = dockSettings.dockOffsetX
         root.liveDockOffsetY = dockSettings.dockOffsetY
         root.liveLeftClickAction = dockSettings.leftClickAction
@@ -1492,7 +1495,10 @@ Window {
 
         property real dockSlidePixels: root.dockRetracted ? root.dockRetractSlidePixels : 0
         Behavior on dockSlidePixels { enabled: !settingsWin.visible; NumberAnimation { duration: 320; easing.type: Easing.OutBack; easing.overshoot: 1.15 } }
-        transform: Translate { y: dockContainer.dockSlidePixels }
+        transform: Translate {
+            x: root.liveDockEdge === 2 ? -dockContainer.dockSlidePixels : (root.liveDockEdge === 3 ? dockContainer.dockSlidePixels : 0)
+            y: root.liveDockEdge === 1 ? -dockContainer.dockSlidePixels : (root.liveDockEdge === 0 ? dockContainer.dockSlidePixels : 0)
+        }
 
         onDockSlidePixelsChanged: dockBg.syncBlurAfterStyleChange()
 
@@ -1550,8 +1556,9 @@ Window {
         Row {
             id: mainRow
             visible: !root.dockLayoutVertical
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.bottom: dockBg.bottom
+            anchors.horizontalCenter: dockBg.horizontalCenter
+            anchors.bottom: root.liveDockEdge === 0 ? dockBg.bottom : undefined
+            anchors.top: root.liveDockEdge === 1 ? dockBg.top : undefined
 
             height: Math.round(root.dockBarHeightPx * root.liveScaleFactor)
             spacing: root.baseSpacing
@@ -1644,7 +1651,7 @@ Window {
         Column {
             id: mainColumn
             visible: root.dockLayoutVertical
-            anchors.verticalCenter: parent.verticalCenter
+            anchors.verticalCenter: dockBg.verticalCenter
             anchors.left: root.liveDockEdge === 2 ? dockBg.left : undefined
             anchors.right: root.liveDockEdge === 3 ? dockBg.right : undefined
             width: Math.round(root.dockBarHeightPx * root.liveScaleFactor)

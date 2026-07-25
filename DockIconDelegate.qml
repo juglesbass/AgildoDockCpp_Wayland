@@ -609,11 +609,24 @@ Item {
 
         Rectangle {
             id: activeIndicator
-            x: Math.round((parent.width - width) / 2)
-            anchors.bottom: parent.bottom
-            anchors.bottomMargin: 2 * dock.liveScaleFactor
+            anchors.bottom: dock.liveDockEdge === 0 ? parent.bottom : undefined
+            anchors.top: dock.liveDockEdge === 1 ? parent.top : undefined
+            anchors.left: dock.liveDockEdge === 2 ? parent.left : undefined
+            anchors.right: dock.liveDockEdge === 3 ? parent.right : undefined
+            anchors.bottomMargin: dock.liveDockEdge === 0 ? Math.round(2 * dock.liveScaleFactor) : 0
+            anchors.topMargin: dock.liveDockEdge === 1 ? Math.round(2 * dock.liveScaleFactor) : 0
+            anchors.leftMargin: dock.liveDockEdge === 2 ? Math.round(2 * dock.liveScaleFactor) : 0
+            anchors.rightMargin: dock.liveDockEdge === 3 ? Math.round(2 * dock.liveScaleFactor) : 0
+            anchors.horizontalCenter: !dock.dockLayoutVertical ? parent.horizontalCenter : undefined
+            anchors.verticalCenter: dock.dockLayoutVertical ? parent.verticalCenter : undefined
             width: {
                 const scale = dock.liveIndicatorScale
+                if (dock.dockLayoutVertical) {
+                    if (dock.liveIndicatorStyle === 1) return (2 * dock.liveScaleFactor) * scale
+                    if (dock.liveIndicatorStyle === 2) return (6 * dock.liveScaleFactor) * scale
+                    if (dock.liveIndicatorStyle === 3) return (1.5 * dock.liveScaleFactor) * scale
+                    return (delegateRoot.isFocused ? 4 : 6) * dock.liveScaleFactor * scale
+                }
                 if (dock.liveIndicatorStyle === 1) return (22 * dock.liveScaleFactor) * scale
                 if (dock.liveIndicatorStyle === 2) return (26 * dock.liveScaleFactor) * scale
                 if (dock.liveIndicatorStyle === 3) return (30 * dock.liveScaleFactor) * scale
@@ -621,6 +634,12 @@ Item {
             }
             height: {
                 const scale = dock.liveIndicatorScale
+                if (dock.dockLayoutVertical) {
+                    if (dock.liveIndicatorStyle === 1) return (22 * dock.liveScaleFactor) * scale
+                    if (dock.liveIndicatorStyle === 2) return (26 * dock.liveScaleFactor) * scale
+                    if (dock.liveIndicatorStyle === 3) return (30 * dock.liveScaleFactor) * scale
+                    return (delegateRoot.isFocused ? 18 : 6) * dock.liveScaleFactor * scale
+                }
                 if (dock.liveIndicatorStyle === 1) return (2 * dock.liveScaleFactor) * scale
                 if (dock.liveIndicatorStyle === 2) return (6 * dock.liveScaleFactor) * scale
                 if (dock.liveIndicatorStyle === 3) return (1.5 * dock.liveScaleFactor) * scale

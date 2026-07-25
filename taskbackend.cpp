@@ -23,6 +23,9 @@
 #include <QTextStream>
 #include <QTimer>
 #include <QPointer>
+#include <QDesktopServices>
+#include <QMimeDatabase>
+#include <QMimeType>
 #include <QUrl>
 #include <QXmlStreamReader>
 #include <QtConcurrent/QtConcurrentRun>
@@ -626,6 +629,7 @@ void TaskBackend::setLayerShellActivateOnShow(bool activate)
 
 void TaskBackend::applyLayerShellEdge(int edge)
 {
+    Q_UNUSED(edge);
     if (!m_mainWindow) {
         return;
     }
@@ -633,14 +637,7 @@ void TaskBackend::applyLayerShellEdge(int edge)
     if (!layerWindow) {
         return;
     }
-    LayerShellQt::Window::Anchors anchor;
-    switch (edge) {
-        case 1:  anchor = LayerShellQt::Window::AnchorTop;    break;
-        case 2:  anchor = LayerShellQt::Window::AnchorLeft;   break;
-        case 3:  anchor = LayerShellQt::Window::AnchorRight;  break;
-        default: anchor = LayerShellQt::Window::AnchorBottom; break;
-    }
-    layerWindow->setAnchors(anchor);
+    layerWindow->setAnchors(LayerShellQt::Window::AnchorBottom);
     m_mainWindow->requestUpdate();
 }
 
@@ -818,22 +815,24 @@ void TaskBackend::setPointerInputExcludeTop(int excludeTopPixels)
         return;
     }
 
-    // No Wayland, QWindow::setMask alimenta wl_surface.set_input_region (ver QWaylandWindow::setMask).
-    // No X11 o mesmo API pode recortar a janela visualmente — não tocar.
     if (!QGuiApplication::platformName().contains(QStringLiteral("wayland"), Qt::CaseInsensitive)) {
         return;
     }
 
     const int w = m_mainWindow->width();
     const int h = m_mainWindow->height();
-    if (w <= 0 || h <= 0) {
+    if (w <= 10 || h <= 10) {
         return;
     }
 
-    if (excludeTopPixels <= 0 || excludeTopPixels >= h - 24) {
+    int remainingH = h - excludeTopPixels;
+    if (excludeTopPixels <= 0 || remainingH <= 10) {
         m_mainWindow->setMask(QRegion());
     } else {
-        m_mainWindow->setMask(QRegion(0, excludeTopPixels, w, h - excludeTopPixels));
+        int safeY = qBound(0, excludeTopPixels, h - 10);
+        int safeH = qMax(10, h - safeY);
+        int safeW = qMax(10, w);
+        m_mainWindow->setMask(QRegion(0, safeY, safeW, safeH));
     }
     m_mainWindow->requestUpdate();
 }
@@ -882,11 +881,7 @@ void TaskBackend::flushBlurRegion()
         return;
     }
 
-    const int winW = m_mainWindow->width();
-    const int winH = m_mainWindow->height();
-    if (safeW >= winW - 4 && safeH >= winH - 4) {
-        return;
-    }
+
 
     // Mesmo retângulo visual — sem expandir (expansão criava “fade”/halo em toda a borda).
     // +1 no raio cobre o AA dos cantos sem blur a extravasar nas arestas retas.
@@ -920,10 +915,50 @@ void TaskBackend::clearBlurRegion()
     m_hasLastBlur = false;
     m_pendingBlurW = 0;
     m_pendingBlurH = 0;
+    m_pendingBlurX = 0;
+    m_pendingBlurY = 0;
+    m_pendingBlurRadius = 0;
+    m_lastBlurX = -1;
+    m_lastBlurY = -1;
+    m_lastBlurW = -1;
+    m_lastBlurH = -1;
+    m_lastBlurRadius = -1;
     if (!m_mainWindow) {
         return;
     }
-    KWindowEffects::enableBlurBehind(m_mainWindow, false);
+    KWindowEffects::enableBlurBehind(m_mainWindow, false, QRegion());
+}
+
+void TaskBackend::enableWindowBlur(QQuickWindow *win, bool enable, int x, int y, int w, int h, int radius)
+{
+    if (!win) {
+        return;
+    }
+    if (!win->isVisible() || !win->handle() || win->width() <= 10 || win->height() <= 10) {
+        return;
+    }
+    if (!enable) {
+        KWindowEffects::enableBlurBehind(win, false);
+        return;
+    }
+
+    if (w <= 0 || h <= 0) {
+        w = win->width();
+        h = win->height();
+    }
+
+    if (w < 10 || h < 10) {
+        return;
+    }
+
+    if (radius > 0) {
+        QPainterPath path;
+        path.addRoundedRect(QRectF(x, y, w, h), radius, radius);
+        QPolygon poly = path.toFillPolygon().toPolygon();
+        KWindowEffects::enableBlurBehind(win, true, QRegion(poly));
+    } else {
+        KWindowEffects::enableBlurBehind(win, true);
+    }
 }
 
 void TaskBackend::enableWindowBlur(QQuickWindow *win, bool enable, int x, int y, int w, int h, int radius)
