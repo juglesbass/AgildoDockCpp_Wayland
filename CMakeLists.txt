@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(agildodock VERSION 1.3.16 LANGUAGES CXX C)
+project(agildodock VERSION 1.4.0 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -51,6 +51,7 @@ qt6_add_qml_module(agildodock
         DockSettingsWindow.qml
         DockIconDelegate.qml
         DockIconContextMenu.qml
+        DockAppMenuWindow.qml
     )
 
 # Ícone embutido: fallback quando o tema do sistema ainda não indexou org.agildosoft.agildodock.
@@ -67,6 +68,7 @@ set(AGILDO_DOCK_QML_I18N_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/DockSettingsWindow.qml"
     "${CMAKE_CURRENT_SOURCE_DIR}/DockIconDelegate.qml"
     "${CMAKE_CURRENT_SOURCE_DIR}/DockIconContextMenu.qml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/DockAppMenuWindow.qml"
 )
 
 qt_add_translations(agildodock

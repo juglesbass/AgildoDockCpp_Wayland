@@ -3,7 +3,7 @@
 [![Build & Test](https://github.com/juglesbass/AgildoDockCpp_Wayland/actions/workflows/build.yml/badge.svg)](https://github.com/juglesbass/AgildoDockCpp_Wayland/actions)
 [![Code Quality](https://github.com/juglesbass/AgildoDockCpp_Wayland/actions/workflows/lint.yml/badge.svg)](https://github.com/juglesbass/AgildoDockCpp_Wayland/actions)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL%203.0-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.3.15-green.svg)](#)
+[![Version](https://img.shields.io/badge/Version-1.3.16-green.svg)](#)
 
 Doca de aplicações para **Plasma (KDE) em Wayland**, com Layer Shell, blur KWin, efeito de onda magnética e integração completa com janelas.
 
@@ -165,7 +165,7 @@ kpackagetool6 -t Plasma/Applet -r org.agildosoft.agildodock.preview
 
 ### Versão Atual
 
-**1.3.15** — Ver [CHANGELOG.md](CHANGELOG.md) para detalhes completos.
+**1.3.16** — Ver [CHANGELOG.md](CHANGELOG.md) para detalhes completos.
 
 ### Atualizar do GitHub
 
@@ -213,7 +213,7 @@ AGILDO_DOCK_DEBUG=1 agildodock
 
 1. Conta registada em https://aur.archlinux.org
 2. Chave SSH configurada ([guia](packaging/aur/README.txt))
-3. Tag Git criada: `git tag v1.3.15`
+3. Tag Git criada: `git tag v1.3.16`
 
 ### Publicar
 

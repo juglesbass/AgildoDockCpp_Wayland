@@ -33,12 +33,9 @@ Rectangle {
         y: (dockRoot.liveDockEdge === 2 || dockRoot.liveDockEdge === 3) ? Math.round(dockRoot.liveDockOffsetY) : 0
     }
 
-    readonly property real sidePad: 30 * dockRoot.liveScaleFactor
-    readonly property real expansionAmp: waveBlurAnimating
-            ? Math.round(dockRoot.waveAmplitude * 80) / 80
-            : dockRoot.waveAmplitude
-    readonly property real waveExtraWidth: dockRoot.wavePeakDeltaPx * 3.15 * dockRoot.liveScaleFactor * dockRoot.liveWaveIntensity
-    readonly property real rawBgSpan: dockRoot.baseRowWidth + sidePad + (waveExtraWidth * expansionAmp)
+    readonly property real sidePad: 24 * dockRoot.liveScaleFactor
+    readonly property real maxWaveExtraWidth: dockRoot.wavePeakDeltaPx * 2.2 * dockRoot.liveScaleFactor * dockRoot.liveWaveIntensity
+    readonly property real rawBgSpan: dockRoot.baseRowWidth + sidePad + (maxWaveExtraWidth * dockRoot.waveAmplitude)
     readonly property int dockSpanEvenPx: {
         var w = Math.round(rawBgSpan)
         if ((w & 1) !== 0)

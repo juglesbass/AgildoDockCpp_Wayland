@@ -64,6 +64,8 @@ Window {
             id: btnMouse
             anchors.fill: parent
             hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            z: 10
             onClicked: btnRoot.clicked()
         }
     }
@@ -234,6 +236,7 @@ Window {
         dock.liveAnimationProfile = dock.appSettings.animationProfile
         dock.liveWaveRadiusFactor = dock.appSettings.waveRadiusFactor
         dock.liveWaveFalloff = dock.appSettings.waveFalloff
+        dock.liveWaveInertia = dock.appSettings.waveInertia !== undefined ? dock.appSettings.waveInertia : 1
         dock.liveLaunchBounceIntensity = dock.appSettings.launchBounceIntensity
         dock.liveAutoThemeByActiveApp = dock.appSettings.autoThemeByActiveApp
         dock.liveDockEditMode = dock.appSettings.dockEditMode
@@ -271,82 +274,89 @@ Window {
     }
 
     function aplicarValores() {
-        var minSz = dock.liveMinIconSize
-        var maxSz = Math.max(minSz, Math.min(dock.liveMaxIconSize, minSz * 2.0))
-        dock.liveMaxIconSize = maxSz
+        try {
+            var minSz = dock.liveMinIconSize
+            var maxSz = Math.max(minSz, Math.min(dock.liveMaxIconSize, minSz * 2.0))
+            dock.liveMaxIconSize = maxSz
 
-        dock.appSettings.scaleFactor = dock.liveScaleFactor
-        dock.appSettings.iconSpacing = dock.liveIconSpacing
-        dock.appSettings.dockMargin = dock.liveDockMargin
-        dock.appSettings.bgOpacity = dock.liveBgOpacity
-        dock.appSettings.minIconSize = minSz
-        dock.appSettings.maxIconSize = maxSz
-        dock.appSettings.themeMode = dock.liveThemeMode
-        dock.appSettings.accentMode = dock.liveAccentMode
-        dock.appSettings.waveIntensity = dock.liveWaveIntensity
-        dock.appSettings.dockRadius = dock.liveDockRadius
-        dock.appSettings.monochromeIcons = dock.liveMonochromeIcons
-        dock.appSettings.indicatorStyle = dock.liveIndicatorStyle
-        dock.appSettings.indicatorScale = dock.liveIndicatorScale
-        dock.appSettings.bg3dStyle = dock.liveBg3dStyle
-        dock.appSettings.gradientColorA = dock.liveGradientColorA
-        dock.appSettings.gradientColorB = dock.liveGradientColorB
-        dock.appSettings.gradientColorC = dock.liveGradientColorC
-        dock.appSettings.gradientMix = dock.liveGradientMix
-        dock.appSettings.borderWidth = dock.liveBorderWidth
-        dock.appSettings.borderGlow = dock.liveBorderGlow
-        dock.appSettings.shadowStrength = dock.liveShadowStrength
-        dock.appSettings.animationProfile = dock.liveAnimationProfile
-        dock.appSettings.waveRadiusFactor = dock.liveWaveRadiusFactor
-        dock.appSettings.waveFalloff = dock.liveWaveFalloff
-        dock.appSettings.launchBounceIntensity = dock.liveLaunchBounceIntensity
-        dock.appSettings.autoThemeByActiveApp = dock.liveAutoThemeByActiveApp
-        dock.appSettings.dockEditMode = dock.liveDockEditMode
-        dock.appSettings.dockEdge = dock.liveDockEdge
-        dock.appSettings.dockOffsetX = dock.liveDockOffsetX
-        dock.appSettings.dockOffsetY = dock.liveDockOffsetY
-        dock.appSettings.leftClickAction = dock.liveLeftClickAction
-        dock.appSettings.middleClickAction = dock.liveMiddleClickAction
-        dock.appSettings.rightClickAction = dock.liveRightClickAction
-        dock.appSettings.toggleDockShortcut = dock.liveToggleDockShortcut
-        dock.appSettings.openSettingsShortcut = dock.liveOpenSettingsShortcut
-        dock.appSettings.scheduleThemeEnabled = dock.liveScheduleThemeEnabled
-        dock.appSettings.dayThemeMode = dock.liveDayThemeMode
-        dock.appSettings.nightThemeMode = dock.liveNightThemeMode
-        dock.appSettings.nightStartHour = dock.liveNightStartHour
-        dock.appSettings.dayStartHour = dock.liveDayStartHour
-        dock.appSettings.profilesJson = dock.liveProfilesJson
-        dock.appSettings.appRulesJson = dock.liveAppRulesJson
-        dock.appSettings.customCommandsJson = dock.liveCustomCommandsJson
-        dock.appSettings.userWidgetsJson = dock.liveWidgetsJson
-        dock.appSettings.presetName = dock.livePresetName
+            dock.appSettings.scaleFactor = dock.liveScaleFactor
+            dock.appSettings.iconSpacing = dock.liveIconSpacing
+            dock.appSettings.dockMargin = dock.liveDockMargin
+            dock.appSettings.bgOpacity = dock.liveBgOpacity
+            dock.appSettings.minIconSize = minSz
+            dock.appSettings.maxIconSize = maxSz
+            dock.appSettings.themeMode = dock.liveThemeMode
+            dock.appSettings.accentMode = dock.liveAccentMode
+            dock.appSettings.waveIntensity = dock.liveWaveIntensity
+            dock.appSettings.dockRadius = dock.liveDockRadius
+            dock.appSettings.monochromeIcons = dock.liveMonochromeIcons
+            dock.appSettings.indicatorStyle = dock.liveIndicatorStyle
+            dock.appSettings.indicatorScale = dock.liveIndicatorScale
+            dock.appSettings.bg3dStyle = dock.liveBg3dStyle
+            dock.appSettings.gradientColorA = dock.liveGradientColorA
+            dock.appSettings.gradientColorB = dock.liveGradientColorB
+            dock.appSettings.gradientColorC = dock.liveGradientColorC
+            dock.appSettings.gradientMix = dock.liveGradientMix
+            dock.appSettings.borderWidth = dock.liveBorderWidth
+            dock.appSettings.borderGlow = dock.liveBorderGlow
+            dock.appSettings.shadowStrength = dock.liveShadowStrength
+            dock.appSettings.animationProfile = dock.liveAnimationProfile
+            dock.appSettings.waveRadiusFactor = dock.liveWaveRadiusFactor
+            dock.appSettings.waveFalloff = dock.liveWaveFalloff
+            dock.appSettings.waveInertia = dock.liveWaveInertia
+            dock.appSettings.launchBounceIntensity = dock.liveLaunchBounceIntensity
+            dock.appSettings.autoThemeByActiveApp = dock.liveAutoThemeByActiveApp
+            dock.appSettings.dockEditMode = dock.liveDockEditMode
+            dock.appSettings.dockEdge = dock.liveDockEdge
+            dock.appSettings.dockOffsetX = dock.liveDockOffsetX
+            dock.appSettings.dockOffsetY = dock.liveDockOffsetY
+            dock.appSettings.leftClickAction = dock.liveLeftClickAction
+            dock.appSettings.middleClickAction = dock.liveMiddleClickAction
+            dock.appSettings.rightClickAction = dock.liveRightClickAction
+            dock.appSettings.toggleDockShortcut = dock.liveToggleDockShortcut
+            dock.appSettings.openSettingsShortcut = dock.liveOpenSettingsShortcut
+            dock.appSettings.scheduleThemeEnabled = dock.liveScheduleThemeEnabled
+            dock.appSettings.dayThemeMode = dock.liveDayThemeMode
+            dock.appSettings.nightThemeMode = dock.liveNightThemeMode
+            dock.appSettings.nightStartHour = dock.liveNightStartHour
+            dock.appSettings.dayStartHour = dock.liveDayStartHour
+            dock.appSettings.profilesJson = dock.liveProfilesJson
+            dock.appSettings.appRulesJson = dock.liveAppRulesJson
+            dock.appSettings.customCommandsJson = dock.liveCustomCommandsJson
+            dock.appSettings.userWidgetsJson = dock.liveWidgetsJson
+            dock.appSettings.presetName = dock.livePresetName
 
-        dock.appSettings.behaviorAutoHide = dock.liveBehaviorAutoHide
-        dock.appSettings.behaviorDodgeWindows = dock.liveBehaviorDodgeWindows
-        dock.appSettings.behaviorKeepAppsFocused = dock.liveBehaviorKeepAppsFocused
-        dock.appSettings.behaviorWindowOverviewOnRefocus = dock.liveBehaviorWindowOverviewOnRefocus
-        dock.appSettings.behaviorShowUnpinnedApps = dock.liveBehaviorShowUnpinnedApps
-        dock.appSettings.behaviorRememberRecentApps = dock.liveBehaviorRememberRecentApps
-        dock.appSettings.behaviorAutoHideDelayMs = dock.liveBehaviorAutoHideDelayMs
-        dock.appSettings.scrollWheelAction = dock.liveScrollWheelAction
-        dock.appSettings.downloadProgressDisplayMode = dock.liveDownloadProgressDisplayMode
-        taskBackend.windowOverviewOnRefocus = dock.liveBehaviorWindowOverviewOnRefocus
-        taskBackend.setDownloadProgressDisplayMode(dock.liveDownloadProgressDisplayMode)
-        dock.syncGlobalShortcuts()
+            dock.appSettings.behaviorAutoHide = dock.liveBehaviorAutoHide
+            dock.appSettings.behaviorDodgeWindows = dock.liveBehaviorDodgeWindows
+            dock.appSettings.behaviorKeepAppsFocused = dock.liveBehaviorKeepAppsFocused
+            dock.appSettings.behaviorWindowOverviewOnRefocus = dock.liveBehaviorWindowOverviewOnRefocus
+            dock.appSettings.behaviorShowUnpinnedApps = dock.liveBehaviorShowUnpinnedApps
+            dock.appSettings.behaviorRememberRecentApps = dock.liveBehaviorRememberRecentApps
+            dock.appSettings.behaviorAutoHideDelayMs = dock.liveBehaviorAutoHideDelayMs
+            dock.appSettings.scrollWheelAction = dock.liveScrollWheelAction
+            dock.appSettings.downloadProgressDisplayMode = dock.liveDownloadProgressDisplayMode
+            taskBackend.windowOverviewOnRefocus = dock.liveBehaviorWindowOverviewOnRefocus
+            taskBackend.setDownloadProgressDisplayMode(dock.liveDownloadProgressDisplayMode)
+            dock.syncGlobalShortcuts()
 
-        dock.pushCustomizationHistory()
-        if (typeof dock.appSettings.sync === "function") {
-            dock.appSettings.sync()
+            dock.pushCustomizationHistory()
+            if (typeof dock.appSettings.sync === "function") {
+                dock.appSettings.sync()
+            }
+            taskBackend.writeUserJsonFile("profiles.json", dock.liveProfilesJson)
+            taskBackend.writeUserJsonFile("app_rules.json", dock.liveAppRulesJson)
+            taskBackend.writeUserJsonFile("custom_commands.json", dock.liveCustomCommandsJson)
+            taskBackend.writeUserJsonFile("widgets.json", dock.liveWidgetsJson)
+            dock.reloadCustomWidgets()
+            dock.updateZone()
+            dock.applyLayerShellFromSettings()
+            dock.applyDockRetractedState()
+        } catch (e) {
+            taskBackend.debugLog("settings", "Aviso em aplicarValores: " + e)
+        } finally {
+            settingsWin.visible = false
+            settingsWin.close()
         }
-        taskBackend.writeUserJsonFile("profiles.json", dock.liveProfilesJson)
-        taskBackend.writeUserJsonFile("app_rules.json", dock.liveAppRulesJson)
-        taskBackend.writeUserJsonFile("custom_commands.json", dock.liveCustomCommandsJson)
-        taskBackend.writeUserJsonFile("widgets.json", dock.liveWidgetsJson)
-        dock.reloadCustomWidgets()
-        dock.updateZone()
-        dock.applyLayerShellFromSettings()
-        dock.applyDockRetractedState()
-        settingsWin.close()
     }
 
     function adicionarWidgetPreset(preset) {
@@ -1112,6 +1122,18 @@ Window {
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 4
+                                    Label { text: qsTr("Inércia da Onda (Resposta)"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                    ComboBox {
+                                        Layout.fillWidth: true
+                                        model: [qsTr("Rápida / Instantânea (Estilo macOS)"), qsTr("Suave (Padrão)"), qsTr("Amanteigada / Fluida")]
+                                        currentIndex: dock.liveWaveInertia
+                                        onActivated: dock.liveWaveInertia = currentIndex
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
                                     Label { text: qsTr("Perfil de Animação"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
                                     ComboBox {
                                         Layout.fillWidth: true
@@ -1339,7 +1361,10 @@ Window {
 
                 ActionBtn {
                     text: qsTr("Cancelar")
-                    onClicked: settingsWin.close()
+                    onClicked: {
+                        settingsWin.visible = false
+                        settingsWin.close()
+                    }
                 }
 
                 ActionBtn {

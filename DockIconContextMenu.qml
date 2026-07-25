@@ -43,6 +43,8 @@ Window {
     property Item _anchorItem: null
 
     readonly property bool ctxIsAppItem: !ctxIsSurfaceMenu && !ctxIsLauncher && !ctxIsSystem && !ctxIsSeparator
+    readonly property bool ctxIsTrash: ctxIsSystem && (ctxCmd.includes("trash:/") || ctxIcon === "user-trash" || ctxIcon === "user-trash-full")
+    readonly property bool ctxIsGenericSystem: (ctxIsSystem || ctxIsLauncher) && !ctxIsTrash
 
     readonly property real menuPadW: 10
     readonly property real menuPadH: 10
@@ -52,7 +54,7 @@ Window {
     readonly property real rowHeight: Math.round(40 * dock.liveScaleFactor)
     readonly property real rowSpacing: 3
 
-    readonly property int iconHeaderRows: ctxIsAppItem ? 1 : 0
+    readonly property int iconHeaderRows: (ctxIsAppItem || ctxIsTrash || ctxIsGenericSystem) ? 1 : 0
     readonly property int iconVisibleRows: iconHeaderRows
                                      + (ctxIsAppItem ? 1 : 0) // Nova janela
                                      + ((ctxIsAppItem && ctxRecentCount > 0) ? 1 : 0) // Recentes
@@ -63,7 +65,8 @@ Window {
                                      + (ctxIsAppItem ? 2 : 0) // Regras de clique
                                      + ((ctxIsAppItem && ctxCustomCommands.length > 0) ? 1 : 0)
                                      + ((ctxIsAppItem && ctxCustomCommands.length > 1) ? 1 : 0)
-                                     + ((ctxIsSystem || ctxIsLauncher) ? 1 : 0)
+                                     + (ctxIsGenericSystem ? 2 : 0) // Abrir / Preferências
+                                     + (ctxIsTrash ? 2 : 0) // Abrir / Esvaziar lixeira
                                      + (ctxIsAppItem ? 1 : 0) // Preferências da doca
 
     readonly property int surfaceVisibleRows: 7
@@ -435,11 +438,11 @@ Window {
                 y: menuWin.menuPadH
                 spacing: menuWin.rowSpacing
 
-                // Header com Nome da App
+                // Header com Nome da App ou Item de Sistema
                 Rectangle {
-                    visible: menuWin.ctxIsAppItem
+                    visible: menuWin.ctxIsAppItem || menuWin.ctxIsTrash || menuWin.ctxIsGenericSystem
                     width: column.width
-                    height: menuWin.ctxIsAppItem ? Math.round(32 * menuWin.dock.liveScaleFactor) : 0
+                    height: (menuWin.ctxIsAppItem || menuWin.ctxIsTrash || menuWin.ctxIsGenericSystem) ? Math.round(32 * menuWin.dock.liveScaleFactor) : 0
                     color: "transparent"
 
                     RowLayout {
@@ -594,6 +597,50 @@ Window {
 
                 ContextMenuSeparator {
                     rowVisible: menuWin.ctxIsAppItem
+                }
+
+                ContextMenuRow {
+                    iconText: "📂"
+                    label: qsTr("Abrir Reciclagem")
+                    rowVisible: menuWin.ctxIsTrash
+                    onRowClicked: {
+                        taskBackend.launchApp(menuWin.ctxCmd)
+                        menuWin.closeMenu()
+                    }
+                }
+
+                ContextMenuRow {
+                    iconText: "🧹"
+                    label: taskBackend.trashIsEmpty ? qsTr("Reciclagem vazia") : qsTr("Esvaziar Reciclagem (%1 itens)").arg(taskBackend.trashCount)
+                    labelColor: taskBackend.trashIsEmpty ? menuWin.dock.themeTextPrimary : "#FF5555"
+                    labelBold: !taskBackend.trashIsEmpty
+                    rowVisible: menuWin.ctxIsTrash
+                    onRowClicked: {
+                        if (!taskBackend.trashIsEmpty) {
+                            taskBackend.emptyTrash()
+                        }
+                        menuWin.closeMenu()
+                    }
+                }
+
+                ContextMenuRow {
+                    iconText: "📂"
+                    label: qsTr("Abrir")
+                    rowVisible: menuWin.ctxIsGenericSystem
+                    onRowClicked: {
+                        taskBackend.launchApp(menuWin.ctxCmd)
+                        menuWin.closeMenu()
+                    }
+                }
+
+                ContextMenuRow {
+                    iconText: "⚙"
+                    label: qsTr("Preferências da doca…")
+                    rowVisible: menuWin.ctxIsGenericSystem
+                    onRowClicked: {
+                        menuWin.dock.openSettingsGlobal()
+                        menuWin.closeMenu()
+                    }
                 }
 
                 ContextMenuRow {

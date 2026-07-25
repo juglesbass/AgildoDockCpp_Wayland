@@ -31,6 +31,7 @@ Item {
     property string downloadProgressIcon: ""
     property string downloadProgressFileName: ""
     readonly property bool isDownloadsSystemItem: isSystemItem && model.icon === "folder-downloads"
+    readonly property bool isTrashSystemItem: isSystemItem && (model.icon === "user-trash" || model.icon === "user-trash-full" || (model.cmd && String(model.cmd).includes("trash:/")))
     readonly property bool showDownloadFileIcon: downloadProgressVisible
         && dock.liveDownloadProgressDisplayMode === 2
         && downloadProgressFileName.length > 0
@@ -226,17 +227,17 @@ Item {
             return minSize
         }
         var curveT = Math.max(0, Math.min(1, dist / wRadius))
-        var factor = Math.pow(Math.cos(curveT * (Math.PI / 2)), Math.max(0.2, dock.liveWaveFalloff))
+        // No modo estilo macOS (liveWaveInertia === 0), aplica a curva Cosseno Quadrado (cos²) exata do macOS Dock.app!
+        var falloff = (dock.liveWaveInertia === 0) ? 2.0 : Math.max(0.2, dock.liveWaveFalloff)
+        var factor = Math.pow(Math.cos(curveT * (Math.PI / 2)), falloff)
         var v = minSize + ((maxSize - minSize) * factor * effAmp)
-        // Passos de 0,5px no tamanho lógico: menos variação frame-a-frame do scale do ícone na onda.
-        if (effAmp > 0.02) {
-            return Math.round(v * 2) / 2
-        }
-        return v
+        return v  // Precisão subpixel contínua ultra-fluida em todos os modos (Rápida, Suave e Amanteigada)
     }
 
-    width: isValid ? (targetIconSize + (15 * dock.liveScaleFactor)) : 0
-    height: isValid ? (dock.dockBarHeightPx * dock.liveScaleFactor) : 0
+    width: isValid ? (dock.dockLayoutVertical ? Math.round(dock.dockBarHeightPx * dock.liveScaleFactor) : (targetIconSize + Math.round(15 * dock.liveScaleFactor))) : 0
+    height: isValid ? (dock.dockLayoutVertical ? (targetIconSize + Math.round(15 * dock.liveScaleFactor)) : Math.round(dock.dockBarHeightPx * dock.liveScaleFactor)) : 0
+    implicitWidth: width
+    implicitHeight: height
     z: reorderDragging ? 5000 : 0
 
     Connections {
@@ -440,7 +441,7 @@ Item {
 
         Kirigami.Icon {
             id: appIcon
-            source: delegateRoot.showDownloadFileIcon ? delegateRoot.downloadProgressIcon : model.icon
+            source: delegateRoot.showDownloadFileIcon ? delegateRoot.downloadProgressIcon : (delegateRoot.isTrashSystemItem ? (taskBackend.trashIsEmpty ? "user-trash" : "user-trash-full") : model.icon)
             // Padrão true: arredonda a 32/48/64… do tema; a onda volta a escalar → menos nitidez.
             roundToIconSize: false
             // Mesmo critério que o pico da onda em targetIconSize (evita scale>1 se min>max nas definições).
@@ -448,14 +449,22 @@ Item {
                 Math.max(dock.liveMinIconSize, dock.liveMaxIconSize) * dock.liveScaleFactor)
             width: maxVisualSize
             height: maxVisualSize
+            implicitWidth: maxVisualSize
+            implicitHeight: maxVisualSize
             scale: delegateRoot.targetIconSize / maxVisualSize
             smooth: true
             antialiasing: true
             color: dock.liveMonochromeIcons ? (delegateRoot.isFocused ? dock.accentFocus : dock.themeTextPrimary) : "transparent"
-            transformOrigin: Item.Bottom
-            x: Math.round((parent.width - maxVisualSize) / 2)
-            anchors.bottom: parent.bottom
-            anchors.bottomMargin: 10 * dock.liveScaleFactor
+            transformOrigin: dock.liveDockEdge === 1 ? Item.Top
+                             : dock.liveDockEdge === 2 ? Item.Left
+                             : dock.liveDockEdge === 3 ? Item.Right
+                             : Item.Bottom
+            x: dock.dockLayoutVertical
+               ? (dock.liveDockEdge === 2 ? Math.round(10 * dock.liveScaleFactor) : Math.round(parent.width - maxVisualSize - 10 * dock.liveScaleFactor))
+               : Math.round((parent.width - maxVisualSize) / 2)
+            y: dock.dockLayoutVertical
+               ? Math.round((parent.height - maxVisualSize) / 2)
+               : (dock.liveDockEdge === 1 ? Math.round(10 * dock.liveScaleFactor) : Math.round(parent.height - maxVisualSize - 10 * dock.liveScaleFactor))
 
             // Sombra suave ao arrastar (efeito “levitar”).
             Rectangle {
@@ -479,56 +488,121 @@ Item {
                 }
             }
 
+            readonly property real macBounceDistance: 20 * dock.liveScaleFactor * dock.liveLaunchBounceIntensity
+
+            readonly property real targetBounceX: {
+                if (dock.liveDockEdge === 2) return macBounceDistance
+                if (dock.liveDockEdge === 3) return -macBounceDistance
+                return 0
+            }
+
+            readonly property real targetBounceY: {
+                if (dock.liveDockEdge === 1) return macBounceDistance
+                return -macBounceDistance
+            }
+
             transform: Translate {
                 id: bounceTranslate
+                x: 0
                 y: 0
             }
 
             SequentialAnimation {
                 id: singleJumpAnim
-                NumberAnimation {
-                    target: bounceTranslate
-                    property: "y"
-                    to: -14 * dock.liveScaleFactor * dock.liveLaunchBounceIntensity
-                    duration: dock.animationDuration(140)
-                    easing.type: Easing.OutCubic
+                ParallelAnimation {
+                    NumberAnimation {
+                        target: bounceTranslate
+                        property: "x"
+                        to: appIcon.targetBounceX * 0.70
+                        duration: dock.animationDuration(160)
+                        easing.type: Easing.OutCubic
+                    }
+                    NumberAnimation {
+                        target: bounceTranslate
+                        property: "y"
+                        to: appIcon.targetBounceY * 0.70
+                        duration: dock.animationDuration(160)
+                        easing.type: Easing.OutCubic
+                    }
                 }
-                NumberAnimation {
-                    target: bounceTranslate
-                    property: "y"
-                    to: 0
-                    duration: dock.animationDuration(300)
-                    easing.type: Easing.OutBounce
+                ParallelAnimation {
+                    NumberAnimation {
+                        target: bounceTranslate
+                        property: "x"
+                        to: 0
+                        duration: dock.animationDuration(220)
+                        easing.type: Easing.OutQuad
+                    }
+                    NumberAnimation {
+                        target: bounceTranslate
+                        property: "y"
+                        to: 0
+                        duration: dock.animationDuration(220)
+                        easing.type: Easing.OutQuad
+                    }
                 }
             }
 
             SequentialAnimation {
                 id: launchAnim
                 loops: Animation.Infinite
-                NumberAnimation {
-                    target: bounceTranslate
-                    property: "y"
-                    to: -20 * dock.liveScaleFactor * dock.liveLaunchBounceIntensity
-                    duration: dock.animationDuration(240)
-                    easing.type: Easing.OutQuad
+
+                // 1. Subida Elástica, Macia e Fluida (Easing.OutBack com 300ms)
+                ParallelAnimation {
+                    NumberAnimation {
+                        target: bounceTranslate
+                        property: "x"
+                        to: appIcon.targetBounceX
+                        duration: dock.animationDuration(300)
+                        easing.type: Easing.OutBack
+                        easing.overshoot: 1.18
+                    }
+                    NumberAnimation {
+                        target: bounceTranslate
+                        property: "y"
+                        to: appIcon.targetBounceY
+                        duration: dock.animationDuration(300)
+                        easing.type: Easing.OutBack
+                        easing.overshoot: 1.18
+                    }
                 }
-                NumberAnimation {
-                    target: bounceTranslate
-                    property: "y"
-                    to: 0
-                    duration: dock.animationDuration(240)
-                    easing.type: Easing.InQuad
+
+                // 2. Queda Harmônica e Suave (Easing.InSine -> 240ms)
+                ParallelAnimation {
+                    NumberAnimation {
+                        target: bounceTranslate
+                        property: "x"
+                        to: 0
+                        duration: dock.animationDuration(240)
+                        easing.type: Easing.InSine
+                    }
+                    NumberAnimation {
+                        target: bounceTranslate
+                        property: "y"
+                        to: 0
+                        duration: dock.animationDuration(240)
+                        easing.type: Easing.InSine
+                    }
                 }
             }
 
             SequentialAnimation {
                 id: stopLaunchAnim
-                NumberAnimation {
-                    target: bounceTranslate
-                    property: "y"
-                    to: 0
-                    duration: dock.animationDuration(120)
-                    easing.type: Easing.OutBounce
+                ParallelAnimation {
+                    NumberAnimation {
+                        target: bounceTranslate
+                        property: "x"
+                        to: 0
+                        duration: dock.animationDuration(140)
+                        easing.type: Easing.OutCubic
+                    }
+                    NumberAnimation {
+                        target: bounceTranslate
+                        property: "y"
+                        to: 0
+                        duration: dock.animationDuration(140)
+                        easing.type: Easing.OutCubic
+                    }
                 }
             }
         }
@@ -649,6 +723,48 @@ Item {
                 color: "white"
                 font.pixelSize: 9
                 font.bold: true
+            }
+        }
+
+        Rectangle {
+            id: trashBadge
+            visible: delegateRoot.isTrashSystemItem && taskBackend.trashCount > 0 && (!appRule || !appRule.badgeText)
+            anchors.right: appIcon.right
+            anchors.top: appIcon.top
+            anchors.rightMargin: 2
+            anchors.topMargin: 2
+            width: Math.max(16, trashBadgeLabel.implicitWidth + 8)
+            height: 16
+            radius: 8
+            color: dock.accentFocus
+            border.color: "#88FFFFFF"
+            border.width: 1
+            z: 5
+
+            Text {
+                id: trashBadgeLabel
+                anchors.centerIn: parent
+                text: String(taskBackend.trashCount)
+                color: "white"
+                font.pixelSize: 9
+                font.bold: true
+            }
+        }
+
+        DropArea {
+            id: trashDropArea
+            anchors.fill: parent
+            enabled: delegateRoot.isTrashSystemItem
+            keys: ["text/uri-list", "text/plain"]
+            onDropped: function(drop) {
+                if (drop.hasUrls) {
+                    var list = []
+                    for (var i = 0; i < drop.urls.length; ++i) {
+                        list.push(drop.urls[i].toString())
+                    }
+                    taskBackend.moveToTrash(list)
+                    drop.accept()
+                }
             }
         }
 
@@ -832,6 +948,11 @@ Item {
                 }
                 return
             }
+            if (isLauncherItem) {
+                var gPos = appIcon.mapToItem(null, appIcon.width / 2, appIcon.height / 2)
+                dock.toggleAppMenu(appIcon, gPos.x, gPos.y)
+                return
+            }
             if (delegateRoot.isLaunching) {
                 return
             }
@@ -845,17 +966,17 @@ Item {
                 return
             }
             ripple.play()
-            if (!isLauncherItem && !delegateRoot.isRunning) {
+            if (!delegateRoot.isRunning) {
                 delegateRoot.isLaunching = true
                 launchAnim.start()
             } else {
-                if (typeof taskBackend.reportIconGeometry === "function" && !isLauncherItem) {
+                if (typeof taskBackend.reportIconGeometry === "function") {
                     var pt = delegateRoot.mapToItem(null, 0, 0)
                     taskBackend.reportIconGeometry(model.cmd, Math.round(pt.x), Math.round(pt.y), Math.round(delegateRoot.width), Math.round(delegateRoot.height))
                 }
                 singleJumpAnim.start()
             }
-            if (!isLauncherItem && !isSystemItem && delegateRoot.isFocused) {
+            if (!isSystemItem && delegateRoot.isFocused) {
                 const willMinimize = !dock.liveBehaviorWindowOverviewOnRefocus
                         || taskBackend.appWindowCount(model.cmd) < 2
                 if (willMinimize) {
