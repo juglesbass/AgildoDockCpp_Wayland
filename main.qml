@@ -65,6 +65,7 @@ Window {
     property int liveAnimationProfile: 0 // 0 suave, 1 rapido, 2 elastico, 3 sem animacao
     property real liveWaveRadiusFactor: 3.15
     property real liveWaveFalloff: 1.0
+    property int liveWaveInertia: 1 // 0: Rápida/macOS, 1: Suave (Padrão), 2: Amanteigada
     property real liveLaunchBounceIntensity: 1.0
     property bool liveAutoThemeByActiveApp: false
     property bool liveDockEditMode: false
@@ -442,6 +443,9 @@ Window {
     property bool dockAutoHideLatched: false
     property bool dockContextMenuOpen: false
 
+    onDockRetractedChanged: {
+    }
+
     onLiveDockEditModeChanged: {
         // Legado: preferência antiga; reordenação é sempre por arrasto (estilo macOS).
         if (liveDockEditMode) {
@@ -468,59 +472,68 @@ Window {
 
     function addPinnedAppFromDesktopUrl(urlStr) {
         const info = taskBackend.parseDropInfo(urlStr)
-        if (!info.cmd)
+        if (!info.cmd) {
             return false
-            if (isCommandPinned(info.cmd))
-                return false
-                appModel.append({
-                    name: info.name,
-                    icon: info.icon,
-                    cmd: info.cmd
-                })
-                saveApps()
-                return true
+        }
+        if (isCommandPinned(info.cmd)) {
+            return false
+        }
+        appModel.append({
+            name: info.name,
+            icon: info.icon,
+            cmd: info.cmd
+        })
+        saveApps()
+        return true
     }
 
     function systemModelContainsCmd(cmd) {
         const norm = normalizeAppCommandKey(cmd)
         for (let i = 0; i < systemModel.count; i++) {
             const item = systemModel.get(i)
-            if (!item || !item.cmd)
+            if (!item || !item.cmd) {
                 continue
-                if (item.cmd === cmd)
-                    return true
-                    if (norm.length > 0 && normalizeAppCommandKey(item.cmd) === norm)
-                        return true
+            }
+            if (item.cmd === cmd) {
+                return true
+            }
+            if (norm.length > 0 && normalizeAppCommandKey(item.cmd) === norm) {
+                return true
+            }
         }
         return false
     }
 
     function addWidgetShortcutFromDesktopUrl(urlStr) {
         const info = taskBackend.parseDropInfo(urlStr)
-        if (!info.cmd)
+        if (!info.cmd) {
             return false
-            if (systemModelContainsCmd(info.cmd))
-                return false
-                let arr = []
-                try {
-                    arr = JSON.parse(liveWidgetsJson || "[]")
-                } catch (e) {
-                    arr = []
-                }
-                if (!Array.isArray(arr))
-                    arr = []
-                    arr.push({
-                        name: info.name,
-                        icon: info.icon || "applications-system",
-                        cmd: info.cmd
-                    })
-                    liveWidgetsJson = JSON.stringify(arr)
-                    dockSettings.userWidgetsJson = liveWidgetsJson
-                    if (typeof dockSettings.sync === "function")
-                        dockSettings.sync()
-                        taskBackend.writeUserJsonFile("widgets.json", liveWidgetsJson)
-                        reloadCustomWidgets()
-                        return true
+        }
+        if (systemModelContainsCmd(info.cmd)) {
+            return false
+        }
+        let arr = []
+        try {
+            arr = JSON.parse(liveWidgetsJson || "[]")
+        } catch (e) {
+            arr = []
+        }
+        if (!Array.isArray(arr)) {
+            arr = []
+        }
+        arr.push({
+            name: info.name,
+            icon: info.icon || "applications-system",
+            cmd: info.cmd
+        })
+        liveWidgetsJson = JSON.stringify(arr)
+        dockSettings.userWidgetsJson = liveWidgetsJson
+        if (typeof dockSettings.sync === "function") {
+            dockSettings.sync()
+        }
+        taskBackend.writeUserJsonFile("widgets.json", liveWidgetsJson)
+        reloadCustomWidgets()
+        return true
     }
 
     function lockDockForContextMenu(locked, anchorLogicalX) {
@@ -544,7 +557,7 @@ Window {
     }
 
     onLiveScaleFactorChanged: {
-        if (settingsWin.visible) {
+        if (settingsWin.visible || root.isAppMenuOpen) {
             root.dockRetracted = false
             root.dockAutoHideLatched = false
             autoHideDockTimer.stop()
@@ -685,27 +698,27 @@ Window {
                 (root.smoothedWaveRowWidth * (1.0 - alpha)) + (tw * alpha)
             )
 
-            var lxRaw
+            var lxRaw = 0
             if (root.dockLayoutVertical) {
-                var colTop = (root.height * 0.5) - (root.smoothedWaveRowWidth * 0.5)
-                var relY = root.dockMouseY - colTop
-                var denomV = root.smoothedWaveRowWidth
-                lxRaw = denomV > 0 ? ((relY / denomV) * root.baseRowWidth) : (root.baseRowWidth * 0.5)
+                var colTop = (root.height * 0.5) - (root.baseRowWidth * 0.5)
+                lxRaw = root.dockMouseY - colTop
             } else {
-                var rowLeft = (root.width * 0.5) - (root.smoothedWaveRowWidth * 0.5)
-                var relX = root.dockMouseX - rowLeft
-                var denom = root.smoothedWaveRowWidth
-                lxRaw = denom > 0 ? ((relX / denom) * root.baseRowWidth) : (root.baseRowWidth * 0.5)
+                var rowLeft = (root.width * 0.5) - (root.baseRowWidth * 0.5)
+                lxRaw = root.dockMouseX - rowLeft
             }
             lxRaw = Math.max(0, Math.min(root.baseRowWidth, lxRaw))
 
-            var beta = waveOn ? 0.075 : 0.42
+            var beta = 1.0
+            if (root.liveWaveInertia === 0) {
+                beta = 1.0  // 100% Instantânea 1:1 estilo macOS (0ms de atraso / resposta de hardware perfeita)
+            } else if (root.liveWaveInertia === 2) {
+                beta = waveOn ? 0.08 : 0.35 // Amanteigada / Fluida
+            } else {
+                beta = waveOn ? 0.22 : 0.50 // Suave (Padrão)
+            }
             var lxOut = lxRaw
             if (root.logicalMouseX > -100) {
                 lxOut = root.logicalMouseX + (lxRaw - root.logicalMouseX) * beta
-            }
-            if (waveOn) {
-                lxOut = Math.round(lxOut)
             }
             root.logicalMouseX = lxOut
 
@@ -771,16 +784,21 @@ Window {
         repeat: false
         onTriggered: {
             if (!root.liveBehaviorAutoHide) return
-                if (settingsWin.visible) return
-                    if (root.dockHovered) return
+            if (settingsWin.visible || root.isAppMenuOpen) return
+            if (root.dockHovered) return
 
-                        root.dockAutoHideLatched = true
-                        root.applyDockRetractedState()
+            root.dockAutoHideLatched = true
+            root.applyDockRetractedState()
         }
     }
 
     function restartAutoHideTimer() {
         if (!root.liveBehaviorAutoHide) {
+            autoHideDockTimer.stop()
+            root.dockAutoHideLatched = false
+            return
+        }
+        if (settingsWin.visible || root.isAppMenuOpen) {
             autoHideDockTimer.stop()
             root.dockAutoHideLatched = false
             return
@@ -812,7 +830,7 @@ Window {
     }
 
     function applyDockRetractedState() {
-        if (settingsWin.visible) {
+        if (settingsWin.visible || root.isAppMenuOpen) {
             root.dockRetracted = false
             root.dockAutoHideLatched = false
             updateZone()
@@ -844,7 +862,7 @@ Window {
     Behavior on waveAmplitude {
         NumberAnimation {
             id: waveAmpAnim
-            duration: 350
+            duration: root.liveWaveInertia === 0 ? 120 : (root.liveWaveInertia === 2 ? 380 : 220)
             easing.type: Easing.OutCubic
             onRunningChanged: {
                 if (running)
@@ -904,6 +922,7 @@ Window {
         property int animationProfile: 0
         property real waveRadiusFactor: 3.15
         property real waveFalloff: 1.0
+        property int waveInertia: 1
         property real launchBounceIntensity: 1.0
         property bool autoThemeByActiveApp: false
         property bool dockEditMode: false
@@ -1031,9 +1050,10 @@ Window {
         if (!iconItem) {
             return
         }
-        var p = iconItem.mapToItem(dockContainer, iconItem.width * 0.5, 0)
-        root.dockTipAnchorX = p.x
-        root.dockTipAnchorY = p.y
+        var pTop = iconItem.mapToItem(dockContainer, iconItem.width * 0.5, 0)
+        var pCenter = iconItem.mapToItem(dockContainer, iconItem.width * 0.5, iconItem.height * 0.5)
+        root.dockTipAnchorX = pCenter.x
+        root.dockTipAnchorY = pTop.y
         root.dockTipName = name !== undefined ? name : ""
         root.dockTipStatus = statusLine !== undefined ? statusLine : ""
         root.dockTipStatusColor = statusColor
@@ -1313,6 +1333,7 @@ Window {
         root.liveAnimationProfile = dockSettings.animationProfile
         root.liveWaveRadiusFactor = dockSettings.waveRadiusFactor
         root.liveWaveFalloff = dockSettings.waveFalloff
+        root.liveWaveInertia = dockSettings.waveInertia !== undefined ? dockSettings.waveInertia : 1
         root.liveLaunchBounceIntensity = dockSettings.launchBounceIntensity
         root.liveAutoThemeByActiveApp = dockSettings.autoThemeByActiveApp
         root.liveDockEditMode = dockSettings.dockEditMode
@@ -1680,10 +1701,35 @@ Window {
             id: dockGlobalTip
             z: 200000
             visible: root.dockTipVisible && !root.dockContextMenuOpen
-            x: Math.round(root.dockTipAnchorX - (width * 0.5))
-            y: Math.round(root.dockTipAnchorY - height - (8 * root.liveScaleFactor))
             width: globalTipBox.width
             height: globalTipBox.height
+
+            readonly property real marginGap: Math.round(10 * root.liveScaleFactor)
+
+            x: {
+                var edge = root.liveDockEdge
+                if (edge === 2) {
+                    return Math.round(dockBg.x + dockBg.width + marginGap)
+                } else if (edge === 3) {
+                    return Math.round(dockBg.x - width - marginGap)
+                } else {
+                    var targetX = root.dockTipAnchorX - (width * 0.5)
+                    return Math.round(Math.max(8, Math.min(targetX, root.width - width - 8)))
+                }
+            }
+
+            y: {
+                var edge = root.liveDockEdge
+                if (edge === 1) {
+                    return Math.round(dockBg.y + dockBg.height + marginGap)
+                } else if (edge === 2 || edge === 3) {
+                    var targetY = root.dockTipAnchorY - (height * 0.5)
+                    return Math.round(Math.max(8, Math.min(targetY, root.height - height - 8)))
+                } else {
+                    var iconTop = Math.min(dockBg.y, root.dockTipAnchorY)
+                    return Math.round(iconTop - height - marginGap)
+                }
+            }
 
             Rectangle {
                 id: globalTipBox
@@ -1844,6 +1890,36 @@ Window {
         dock: root
     }
 
+    DockAppMenuWindow {
+        id: appMenuWindow
+        dock: root
+    }
+
+    readonly property bool isAppMenuOpen: appMenuWindow && (appMenuWindow.visible || appMenuWindow.menuOpen)
+
+    onIsAppMenuOpenChanged: {
+        if (isAppMenuOpen) {
+            root.dockAutoHideLatched = false
+            autoHideDockTimer.stop()
+            root.dockRetracted = false
+            root.updateZone()
+        } else {
+            root.applyDockRetractedState()
+        }
+    }
+
+    function toggleAppMenu(anchorItem, globalX, globalY) {
+        if (appMenuWindow.visible && appMenuWindow.menuOpen) {
+            appMenuWindow.closeMenu()
+        } else {
+            root.dockAutoHideLatched = false
+            autoHideDockTimer.stop()
+            root.dockRetracted = false
+            root.updateZone()
+            appMenuWindow.openMenu(anchorItem, globalX, globalY)
+        }
+    }
+
     DropArea {
         anchors.fill: dockContainer
         enabled: !root.dockContextMenuOpen
@@ -1897,6 +1973,30 @@ Window {
         target: settingsWin
         function onVisibleChanged() {
             if (settingsWin.visible) {
+                root.dockAutoHideLatched = false
+                autoHideDockTimer.stop()
+                root.dockRetracted = false
+                root.updateZone()
+            } else {
+                root.applyDockRetractedState()
+            }
+        }
+    }
+
+    Connections {
+        target: appMenuWindow
+        function onVisibleChanged() {
+            if (root.isAppMenuOpen) {
+                root.dockAutoHideLatched = false
+                autoHideDockTimer.stop()
+                root.dockRetracted = false
+                root.updateZone()
+            } else {
+                root.applyDockRetractedState()
+            }
+        }
+        function onMenuOpenChanged() {
+            if (root.isAppMenuOpen) {
                 root.dockAutoHideLatched = false
                 autoHideDockTimer.stop()
                 root.dockRetracted = false
