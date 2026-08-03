@@ -34,8 +34,20 @@ Rectangle {
     }
 
     readonly property real sidePad: 24 * dockRoot.liveScaleFactor
-    readonly property real maxWaveExtraWidth: dockRoot.wavePeakDeltaPx * 2.2 * dockRoot.liveScaleFactor * dockRoot.liveWaveIntensity
-    readonly property real rawBgSpan: dockRoot.baseRowWidth + sidePad + (maxWaveExtraWidth * dockRoot.waveAmplitude)
+    readonly property real waveMultiplier: (dockRoot.liveWaveInertia === 0) ? 3.0 : 4.2
+    readonly property real maxWaveExtraWidth: dockRoot.wavePeakDeltaPx * waveMultiplier * dockRoot.liveScaleFactor * dockRoot.liveWaveIntensity
+
+    readonly property real edgeContractFactor: {
+        var lx = dockRoot.logicalMouseX
+        if (lx < 0 || lx > dockRoot.baseRowWidth) return 1.0;
+        var edgeThreshold = dockRoot.baseStride * 2.5
+        var distFromEdge = Math.min(lx, dockRoot.baseRowWidth - lx)
+        if (distFromEdge >= edgeThreshold) return 1.0;
+        var norm = Math.max(0.0, Math.min(1.0, distFromEdge / edgeThreshold))
+        return 0.15 + (0.85 * Math.sin(norm * (Math.PI / 2)))
+    }
+
+    readonly property real rawBgSpan: dockRoot.baseRowWidth + sidePad + (maxWaveExtraWidth * edgeContractFactor * dockRoot.waveAmplitude)
     readonly property int dockSpanEvenPx: {
         var w = Math.round(rawBgSpan)
         if ((w & 1) !== 0)
@@ -50,6 +62,7 @@ Rectangle {
     property int blurLastSentH: -1
     property int blurLastSentX: -1
     property int blurLastSentY: -1
+    property int blurLastSentRadius: -1
     property int blurStableCx: -1
     property int blurStableCy: -1
     property bool waveBlurLayerHold: false
@@ -68,6 +81,7 @@ Rectangle {
         blurLastSentH = -1
         blurLastSentX = -1
         blurLastSentY = -1
+        blurLastSentRadius = -1
     }
 
     function syncBlurAfterStyleChange() {
@@ -104,10 +118,7 @@ Rectangle {
     }
 
     function invalidateBlurGeometry() {
-        resetBlurCache()
-        blurStableCx = -1
-        blurStableCy = -1
-        updateBlurNative(true)
+        requestBlurUpdate()
     }
 
     Connections {
@@ -188,13 +199,15 @@ Rectangle {
         var radius = rect.radius
 
         if (bw === blurLastSentW && bh === blurLastSentH
-                && bx === blurLastSentX && by === blurLastSentY)
+                && bx === blurLastSentX && by === blurLastSentY
+                && radius === blurLastSentRadius)
             return
 
         blurLastSentW = bw
         blurLastSentH = bh
         blurLastSentX = bx
         blurLastSentY = by
+        blurLastSentRadius = radius
         taskBackend.setBlurRegion(bx, by, bw, bh, radius, immediate || waveBlurAnimating)
     }
 
@@ -256,6 +269,24 @@ Rectangle {
             }
         }
         opacity: dockRoot.liveBgOpacity
+    }
+
+    // Camada de Brilho Especular Superior (Efeito Vidro Líquido macOS Tahoe)
+    Rectangle {
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: Math.max(1, Math.round(parent.height * 0.42))
+        anchors.margins: 1
+        radius: Math.max(0, dockBg.radius - 1)
+        visible: dockBg.bgIsGlass && dockRoot.livePresetName === "Liquid Glass"
+        antialiasing: true
+        gradient: Gradient {
+            orientation: Gradient.Vertical
+            GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, 0.12) }
+            GradientStop { position: 0.4; color: Qt.rgba(1, 1, 1, 0.02) }
+            GradientStop { position: 1.0; color: Qt.rgba(1, 1, 1, 0.0) }
+        }
     }
 
 

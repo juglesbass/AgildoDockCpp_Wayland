@@ -65,11 +65,11 @@ Window {
                                      + (ctxIsAppItem ? 2 : 0) // Regras de clique
                                      + ((ctxIsAppItem && ctxCustomCommands.length > 0) ? 1 : 0)
                                      + ((ctxIsAppItem && ctxCustomCommands.length > 1) ? 1 : 0)
-                                     + (ctxIsGenericSystem ? 2 : 0) // Abrir / Preferências
+                                     + (ctxIsGenericSystem ? 3 : 0) // Abrir / Remover / Preferências
                                      + (ctxIsTrash ? 2 : 0) // Abrir / Esvaziar lixeira
                                      + (ctxIsAppItem ? 1 : 0) // Preferências da doca
 
-    readonly property int surfaceVisibleRows: 7
+    readonly property int surfaceVisibleRows: 8
 
     readonly property int visibleRows: ctxIsSurfaceMenu ? surfaceVisibleRows : iconVisibleRows
 
@@ -634,6 +634,16 @@ Window {
                 }
 
                 ContextMenuRow {
+                    iconText: "📌"
+                    label: qsTr("Remover da doca")
+                    rowVisible: menuWin.ctxIsGenericSystem
+                    onRowClicked: {
+                        menuWin.dock.removeAppOrWidget({ cmd: menuWin.ctxCmd, name: menuWin.ctxName })
+                        menuWin.closeMenu()
+                    }
+                }
+
+                ContextMenuRow {
                     iconText: "⚙"
                     label: qsTr("Preferências da doca…")
                     rowVisible: menuWin.ctxIsGenericSystem
@@ -660,6 +670,16 @@ Window {
                     onRowClicked: {
                         menuWin.dock.openSettingsGlobal()
                         menuWin.closeMenu()
+                    }
+                }
+
+                ContextMenuRow {
+                    iconText: "🧩"
+                    label: qsTr("Adicionar Widgets & Atalhos…")
+                    rowVisible: menuWin.ctxIsSurfaceMenu
+                    onRowClicked: {
+                        menuWin.closeMenu()
+                        menuWin.dock.openWidgetPickerGlobal()
                     }
                 }
 

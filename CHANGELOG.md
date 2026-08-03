@@ -2,6 +2,17 @@
 
 Todas as alterações notáveis deste projeto são documentadas neste ficheiro.
 
+## [1.4.1] — 2026-08-03
+
+### Corrigido / Melhorado
+- **Fixação de Aplicativos via Drag & Drop**:
+  - Resolução robusta de URLs `applications:` e esquema `file://` do Kickoff/Wayland no C++ (`taskbackend.cpp`).
+  - Correção de exceção de tipo (`TypeError`) ao tratar objetos `DropEvent` em QML, garantindo conversão explícita de `String` e retenção de atalhos arrastados na doca (`saveApps()`).
+- **Animações de Reordenação e Adição de Ícones**:
+  - Transições suaves de movimento (`move`) e surgimento (`add`) de ícones ao reordenar ou fixar atalhos na doca.
+- **Encolhimento das Pontas Estilo macOS**:
+  - Ajuste na curva `edgeContractFactor` para encolhimento acentuado de até 15% nas extremidades da barra ao aproximar o ponteiro dos ícones da ponta.
+
 ## [1.4.0] — 2026-07-25
 
 ### Adicionado / Melhorado

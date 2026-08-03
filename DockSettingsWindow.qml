@@ -160,7 +160,6 @@ Window {
             }
         }
     }
-
     // Editor JSON
     component JsonEditor: Rectangle {
         id: jsonEditor
@@ -222,6 +221,7 @@ Window {
         dock.liveAccentMode = dock.appSettings.accentMode
         dock.liveWaveIntensity = Math.max(0.6, Math.min(1.0, dock.appSettings.waveIntensity))
         dock.liveDockRadius = dock.appSettings.dockRadius
+        dock.liveDockThickness = dock.appSettings.dockThickness !== undefined ? dock.appSettings.dockThickness : 68.0
         dock.liveMonochromeIcons = dock.appSettings.monochromeIcons
         dock.liveIndicatorStyle = dock.appSettings.indicatorStyle
         dock.liveIndicatorScale = dock.appSettings.indicatorScale
@@ -289,6 +289,7 @@ Window {
             dock.appSettings.accentMode = dock.liveAccentMode
             dock.appSettings.waveIntensity = dock.liveWaveIntensity
             dock.appSettings.dockRadius = dock.liveDockRadius
+            dock.appSettings.dockThickness = dock.liveDockThickness
             dock.appSettings.monochromeIcons = dock.liveMonochromeIcons
             dock.appSettings.indicatorStyle = dock.liveIndicatorStyle
             dock.appSettings.indicatorScale = dock.liveIndicatorScale
@@ -388,6 +389,7 @@ Window {
             borderWidth: dock.liveBorderWidth,
             shadowStrength: dock.liveShadowStrength,
             dockRadius: dock.liveDockRadius,
+            dockThickness: dock.liveDockThickness,
             monochromeIcons: dock.liveMonochromeIcons,
             indicatorStyle: dock.liveIndicatorStyle,
             indicatorScale: dock.liveIndicatorScale,
@@ -423,6 +425,7 @@ Window {
             if (p.borderWidth !== undefined) dock.liveBorderWidth = p.borderWidth
             if (p.shadowStrength !== undefined) dock.liveShadowStrength = p.shadowStrength
             if (p.dockRadius !== undefined) dock.liveDockRadius = p.dockRadius
+            if (p.dockThickness !== undefined) dock.liveDockThickness = p.dockThickness
             if (p.monochromeIcons !== undefined) dock.liveMonochromeIcons = p.monochromeIcons
             if (p.indicatorStyle !== undefined) dock.liveIndicatorStyle = p.indicatorStyle
             if (p.indicatorScale !== undefined) dock.liveIndicatorScale = p.indicatorScale
@@ -476,9 +479,16 @@ Window {
 
                 RowLayout {
                     spacing: 8
+                    Rectangle {
+                        width: 26; height: 26; radius: 13
+                        color: "#C59B27"
+                        border.color: "#E2B845"; border.width: 1
+                        Text { anchors.centerIn: parent; text: "A"; font.bold: true; font.pixelSize: 14; color: "#FFFFFF" }
+                    }
                     Text {
                         text: "AgildoDock"
-                        font.pixelSize: 16
+                        font.pixelSize: 15
+                        font.italic: true
                         font.bold: true
                         color: settingsWin.uiTextPrimary
                     }
@@ -486,27 +496,27 @@ Window {
 
                 Item { Layout.fillWidth: true }
 
-                // Seletor de Abas
+                // Seletor de Abas estilo Latte com linha indicadora azul
                 RowLayout {
-                    spacing: 4
+                    spacing: 12
 
-                    Rectangle {
-                        implicitWidth: 120; implicitHeight: 34; radius: 6
-                        color: settingsWin.activeTab === 0 ? settingsWin.uiCardBg : "transparent"
-                        Text { anchors.centerIn: parent; text: qsTr("Comportamento"); font.pixelSize: 13; font.bold: settingsWin.activeTab === 0; color: settingsWin.uiTextPrimary }
-                        MouseArea { anchors.fill: parent; onClicked: settingsWin.activeTab = 0 }
+                    Item {
+                        implicitWidth: tab0Text.implicitWidth + 16; implicitHeight: 44
+                        Text { id: tab0Text; anchors.centerIn: parent; text: qsTr("Comportamento"); font.pixelSize: 13; font.bold: settingsWin.activeTab === 0; color: settingsWin.activeTab === 0 ? settingsWin.uiAccent : settingsWin.uiTextPrimary }
+                        Rectangle { height: 2; color: settingsWin.uiAccent; visible: settingsWin.activeTab === 0; anchors.bottom: parent.bottom; anchors.left: parent.left; anchors.right: parent.right }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: settingsWin.activeTab = 0 }
                     }
-                    Rectangle {
-                        implicitWidth: 100; implicitHeight: 34; radius: 6
-                        color: settingsWin.activeTab === 1 ? settingsWin.uiCardBg : "transparent"
-                        Text { anchors.centerIn: parent; text: qsTr("Aparência"); font.pixelSize: 13; font.bold: settingsWin.activeTab === 1; color: settingsWin.uiTextPrimary }
-                        MouseArea { anchors.fill: parent; onClicked: settingsWin.activeTab = 1 }
+                    Item {
+                        implicitWidth: tab1Text.implicitWidth + 16; implicitHeight: 44
+                        Text { id: tab1Text; anchors.centerIn: parent; text: qsTr("Aparência"); font.pixelSize: 13; font.bold: settingsWin.activeTab === 1; color: settingsWin.activeTab === 1 ? settingsWin.uiAccent : settingsWin.uiTextPrimary }
+                        Rectangle { height: 2; color: settingsWin.uiAccent; visible: settingsWin.activeTab === 1; anchors.bottom: parent.bottom; anchors.left: parent.left; anchors.right: parent.right }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: settingsWin.activeTab = 1 }
                     }
-                    Rectangle {
-                        implicitWidth: 120; implicitHeight: 34; radius: 6
-                        color: settingsWin.activeTab === 2 ? settingsWin.uiCardBg : "transparent"
-                        Text { anchors.centerIn: parent; text: qsTr("Efeitos & Ajustes"); font.pixelSize: 13; font.bold: settingsWin.activeTab === 2; color: settingsWin.uiTextPrimary }
-                        MouseArea { anchors.fill: parent; onClicked: settingsWin.activeTab = 2 }
+                    Item {
+                        implicitWidth: tab2Text.implicitWidth + 16; implicitHeight: 44
+                        Text { id: tab2Text; anchors.centerIn: parent; text: qsTr("Ajustes & Efeitos"); font.pixelSize: 13; font.bold: settingsWin.activeTab === 2; color: settingsWin.activeTab === 2 ? settingsWin.uiAccent : settingsWin.uiTextPrimary }
+                        Rectangle { height: 2; color: settingsWin.uiAccent; visible: settingsWin.activeTab === 2; anchors.bottom: parent.bottom; anchors.left: parent.left; anchors.right: parent.right }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: settingsWin.activeTab = 2 }
                     }
                 }
 
@@ -536,11 +546,13 @@ Window {
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
+            contentWidth: availableWidth
             ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
             ColumnLayout {
-                width: settingsWin.width - 32
-                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.margins: 16
                 spacing: 16
                 Layout.topMargin: 16
                 Layout.bottomMargin: 16
@@ -560,7 +572,51 @@ Window {
                     Layout.fillWidth: true
                     spacing: 16
 
+                    // POSIÇÃO DA DOCA (BÁSICO)
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: posCol.implicitHeight + 24
+                        color: settingsWin.uiCardBg
+                        radius: 8
+                        border.color: settingsWin.uiCardBorder
 
+                        ColumnLayout {
+                            id: posCol
+                            anchors.fill: parent
+                            anchors.margins: 12
+                            spacing: 10
+
+                            Label { text: qsTr("Posição da Doca"); font.bold: true; font.pixelSize: 14; color: settingsWin.uiTextPrimary }
+
+                            GridLayout {
+                                Layout.fillWidth: true
+                                columns: 4
+                                rowSpacing: 8
+                                columnSpacing: 8
+
+                                SegmentedButton {
+                                    labelText: qsTr("▾ Inferior")
+                                    selected: dock.liveDockEdge === 0
+                                    onClicked: dock.liveDockEdge = 0
+                                }
+                                SegmentedButton {
+                                    labelText: qsTr("◂ Esquerda")
+                                    selected: dock.liveDockEdge === 1
+                                    onClicked: dock.liveDockEdge = 1
+                                }
+                                SegmentedButton {
+                                    labelText: qsTr("▴ Superior")
+                                    selected: dock.liveDockEdge === 2
+                                    onClicked: dock.liveDockEdge = 2
+                                }
+                                SegmentedButton {
+                                    labelText: qsTr("▸ Direita")
+                                    selected: dock.liveDockEdge === 3
+                                    onClicked: dock.liveDockEdge = 3
+                                }
+                            }
+                        }
+                    }
 
                     // MODOS DE VISIBILIDADE (BÁSICO)
                     Rectangle {
@@ -760,138 +816,269 @@ Window {
                     }
                 }
 
-                // ================= TAB 1: APPEARANCE (APARÊNCIA) =================
+                // ================= TAB 1: APPEARANCE (APARÊNCIA ESTILO LATTE) =================
                 ColumnLayout {
                     visible: settingsWin.activeTab === 1
                     Layout.fillWidth: true
-                    spacing: 16
+                    spacing: 20
 
-                    // PRESETS & TEMAS (BÁSICO)
-                    Rectangle {
+                    // SEÇÃO 0: ESTILOS PREDEFINIDOS (PRESETS)
+                    ColumnLayout {
                         Layout.fillWidth: true
-                        implicitHeight: presetCol.implicitHeight + 24
-                        color: settingsWin.uiCardBg
-                        radius: 8
-                        border.color: settingsWin.uiCardBorder
+                        spacing: 12
 
-                        ColumnLayout {
-                            id: presetCol
-                            anchors.fill: parent
-                            anchors.margins: 12
-                            spacing: 10
+                        Label {
+                            text: qsTr("Presets e Temas")
+                            font.pixelSize: 18
+                            font.bold: true
+                            color: settingsWin.uiTextPrimary
+                        }
 
-                            Label { text: qsTr("Presets e Temas"); font.bold: true; font.pixelSize: 14; color: settingsWin.uiTextPrimary }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
 
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 8
-
-                                SegmentedButton {
-                                    labelText: "Vidro Escuro"
-                                    selected: dock.livePresetName === "Dark Glass"
-                                    onClicked: dock.applyAppearancePreset("Dark Glass")
-                                }
-                                SegmentedButton {
-                                    labelText: "Vidro Claro"
-                                    selected: dock.livePresetName === "Light Glass"
-                                    onClicked: dock.applyAppearancePreset("Light Glass")
-                                }
-                                SegmentedButton {
-                                    labelText: "Neon"
-                                    selected: dock.livePresetName === "Neon"
-                                    onClicked: dock.applyAppearancePreset("Neon")
-                                }
-                                SegmentedButton {
-                                    labelText: "Minimalista"
-                                    selected: dock.livePresetName === "Minimal"
-                                    onClicked: dock.applyAppearancePreset("Minimal")
-                                }
+                            SegmentedButton {
+                                labelText: qsTr("Vidro Escuro")
+                                selected: dock.livePresetName === "Dark Glass"
+                                onClicked: dock.applyAppearancePreset("Dark Glass")
                             }
 
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 10
+                            SegmentedButton {
+                                labelText: qsTr("Vidro Claro")
+                                selected: dock.livePresetName === "Light Glass"
+                                onClicked: dock.applyAppearancePreset("Light Glass")
+                            }
 
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 4
-                                    Label { text: qsTr("Tema"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
-                                    ComboBox {
-                                        Layout.fillWidth: true
-                                        model: [qsTr("Escuro"), qsTr("Claro"), qsTr("Noite Azul"), qsTr("Ametista")]
-                                        currentIndex: dock.liveThemeMode
-                                        onActivated: dock.liveThemeMode = currentIndex
-                                    }
-                                }
+                            SegmentedButton {
+                                labelText: qsTr("Vidro Líquido")
+                                selected: dock.livePresetName === "Liquid Glass"
+                                onClicked: dock.applyAppearancePreset("Liquid Glass")
+                            }
 
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 4
-                                    Label { text: qsTr("Destaque"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
-                                    ComboBox {
-                                        Layout.fillWidth: true
-                                        model: [qsTr("Ciano"), qsTr("Roxo"), qsTr("Verde"), qsTr("Laranja"), qsTr("Rosa")]
-                                        currentIndex: dock.liveAccentMode
-                                        onActivated: dock.liveAccentMode = currentIndex
-                                    }
-                                }
+                            SegmentedButton {
+                                labelText: qsTr("Neon")
+                                selected: dock.livePresetName === "Neon"
+                                onClicked: dock.applyAppearancePreset("Neon")
+                            }
+
+                            SegmentedButton {
+                                labelText: qsTr("Minimalista")
+                                selected: dock.livePresetName === "Minimal"
+                                onClicked: dock.applyAppearancePreset("Minimal")
                             }
                         }
-                    }
 
-                    // DIMENSÕES E ZOOM DA ONDA (BÁSICO)
-                    Rectangle {
-                        Layout.fillWidth: true
-                        implicitHeight: dimCol.implicitHeight + 24
-                        color: settingsWin.uiCardBg
-                        radius: 8
-                        border.color: settingsWin.uiCardBorder
-
-                        ColumnLayout {
-                            id: dimCol
-                            anchors.fill: parent
-                            anchors.margins: 12
+                        RowLayout {
+                            Layout.fillWidth: true
                             spacing: 12
 
-                            Label { text: qsTr("Dimensões, Ícones e Zoom"); font.bold: true; font.pixelSize: 14; color: settingsWin.uiTextPrimary }
-
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 4
-                                Label { text: qsTr("Ícone base: %1 px").arg(Math.round(dock.liveMinIconSize)); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
-                                Slider {
-                                    Layout.fillWidth: true; from: 30; to: 80; stepSize: 1
-                                    value: dock.liveMinIconSize
-                                    onMoved: { dock.liveMinIconSize = value; dock.clampMaxIconSizeForZoomCap() }
+                                Label { text: qsTr("Tema"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                ComboBox {
+                                    Layout.fillWidth: true
+                                    model: [qsTr("Escuro"), qsTr("Claro"), qsTr("Escuro Translúcido"), qsTr("Neon")]
+                                    currentIndex: dock.liveThemeMode
+                                    onActivated: dock.liveThemeMode = currentIndex
                                 }
                             }
 
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 4
-                                Label { text: qsTr("Zoom máximo da onda: %1%").arg(Math.round(dock.liveMaxIconZoomPercent)); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
-                                Slider {
-                                    Layout.fillWidth: true; from: 0; to: 100; stepSize: 5
-                                    value: dock.liveMaxIconZoomPercent
-                                    onMoved: dock.setLiveMaxIconZoomPercent(value)
+                                Label { text: qsTr("Destaque"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                ComboBox {
+                                    Layout.fillWidth: true
+                                    model: [qsTr("Ciano"), qsTr("Roxo"), qsTr("Verde"), qsTr("Laranja"), qsTr("Rosa")]
+                                    currentIndex: dock.liveAccentMode
+                                    onActivated: dock.liveAccentMode = currentIndex
                                 }
-                            }
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 4
-                                Label { text: qsTr("Escala Geral: %1%").arg(Math.round(dock.liveScaleFactor * 100)); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
-                                Slider { Layout.fillWidth: true; from: 0.5; to: 1.8; stepSize: 0.05; value: dock.liveScaleFactor; onMoved: dock.liveScaleFactor = value }
-                            }
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 4
-                                Label { text: qsTr("Espaçamento dos Ícones: %1 px").arg(Math.round(dock.liveIconSpacing)); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
-                                Slider { Layout.fillWidth: true; from: 0; to: 40; stepSize: 1; value: dock.liveIconSpacing; onMoved: dock.liveIconSpacing = value }
                             }
                         }
                     }
+
+                    Rectangle { Layout.fillWidth: true; height: 1; color: settingsWin.uiCardBorder }
+
+                    // SEÇÃO 1: ITENS (ESTILO IMAGEM REFERÊNCIA)
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 12
+
+                        Label {
+                            text: qsTr("Itens")
+                            font.pixelSize: 18
+                            font.bold: true
+                            color: settingsWin.uiTextPrimary
+                        }
+
+                        Label {
+                            text: qsTr("Tamanho")
+                            font.pixelSize: 12
+                            color: settingsWin.uiTextSecondary
+                            Layout.alignment: Qt.AlignHCenter
+                        }
+
+                        LatteSliderRow {
+                            labelText: qsTr("Absoluto")
+                            valueText: Math.round(dock.liveMinIconSize) + " px."
+                            fromValue: 30
+                            toValue: 80
+                            stepValue: 1
+                            currentValue: dock.liveMinIconSize
+                            uiTextPrimary: settingsWin.uiTextPrimary
+                            uiAccent: settingsWin.uiAccent
+                            settingsDark: settingsWin.settingsDark
+                            onMoved: (val) => { dock.liveMinIconSize = val; dock.clampMaxIconSizeForZoomCap() }
+                        }
+
+                        Label {
+                            text: qsTr("Efeitos")
+                            font.pixelSize: 12
+                            color: settingsWin.uiTextSecondary
+                            Layout.alignment: Qt.AlignHCenter
+                        }
+
+                        LatteSliderRow {
+                            labelText: qsTr("Zoom ao passar o mouse")
+                            valueText: Math.round(dock.liveMaxIconZoomPercent) + " %"
+                            fromValue: 0
+                            toValue: 100
+                            stepValue: 5
+                            currentValue: dock.liveMaxIconZoomPercent
+                            uiTextPrimary: settingsWin.uiTextPrimary
+                            uiAccent: settingsWin.uiAccent
+                            settingsDark: settingsWin.settingsDark
+                            onMoved: (val) => dock.setLiveMaxIconZoomPercent(val)
+                        }
+                    }
+
+                    Rectangle { Layout.fillWidth: true; height: 1; color: settingsWin.uiCardBorder }
+
+                    // SEÇÃO 2: COMPRIMENTO (ESTILO IMAGEM REFERÊNCIA)
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 12
+
+                        Label {
+                            text: qsTr("Comprimento")
+                            font.pixelSize: 18
+                            font.bold: true
+                            color: settingsWin.uiTextPrimary
+                        }
+
+                        LatteSliderRow {
+                            labelText: qsTr("Máximo")
+                            valueText: Math.round(dock.liveScaleFactor * 100) + " %"
+                            fromValue: 0.5
+                            toValue: 1.8
+                            stepValue: 0.05
+                            currentValue: dock.liveScaleFactor
+                            uiTextPrimary: settingsWin.uiTextPrimary
+                            uiAccent: settingsWin.uiAccent
+                            settingsDark: settingsWin.settingsDark
+                            onMoved: (val) => dock.liveScaleFactor = val
+                        }
+                    }
+
+                    Rectangle { Layout.fillWidth: true; height: 1; color: settingsWin.uiCardBorder }
+
+                    // SEÇÃO 3: PLANO DE FUNDO (ESTILO IMAGEM REFERÊNCIA)
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 12
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Label {
+                                text: qsTr("Plano de fundo")
+                                font.pixelSize: 18
+                                font.bold: true
+                                color: settingsWin.uiTextPrimary
+                            }
+                            Item { Layout.fillWidth: true }
+                            Switch {
+                                checked: dock.liveBg3dStyle !== 0
+                                onToggled: dock.liveBg3dStyle = checked ? 3 : 0
+                            }
+                        }
+
+                        LatteSliderRow {
+                            labelText: qsTr("Tamanho")
+                            valueText: Math.round(dock.liveDockThickness) + " px."
+                            fromValue: 4
+                            toValue: 120
+                            stepValue: 1
+                            currentValue: dock.liveDockThickness
+                            uiTextPrimary: settingsWin.uiTextPrimary
+                            uiAccent: settingsWin.uiAccent
+                            settingsDark: settingsWin.settingsDark
+                            onMoved: (val) => dock.liveDockThickness = val
+                        }
+
+                        LatteSliderRow {
+                            labelText: qsTr("Contorno")
+                            valueText: Math.round(dock.liveDockRadius) + " px."
+                            fromValue: 8
+                            toValue: 40
+                            stepValue: 1
+                            currentValue: dock.liveDockRadius
+                            uiTextPrimary: settingsWin.uiTextPrimary
+                            uiAccent: settingsWin.uiAccent
+                            settingsDark: settingsWin.settingsDark
+                            onMoved: (val) => dock.liveDockRadius = val
+                        }
+
+                        LatteSliderRow {
+                            labelText: qsTr("Opacidade")
+                            valueText: Math.round(dock.liveBgOpacity * 100) + " %"
+                            fromValue: 0.2
+                            toValue: 1.0
+                            stepValue: 0.05
+                            currentValue: dock.liveBgOpacity
+                            uiTextPrimary: settingsWin.uiTextPrimary
+                            uiAccent: settingsWin.uiAccent
+                            settingsDark: settingsWin.settingsDark
+                            onMoved: (val) => dock.liveBgOpacity = val
+                        }
+
+                        Label {
+                            text: qsTr("Cores do Gradiente (Estilo Vidro)")
+                            font.pixelSize: 13
+                            font.bold: true
+                            color: settingsWin.uiTextPrimary
+                            Layout.topMargin: 4
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 10
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 4
+                                Label { text: qsTr("Cor A"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                TextField { Layout.fillWidth: true; text: dock.liveGradientColorA; onTextChanged: dock.liveGradientColorA = text }
+                            }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 4
+                                Label { text: qsTr("Cor B"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                TextField { Layout.fillWidth: true; text: dock.liveGradientColorB; onTextChanged: dock.liveGradientColorB = text }
+                            }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 4
+                                Label { text: qsTr("Cor C"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                TextField { Layout.fillWidth: true; text: dock.liveGradientColorC; onTextChanged: dock.liveGradientColorC = text }
+                            }
+                        }
+                    }
+
+                    Rectangle { Layout.fillWidth: true; height: 1; color: settingsWin.uiCardBorder }
 
                     // INDICADORES (BÁSICO)
                     Rectangle {
@@ -966,34 +1153,6 @@ Window {
                                 }
                             }
 
-                            Label { text: qsTr("Cores do Gradiente (Estilo Vidro)"); font.bold: true; font.pixelSize: 12; color: settingsWin.uiTextPrimary }
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 10
-
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 4
-                                    Label { text: qsTr("Cor A"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
-                                    TextField { Layout.fillWidth: true; text: dock.liveGradientColorA; onTextChanged: dock.liveGradientColorA = text }
-                                }
-
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 4
-                                    Label { text: qsTr("Cor B"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
-                                    TextField { Layout.fillWidth: true; text: dock.liveGradientColorB; onTextChanged: dock.liveGradientColorB = text }
-                                }
-
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 4
-                                    Label { text: qsTr("Cor C"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
-                                    TextField { Layout.fillWidth: true; text: dock.liveGradientColorC; onTextChanged: dock.liveGradientColorC = text }
-                                }
-                            }
-
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 4
@@ -1004,22 +1163,8 @@ Window {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 4
-                                Label { text: qsTr("Raio dos Cantos: %1 px").arg(Math.round(dock.liveDockRadius)); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
-                                Slider { Layout.fillWidth: true; from: 8; to: 40; stepSize: 1; value: dock.liveDockRadius; onMoved: dock.liveDockRadius = value }
-                            }
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 4
                                 Label { text: qsTr("Brilho da Borda: %1%").arg(Math.round(dock.liveBorderGlow * 100)); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
                                 Slider { Layout.fillWidth: true; from: 0.05; to: 0.60; stepSize: 0.01; value: dock.liveBorderGlow; onMoved: dock.liveBorderGlow = value }
-                            }
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 4
-                                Label { text: qsTr("Opacidade do Fundo: %1%").arg(Math.round(dock.liveBgOpacity * 100)); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
-                                Slider { Layout.fillWidth: true; from: 0.2; to: 1.0; stepSize: 0.05; value: dock.liveBgOpacity; onMoved: dock.liveBgOpacity = value }
                             }
 
                             RowLayout {

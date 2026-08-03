@@ -945,47 +945,15 @@ void TaskBackend::enableWindowBlur(QQuickWindow *win, bool enable, int x, int y,
     if (w <= 0 || h <= 0) {
         w = win->width();
         h = win->height();
+        x = 0;
+        y = 0;
     }
 
     if (w < 10 || h < 10) {
         return;
     }
 
-    if (radius > 0) {
-        QPainterPath path;
-        path.addRoundedRect(QRectF(x, y, w, h), radius, radius);
-        QPolygon poly = path.toFillPolygon().toPolygon();
-        KWindowEffects::enableBlurBehind(win, true, QRegion(poly));
-    } else {
-        KWindowEffects::enableBlurBehind(win, true);
-    }
-}
-
-void TaskBackend::enableWindowBlur(QQuickWindow *win, bool enable, int x, int y, int w, int h, int radius)
-{
-    if (!win) {
-        return;
-    }
-    if (!enable) {
-        if (win->handle()) {
-            KWindowEffects::enableBlurBehind(win, false);
-        }
-        return;
-    }
-    if (!win->isVisible() || !win->handle()) {
-        return;
-    }
-
-    if (w <= 0 || h <= 0) {
-        w = win->width();
-        h = win->height();
-    }
-
-    if (w < 10 || h < 10) {
-        return;
-    }
-
-    if (radius > 0) {
+    if (radius > 0 && (x > 2 || y > 2 || w < win->width() - 4 || h < win->height() - 4)) {
         QPainterPath path;
         path.addRoundedRect(QRectF(x, y, w, h), radius, radius);
         QPolygon poly = path.toFillPolygon().toPolygon();
@@ -1057,6 +1025,20 @@ void TaskBackend::rebuildExecIndex()
             if (!m_execBasenameToCmd.contains(appExec)) {
                 m_execBasenameToCmd.insert(appExec, cmd);
             }
+            if (appExec == QLatin1String("google-chrome-stable") || appExec == QLatin1String("google-chrome")) {
+                m_appsByExec.insert(QStringLiteral("chrome"), app);
+                m_appsByExec.insert(QStringLiteral("google-chrome"), app);
+                m_appsByExec.insert(QStringLiteral("google-chrome-stable"), app);
+                if (!m_execBasenameToCmd.contains(QStringLiteral("chrome"))) m_execBasenameToCmd.insert(QStringLiteral("chrome"), cmd);
+                if (!m_execBasenameToCmd.contains(QStringLiteral("google-chrome"))) m_execBasenameToCmd.insert(QStringLiteral("google-chrome"), cmd);
+            } else if (appExec == QLatin1String("microsoft-edge-stable") || appExec == QLatin1String("microsoft-edge")) {
+                m_appsByExec.insert(QStringLiteral("msedge"), app);
+                m_appsByExec.insert(QStringLiteral("microsoft-edge"), app);
+                m_appsByExec.insert(QStringLiteral("microsoft-edge-stable"), app);
+            } else if (appExec == QLatin1String("brave-browser") || appExec == QLatin1String("brave")) {
+                m_appsByExec.insert(QStringLiteral("brave"), app);
+                m_appsByExec.insert(QStringLiteral("brave-browser"), app);
+            }
         }
         const QString desktopPath = app.value(QStringLiteral("desktopPath")).toString();
         if (desktopPath.isEmpty()) {
@@ -1099,18 +1081,36 @@ bool TaskBackend::appMatchesRunningCmdLine(const QString &cmdLineLower, const QV
         }
         return false;
     }
+    if (appExec.isEmpty()) {
+        return false;
+    }
+
+    QStringList appExecAlts;
+    appExecAlts << appExec;
+    if (appExec == QLatin1String("google-chrome-stable") || appExec == QLatin1String("google-chrome") || appExec == QLatin1String("chrome")) {
+        appExecAlts << QStringLiteral("google-chrome-stable") << QStringLiteral("google-chrome") << QStringLiteral("chrome");
+    } else if (appExec == QLatin1String("microsoft-edge-stable") || appExec == QLatin1String("microsoft-edge") || appExec == QLatin1String("msedge")) {
+        appExecAlts << QStringLiteral("microsoft-edge-stable") << QStringLiteral("microsoft-edge") << QStringLiteral("msedge");
+    } else if (appExec == QLatin1String("brave-browser") || appExec == QLatin1String("brave")) {
+        appExecAlts << QStringLiteral("brave-browser") << QStringLiteral("brave");
+    }
 
     if (DockBrowserUtils::commandLooksLikeBrowser(appExec)) {
-        if ((cmdLineLower.startsWith(appExec) || cmdLineLower.contains(QStringLiteral("/") + appExec))
-            && !cmdLineLower.contains(QStringLiteral("--app-id")) && !cmdLineLower.contains(QStringLiteral("--type=renderer"))
+        if (!cmdLineLower.contains(QStringLiteral("--app-id")) && !cmdLineLower.contains(QStringLiteral("--type=renderer"))
             && !cmdLineLower.contains(QStringLiteral("--type=zygote"))) {
-            return true;
+            for (const QString &alt : appExecAlts) {
+                if (cmdLineLower.startsWith(alt) || cmdLineLower.contains(QStringLiteral("/") + alt)) {
+                    return true;
+                }
+            }
         }
         return false;
     }
 
-    if (cmdLineLower.startsWith(appExec) || cmdLineLower.contains(QStringLiteral("/") + appExec)) {
-        return true;
+    for (const QString &alt : appExecAlts) {
+        if (cmdLineLower.startsWith(alt) || cmdLineLower.contains(QStringLiteral("/") + alt)) {
+            return true;
+        }
     }
     return false;
 }
@@ -1473,10 +1473,24 @@ bool TaskBackend::isAppRunning(const QString &command)
     const bool isChromiumOrZen = execName.contains(QStringLiteral("chromium")) || execName.contains(QStringLiteral("chrome")) || execName.contains(QStringLiteral("edge"))
         || execName.contains(QStringLiteral("zen"));
 
+    QStringList altExecs;
+    altExecs << execName;
+    if (execName == QLatin1String("google-chrome-stable") || execName == QLatin1String("google-chrome") || execName == QLatin1String("chrome")) {
+        altExecs << QStringLiteral("google-chrome-stable") << QStringLiteral("google-chrome") << QStringLiteral("chrome");
+    } else if (execName == QLatin1String("microsoft-edge-stable") || execName == QLatin1String("microsoft-edge") || execName == QLatin1String("msedge")) {
+        altExecs << QStringLiteral("microsoft-edge-stable") << QStringLiteral("microsoft-edge") << QStringLiteral("msedge");
+    } else if (execName == QLatin1String("brave-browser") || execName == QLatin1String("brave")) {
+        altExecs << QStringLiteral("brave-browser") << QStringLiteral("brave");
+    }
+
     if (isChromiumOrZen) {
         for (const QString &r : std::as_const(m_runningCmdLines)) {
-            if ((r.startsWith(execName) || r.contains(QStringLiteral("/") + execName)) && !r.contains(QStringLiteral("--app-id"))) {
-                return true;
+            if (!r.contains(QStringLiteral("--app-id")) && !r.contains(QStringLiteral("--type=renderer")) && !r.contains(QStringLiteral("--type=zygote"))) {
+                for (const QString &alt : altExecs) {
+                    if (r.startsWith(alt) || r.contains(QStringLiteral("/") + alt)) {
+                        return true;
+                    }
+                }
             }
         }
         return false;
@@ -1525,52 +1539,94 @@ bool TaskBackend::isAppFocused(const QString &command)
 
 QVariantMap TaskBackend::parseDropInfo(const QString &urlStr)
 {
-    const QUrl url(urlStr);
-    const QString path = url.toLocalFile();
+    QString path = urlStr.trimmed();
+    if (path.startsWith(QStringLiteral("file://"))) {
+        path = QUrl(path).toLocalFile();
+    }
+    if (path.startsWith(QStringLiteral("\"")) && path.endsWith(QStringLiteral("\""))) {
+        path = path.mid(1, path.length() - 2);
+    }
+    if (path.startsWith(QStringLiteral("'")) && path.endsWith(QStringLiteral("'"))) {
+        path = path.mid(1, path.length() - 2);
+    }
+
     QVariantMap map;
 
-    if (!path.endsWith(QStringLiteral(".desktop"))) {
-        map[QStringLiteral("error")] = QStringLiteral("Não é .desktop");
-        return map;
-    }
-
-    map[QStringLiteral("desktopPath")] = path;
-
-    QFile file(path);
-    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QTextStream in(&file);
-        bool foundName = false;
-        bool foundIcon = false;
-        bool foundCmd = false;
-        bool foundWmClass = false;
-        while (!in.atEnd()) {
-            const QString line = in.readLine().trimmed();
-            if (line == QStringLiteral("NoDisplay=true")) {
-                map[QStringLiteral("nodisplay")] = true;
-            } else if (!foundName && line.startsWith(QStringLiteral("Name="))) {
-                map[QStringLiteral("name")] = line.mid(5);
-                foundName = true;
-            } else if (!foundIcon && line.startsWith(QStringLiteral("Icon="))) {
-                map[QStringLiteral("icon")] = line.mid(5);
-                foundIcon = true;
-            } else if (!foundCmd && line.startsWith(QStringLiteral("Exec="))) {
-                map[QStringLiteral("cmd")] = line.mid(5).split(QStringLiteral(" %")).first();
-                foundCmd = true;
-            } else if (!foundWmClass && line.startsWith(QStringLiteral("StartupWMClass="))) {
-                map[QStringLiteral("wmclass")] = line.mid(15);
-                foundWmClass = true;
-            } else if (line.startsWith(QStringLiteral("Categories="))) {
-                map[QStringLiteral("categories")] = line.mid(11);
-            } else if (line.startsWith(QStringLiteral("Comment="))) {
-                map[QStringLiteral("comment")] = line.mid(8);
+    if (path.startsWith(QStringLiteral("applications:"))) {
+        QString desktopName = path.mid(13); // remove applications:
+        // Try to find the file in standard locations
+        QStringList searchPaths = {
+            QDir::homePath() + QStringLiteral("/.local/share/applications/"),
+            QStringLiteral("/usr/share/applications/"),
+            QStringLiteral("/usr/local/share/applications/"),
+            QStringLiteral("/var/lib/flatpak/exports/share/applications/"),
+            QStringLiteral("/var/lib/snapd/desktop/applications/")
+        };
+        for (const QString &dir : searchPaths) {
+            QString fullPath = dir + desktopName;
+            if (QFileInfo::exists(fullPath)) {
+                path = fullPath;
+                break;
             }
         }
-        file.close();
     }
-    if (!map.contains(QStringLiteral("name"))) {
+
+    if (path.endsWith(QStringLiteral(".desktop"))) {
+        map[QStringLiteral("desktopPath")] = path;
+        QFile file(path);
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QTextStream in(&file);
+            bool foundName = false;
+            bool foundIcon = false;
+            bool foundCmd = false;
+            bool foundWmClass = false;
+            while (!in.atEnd()) {
+                const QString line = in.readLine().trimmed();
+                if (line == QStringLiteral("NoDisplay=true")) {
+                    map[QStringLiteral("nodisplay")] = true;
+                } else if (!foundName && line.startsWith(QStringLiteral("Name="))) {
+                    map[QStringLiteral("name")] = line.mid(5);
+                    foundName = true;
+                } else if (!foundIcon && line.startsWith(QStringLiteral("Icon="))) {
+                    map[QStringLiteral("icon")] = line.mid(5);
+                    foundIcon = true;
+                } else if (!foundCmd && line.startsWith(QStringLiteral("Exec="))) {
+                    map[QStringLiteral("cmd")] = line.mid(5).split(QStringLiteral(" %")).first();
+                    foundCmd = true;
+                } else if (!foundWmClass && line.startsWith(QStringLiteral("StartupWMClass="))) {
+                    map[QStringLiteral("wmclass")] = line.mid(15);
+                    foundWmClass = true;
+                } else if (line.startsWith(QStringLiteral("Categories="))) {
+                    map[QStringLiteral("categories")] = line.mid(11);
+                } else if (line.startsWith(QStringLiteral("Comment="))) {
+                    map[QStringLiteral("comment")] = line.mid(8);
+                }
+            }
+            file.close();
+        }
+    } else {
+        QFileInfo fi(path);
+        if (fi.exists()) {
+            map[QStringLiteral("name")] = fi.completeBaseName();
+            map[QStringLiteral("cmd")] = path;
+            if (fi.isDir()) {
+                map[QStringLiteral("icon")] = QStringLiteral("folder");
+            } else if (fi.isExecutable()) {
+                map[QStringLiteral("icon")] = QStringLiteral("application-x-executable");
+            } else {
+                map[QStringLiteral("icon")] = QStringLiteral("document-open");
+            }
+        } else if (!path.isEmpty()) {
+            map[QStringLiteral("name")] = path.split(' ').first().split('/').last();
+            map[QStringLiteral("cmd")] = path;
+            map[QStringLiteral("icon")] = QStringLiteral("application-x-executable");
+        }
+    }
+
+    if (!map.contains(QStringLiteral("name")) || map[QStringLiteral("name")].toString().isEmpty()) {
         map[QStringLiteral("name")] = QStringLiteral("App");
     }
-    if (!map.contains(QStringLiteral("icon"))) {
+    if (!map.contains(QStringLiteral("icon")) || map[QStringLiteral("icon")].toString().isEmpty()) {
         map[QStringLiteral("icon")] = QStringLiteral("application-x-executable");
     }
     return map;

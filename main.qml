@@ -4,6 +4,7 @@ import QtQuick.Controls
 import QtQuick.Dialogs
 import QtQuick.Window
 import org.kde.kirigami as Kirigami
+import org.kde.taskmanager as TaskManager
 import QtCore
 
 Window {
@@ -13,7 +14,7 @@ Window {
 
     // Métricas nomeadas (geometria da onda e da barra)
     readonly property real dockWaveRadiusStrideFactor: liveWaveRadiusFactor
-    readonly property real dockBarHeightPx: 68
+    readonly property real dockBarHeightPx: liveDockThickness
     readonly property real dockRevealBandPx: 36
 
     property real liveScaleFactor: 1.0
@@ -44,6 +45,7 @@ Window {
     property int liveAccentMode: 0 // 0 Ciano, 1 Roxo, 2 Verde, 3 Laranja, 4 Rosa
     property real liveWaveIntensity: 1.0 // 0.6..1.0 (máx. 100%)
     property real liveDockRadius: 22.0 // px base antes da escala
+    property real liveDockThickness: 68.0
     property bool liveMonochromeIcons: false
     property int liveIndicatorStyle: 0 // 0 ponto, 1 linha, 2 barra, 3 sublinhado, 4 pulso
     property real liveIndicatorScale: 1.0
@@ -400,6 +402,14 @@ Window {
             liveGradientColorA = "#EEF1F6"; liveGradientColorB = "#E4E9F0"; liveGradientColorC = "#F8FAFC"
             liveGradientMix = 0.30; liveBorderGlow = 0.28; liveShadowStrength = 0.18
             liveMonochromeIcons = false; liveIndicatorStyle = 1
+        } else if (presetName === "Liquid Glass") {
+            liveThemeMode = 0; liveAccentMode = 0; liveBg3dStyle = 3
+            liveBgOpacity = 0.20
+            liveGradientColorA = "#20FFFFFF"
+            liveGradientColorB = "#08FFFFFF"
+            liveGradientColorC = "#12000000"
+            liveGradientMix = 0.10; liveBorderGlow = 0.20; liveShadowStrength = 0.25
+            liveMonochromeIcons = false; liveIndicatorStyle = 4
         } else if (presetName === "Neon") {
             liveThemeMode = 2; liveAccentMode = 0; liveBg3dStyle = 3
             liveBgOpacity = 0.40
@@ -504,9 +514,8 @@ Window {
         return false
     }
 
-    function addWidgetShortcutFromDesktopUrl(urlStr) {
-        const info = taskBackend.parseDropInfo(urlStr)
-        if (!info.cmd) {
+    function addWidgetShortcutFromDesktopUrlInfo(info) {
+        if (!info || !info.cmd) {
             return false
         }
         if (systemModelContainsCmd(info.cmd)) {
@@ -534,6 +543,11 @@ Window {
         taskBackend.writeUserJsonFile("widgets.json", liveWidgetsJson)
         reloadCustomWidgets()
         return true
+    }
+
+    function addWidgetShortcutFromDesktopUrl(urlStr) {
+        const info = taskBackend.parseDropInfo(urlStr)
+        return addWidgetShortcutFromDesktopUrlInfo(info)
     }
 
     function lockDockForContextMenu(locked, anchorLogicalX) {
@@ -565,6 +579,10 @@ Window {
         updateZone()
     }
     onLiveDockMarginChanged: updateZone()
+    onLiveDockThicknessChanged: {
+        updateZone()
+        dockBg.invalidateBlurGeometry()
+    }
 
     onLiveMaxIconSizeChanged: {
         updateZone()
@@ -595,8 +613,11 @@ Window {
     property real smoothedWaveRowWidth: baseRowWidth
     onBaseRowWidthChanged: smoothedWaveRowWidth = baseRowWidth
 
+    readonly property int maxWinWidth: root.screen ? root.screen.width : 1920
+    readonly property int maxWinHeight: root.screen ? root.screen.height : 1080
+
     readonly property real wavePeakDeltaPx: Math.max(0, root.liveMaxIconSize - root.liveMinIconSize)
-    property real maxIconsExpansion: root.wavePeakDeltaPx * 7.0 * root.liveScaleFactor * root.liveWaveIntensity
+    property real maxIconsExpansion: root.wavePeakDeltaPx * 7.0 * root.liveScaleFactor * 1.0
 
     readonly property real dockIconTopOverflowPx: Math.max(
         0,
@@ -605,7 +626,7 @@ Window {
         + (10 * root.liveScaleFactor)
     )
 
-    readonly property real dockVerticalMotionSlopPx: 65 * root.liveScaleFactor
+    readonly property real dockVerticalMotionSlopPx: 165 * root.liveScaleFactor
 
     // Matemática global blindada contra retornos `undefined` durante animações
     property real dividerExtraHitArea: Math.max(0, (Math.max(root.liveMinIconSize, root.liveMaxIconSize) * root.liveScaleFactor * root.waveAmplitude) - Math.round(root.dockBarHeightPx * root.liveScaleFactor) + (10 * root.liveScaleFactor))
@@ -617,10 +638,7 @@ Window {
         root.baseStride * 0.45
     )
 
-    readonly property int maxWinHeight: root.screen ? root.screen.height : 16777215
-
     property real rawWinWidth: baseRowWidth + maxIconsExpansion + (winEdgeSlopPx * 2)
-    readonly property int maxWinWidth: root.screen ? root.screen.width : 16777215
     width: dockLayoutVertical
     ? Math.min(maxWinWidth, Math.max(120, Math.round((dockBarHeightPx + liveDockMargin * 2) * liveScaleFactor + dockIconTopOverflowPx + 48)))
     : Math.min(maxWinWidth, Math.max(420, Math.round(rawWinWidth / 2) * 2))
@@ -640,8 +658,12 @@ Window {
     ? Math.min(maxWinHeight, Math.max(420, Math.round(rawWinWidth / 2) * 2))
     : (root.dockRetracted ? root.dockPeekHeight : root.dockExpandedHeight)
 
-    onHeightChanged: pointerMaskDebouncer.restart()
-    onWidthChanged: pointerMaskDebouncer.restart()
+    onHeightChanged: {
+        pointerMaskDebouncer.restart()
+    }
+    onWidthChanged: {
+        pointerMaskDebouncer.restart()
+    }
 
     Behavior on height {
         enabled: !settingsWin.visible
@@ -695,7 +717,15 @@ Window {
             }
 
             var waveOn = root.waveAmplitude > 0.02
-            var alpha = waveOn ? 0.035 : 0.22
+            var alpha = 1.0
+            if (root.liveWaveInertia === 2) {
+                alpha = waveOn ? 0.08 : 0.35
+            } else if (root.liveWaveInertia === 1) {
+                alpha = waveOn ? 0.22 : 0.50
+            } else {
+                alpha = 1.0
+            }
+
             root.smoothedWaveRowWidth = Math.max(
                 root.baseRowWidth,
                 (root.smoothedWaveRowWidth * (1.0 - alpha)) + (tw * alpha)
@@ -735,32 +765,40 @@ Window {
 
     property real dockMouseX: -1000
     property real dockMouseY: -1000
+    property bool isDraggingOverDock: false
     property real logicalMouseX: -1000
 
     property bool dockHovered: {
-        if (!globalHover.hovered) return false
-            if (root.dockRetracted) return false
+        if (!globalHover.hovered && !isDraggingOverDock) return false
+        if (root.dockRetracted) return false
 
-                var maxIcon = Math.max(root.liveMinIconSize, root.liveMaxIconSize) * root.liveScaleFactor
-                var waveExtra = root.wavePeakDeltaPx * 3.15 * root.liveScaleFactor * root.liveWaveIntensity
-                var hoverSpan = root.baseRowWidth + (30 * root.liveScaleFactor) + waveExtra
+        var maxIcon = Math.max(root.liveMinIconSize, root.liveMaxIconSize) * root.liveScaleFactor
+        var waveExtra = root.wavePeakDeltaPx * 3.15 * root.liveScaleFactor * root.liveWaveIntensity
+        var hoverSpan = root.baseRowWidth + (30 * root.liveScaleFactor) + waveExtra
 
-                if (root.dockLayoutVertical) {
-                    var safeHitX = root.liveDockEdge === 2
-                    ? (maxIcon + 25)
-                    : (root.width - (maxIcon + 25))
-                    var dockTop = (root.height / 2) - (hoverSpan / 2)
-                    var dockBottom = dockTop + hoverSpan
-                    if (root.liveDockEdge === 2) {
-                        return (dockMouseX < safeHitX) && (dockMouseY >= dockTop) && (dockMouseY <= dockBottom)
-                    }
-                    return (dockMouseX > safeHitX) && (dockMouseY >= dockTop) && (dockMouseY <= dockBottom)
-                }
+        if (root.dockLayoutVertical) {
+            var safeHitX = root.liveDockEdge === 2
+            ? (maxIcon + 25)
+            : (root.width - (maxIcon + 25))
+            var dockTop = (root.height / 2) - (hoverSpan / 2)
+            var dockBottom = dockTop + hoverSpan
+            if (root.liveDockEdge === 2) {
+                return (dockMouseX < safeHitX) && (dockMouseY >= dockTop) && (dockMouseY <= dockBottom)
+            }
+            return (dockMouseX > safeHitX) && (dockMouseY >= dockTop) && (dockMouseY <= dockBottom)
+        }
 
-                var safeHitY = root.height - (maxIcon + 25)
-                var dockLeft = (root.width / 2) - (hoverSpan / 2)
-                var dockRight = dockLeft + hoverSpan
-                return (dockMouseY > safeHitY) && (dockMouseX >= dockLeft) && (dockMouseX <= dockRight)
+        var safeHitY = root.height - (maxIcon + 25)
+        if (root.liveDockEdge === 1) {
+            safeHitY = maxIcon + 25
+        }
+        var dockLeft = (root.width / 2) - (hoverSpan / 2)
+        var dockRight = dockLeft + hoverSpan
+
+        if (root.liveDockEdge === 1) {
+            return (dockMouseY < safeHitY) && (dockMouseX >= dockLeft) && (dockMouseX <= dockRight)
+        }
+        return (dockMouseY > safeHitY) && (dockMouseX >= dockLeft) && (dockMouseX <= dockRight)
     }
 
     property real waveAmplitude: 0.0
@@ -787,7 +825,7 @@ Window {
         repeat: false
         onTriggered: {
             if (!root.liveBehaviorAutoHide) return
-            if (settingsWin.visible || root.isAppMenuOpen) return
+            if (settingsWin.visible || root.isAppMenuOpen || root.isWidgetPickerOpen || taskBackend.isPlasmaEditMode || mainDropArea.containsDrag) return
             if (root.dockHovered) return
 
             root.dockAutoHideLatched = true
@@ -801,7 +839,7 @@ Window {
             root.dockAutoHideLatched = false
             return
         }
-        if (settingsWin.visible || root.isAppMenuOpen) {
+        if (settingsWin.visible || root.isAppMenuOpen || root.isWidgetPickerOpen || taskBackend.isPlasmaEditMode || mainDropArea.containsDrag) {
             autoHideDockTimer.stop()
             root.dockAutoHideLatched = false
             return
@@ -833,7 +871,7 @@ Window {
     }
 
     function applyDockRetractedState() {
-        if (settingsWin.visible || root.isAppMenuOpen) {
+        if (settingsWin.visible || root.isAppMenuOpen || root.isWidgetPickerOpen || taskBackend.isPlasmaEditMode || mainDropArea.containsDrag) {
             root.dockRetracted = false
             root.dockAutoHideLatched = false
             updateZone()
@@ -911,6 +949,7 @@ Window {
         property int accentMode: 0
         property real waveIntensity: 1.0
         property real dockRadius: 22.0
+        property real dockThickness: 68.0
         property bool monochromeIcons: false
         property int indicatorStyle: 0
         property real indicatorScale: 1.0
@@ -1019,6 +1058,7 @@ Window {
     property string dockTipHint: ""
     property real dockTipAnchorX: 0
     property real dockTipAnchorY: 0
+    property var dockTipWindowData: null
     property int minimizeSuckSerial: 0
 
     function removeMinimizeSuck(uid) {
@@ -1049,7 +1089,7 @@ Window {
         })
     }
 
-    function showDockIconTip(iconItem, name, statusLine, statusColor, hintLine) {
+    function showDockIconTip(iconItem, name, statusLine, statusColor, hintLine, winData) {
         if (!iconItem) {
             return
         }
@@ -1061,6 +1101,7 @@ Window {
         root.dockTipStatus = statusLine !== undefined ? statusLine : ""
         root.dockTipStatusColor = statusColor
         root.dockTipHint = hintLine !== undefined ? hintLine : ""
+        root.dockTipWindowData = winData || null
         root.dockTipVisible = root.dockTipName.length > 0
     }
 
@@ -1307,6 +1348,9 @@ Window {
         function onActiveWindowCoversWorkAreaChanged() {
             applyDockRetractedState()
         }
+        function onPlasmaEditModeChanged() {
+            applyDockRetractedState()
+        }
     }
 
     Component.onCompleted: {
@@ -1320,7 +1364,8 @@ Window {
         root.liveThemeMode    = dockSettings.themeMode
         root.liveAccentMode   = dockSettings.accentMode
         root.liveWaveIntensity = Math.max(0.6, Math.min(1.0, dockSettings.waveIntensity))
-        root.liveDockRadius   = Math.max(8, Math.min(40, dockSettings.dockRadius))
+        root.liveDockRadius   = Math.max(8, Math.min(40, dockSettings.dockRadius !== undefined ? dockSettings.dockRadius : 22.0))
+        root.liveDockThickness = Math.max(4, Math.min(120, dockSettings.dockThickness !== undefined && !isNaN(dockSettings.dockThickness) ? dockSettings.dockThickness : 68.0))
         root.liveMonochromeIcons = dockSettings.monochromeIcons
         root.liveIndicatorStyle = dockSettings.indicatorStyle
         root.liveIndicatorScale = dockSettings.indicatorScale
@@ -1563,6 +1608,11 @@ Window {
             height: Math.round(root.dockBarHeightPx * root.liveScaleFactor)
             spacing: root.baseSpacing
 
+            add: Transition {
+                NumberAnimation { property: "scale"; from: 0; to: 1; duration: 300; easing.type: Easing.OutBack }
+                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200 }
+            }
+
             Repeater {
                 model: launcherModel
                 delegate: DockIconDelegate { dock: root }
@@ -1657,6 +1707,11 @@ Window {
             width: Math.round(root.dockBarHeightPx * root.liveScaleFactor)
             spacing: root.baseSpacing
 
+            add: Transition {
+                NumberAnimation { property: "scale"; from: 0; to: 1; duration: 300; easing.type: Easing.OutBack }
+                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200 }
+            }
+
             Repeater {
                 model: launcherModel
                 delegate: DockIconDelegate { dock: root }
@@ -1708,8 +1763,8 @@ Window {
             id: dockGlobalTip
             z: 200000
             visible: root.dockTipVisible && !root.dockContextMenuOpen
-            width: globalTipBox.width
-            height: globalTipBox.height
+            width: windowPreviewCard.visible ? windowPreviewCard.implicitWidth : globalTipBox.width
+            height: windowPreviewCard.visible ? windowPreviewCard.implicitHeight : globalTipBox.height
 
             readonly property real marginGap: Math.round(10 * root.liveScaleFactor)
 
@@ -1738,8 +1793,16 @@ Window {
                 }
             }
 
+            DockWindowPreviewTooltip {
+                id: windowPreviewCard
+                dock: root
+                windowData: root.dockTipWindowData
+                visible: root.dockTipWindowData && root.dockTipWindowData.isRunning
+            }
+
             Rectangle {
                 id: globalTipBox
+                visible: !windowPreviewCard.visible
                 property real tipInnerWidth: Math.min(
                     320,
                     Math.max(
@@ -1902,6 +1965,17 @@ Window {
         dock: root
     }
 
+    DockWidgetPickerWindow {
+        id: widgetPickerWindow
+        dock: root
+    }
+
+    function openWidgetPickerGlobal() {
+        widgetPickerWindow.openPicker()
+    }
+
+    readonly property bool isWidgetPickerOpen: widgetPickerWindow && widgetPickerWindow.visible
+
     readonly property bool isAppMenuOpen: appMenuWindow && (appMenuWindow.visible || appMenuWindow.menuOpen)
 
     onIsAppMenuOpenChanged: {
@@ -1927,15 +2001,304 @@ Window {
         }
     }
 
-    DropArea {
-        anchors.fill: dockContainer
-        enabled: !root.dockContextMenuOpen
-        onDropped: function(drop) {
-            if (drop.hasUrls) {
-                let info = taskBackend.parseDropInfo(drop.urls[0].toString())
-                if (info.cmd) {
-                    appModel.append({name: info.name, icon: info.icon, cmd: info.cmd})
+    function addPlasmoidFromDropInfo(info) {
+        if (!info || !info.name) return false
+        if (info.isSeparator || info.cmd === "separator") {
+            appModel.append({
+                name: info.name || "Separador",
+                icon: "draw-separator",
+                cmd: "separator",
+                isSeparator: true,
+                isSystemItem: true
+            })
+            saveApps()
+            return true
+        }
+        if (info.widgetPreset) {
+            if (info.widgetPreset === "trash") {
+                if (!systemModelContainsCmd("dolphin trash://")) {
+                    systemModel.append({
+                        name: "Lixeira",
+                        icon: "user-trash",
+                        cmd: "dolphin trash://",
+                        isTrash: true,
+                        isSystemItem: true
+                    })
                     saveApps()
+                    return true
+                }
+            } else if (info.widgetPreset === "clock") {
+                return addWidgetShortcutFromDesktopUrlInfo({
+                    name: "Relógio",
+                    icon: "preferences-system-time",
+                    cmd: "kcmshell6 kcm_clock"
+                })
+            } else if (info.widgetPreset === "volume") {
+                return addWidgetShortcutFromDesktopUrlInfo({
+                    name: "Volume",
+                    icon: "audio-volume-high",
+                    cmd: "kcmshell6 kcm_pulseaudio"
+                })
+            } else if (info.widgetPreset === "media") {
+                return addWidgetShortcutFromDesktopUrlInfo({
+                    name: "Player de Mídia",
+                    icon: "media-playback-start",
+                    cmd: "plasma-browser-integration"
+                })
+            }
+        }
+        if (info.cmd) {
+            appModel.append({
+                name: info.name,
+                icon: info.icon || "application-x-executable",
+                cmd: info.cmd,
+                isSystemItem: info.isSystemItem || false
+            })
+            saveApps()
+            return true
+        }
+        return false
+    }
+
+    function isItemInDock(info) {
+        if (!info) return false
+        const cmd = info.cmd || ""
+        const name = info.name || ""
+        const preset = info.widgetPreset || ""
+
+        if (preset === "trash" || cmd === "dolphin trash://") {
+            return systemModelContainsCmd("dolphin trash://")
+        }
+
+        for (let i = 0; i < systemModel.count; i++) {
+            const item = systemModel.get(i)
+            if (item && item.cmd === cmd) return true
+        }
+
+        for (let i = 0; i < appModel.count; i++) {
+            const item = appModel.get(i)
+            if (!item) continue
+            if (cmd.length > 0 && item.cmd === cmd) return true
+            if (name.length > 0 && item.name === name) return true
+        }
+
+        return false
+    }
+
+    function removeAppOrWidget(info) {
+        if (!info) return false
+        const cmd = info.cmd || ""
+        const name = info.name || ""
+        const preset = info.widgetPreset || ""
+
+        let removed = false
+
+        // 1. Clean from liveWidgetsJson / widgets.json / userWidgetsJson
+        try {
+            let arr = JSON.parse(liveWidgetsJson || "[]")
+            if (Array.isArray(arr) && arr.length > 0) {
+                let origLen = arr.length
+                arr = arr.filter(function(w) {
+                    if (!w) return false
+                    if (cmd.length > 0 && w.cmd === cmd) return false
+                    if (name.length > 0 && w.name === name) return false
+                    if (preset === "clock" && w.cmd && w.cmd.indexOf("kcm_clock") >= 0) return false
+                    if (preset === "volume" && w.cmd && w.cmd.indexOf("kcm_pulseaudio") >= 0) return false
+                    if (preset === "media" && w.cmd && w.cmd.indexOf("plasma-browser-integration") >= 0) return false
+                    if (preset === "trash" && w.cmd && w.cmd.indexOf("trash:/") >= 0) return false
+                    return true
+                })
+                if (arr.length !== origLen) {
+                    liveWidgetsJson = JSON.stringify(arr)
+                    dockSettings.userWidgetsJson = liveWidgetsJson
+                    if (typeof dockSettings.sync === "function") dockSettings.sync()
+                    taskBackend.writeUserJsonFile("widgets.json", liveWidgetsJson)
+                    reloadCustomWidgets()
+                    removed = true
+                }
+            }
+        } catch (e) {
+            taskBackend.debugLog("persist", "Erro ao remover de widgets.json: " + e)
+        }
+
+        // 2. Clean from systemModel
+        for (let i = systemModel.count - 1; i >= 0; i--) {
+            const item = systemModel.get(i)
+            if (!item) continue
+            let match = false
+            if (preset === "trash" || cmd === "dolphin trash://") {
+                if (item.isTrash || item.cmd === "dolphin trash://" || (item.cmd && item.cmd.indexOf("trash:/") >= 0)) match = true
+            } else if (cmd.length > 0 && item.cmd === cmd) {
+                match = true
+            } else if (name.length > 0 && item.name === name) {
+                match = true
+            } else if (preset === "clock" && item.cmd && item.cmd.indexOf("kcm_clock") >= 0) {
+                match = true
+            } else if (preset === "volume" && item.cmd && item.cmd.indexOf("kcm_pulseaudio") >= 0) {
+                match = true
+            } else if (preset === "media" && item.cmd && item.cmd.indexOf("plasma-browser-integration") >= 0) {
+                match = true
+            }
+            if (match) {
+                systemModel.remove(i)
+                removed = true
+            }
+        }
+
+        // 3. Clean from appModel
+        for (let i = appModel.count - 1; i >= 0; i--) {
+            const item = appModel.get(i)
+            if (!item) continue
+            let match = false
+            if (cmd.length > 0 && item.cmd === cmd) match = true
+            if (name.length > 0 && item.name === name) match = true
+            if (preset === "clock" && item.cmd && item.cmd.indexOf("kcm_clock") >= 0) match = true
+            if (preset === "volume" && item.cmd && item.cmd.indexOf("kcm_pulseaudio") >= 0) match = true
+            if (preset === "media" && item.cmd && item.cmd.indexOf("plasma-browser-integration") >= 0) match = true
+            if (match) {
+                appModel.remove(i)
+                removed = true
+            }
+        }
+
+        if (removed) {
+            saveApps()
+        }
+        return removed
+    }
+
+    DropArea {
+        id: edgeDragDropArea
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        height: Math.max(70, root.dockExpandedHeight)
+        z: 99999
+        enabled: root.dockRetracted && !root.dockContextMenuOpen
+        onContainsDragChanged: {
+            if (containsDrag) {
+                root.dockRetracted = false
+                root.dockAutoHideLatched = false
+                root.applyDockRetractedState()
+            }
+        }
+        onEntered: {
+            root.dockRetracted = false
+            root.dockAutoHideLatched = false
+            root.applyDockRetractedState()
+        }
+    }
+
+    DropArea {
+        id: mainDropArea
+        anchors.fill: dockContainer
+        z: 99999
+        enabled: !root.dockContextMenuOpen
+        keys: ["text/uri-list", "text/plain", "application/x-desktop", "text/x-plasmoidservicename", "text/x-plasma-widget", "appItemDrag"]
+
+        onEntered: function(drag) {
+            if (drag.keys && drag.keys.indexOf("appItemDrag") >= 0) return
+            drag.acceptProposedAction()
+            root.dockRetracted = false
+            root.dockAutoHideLatched = false
+            root.applyDockRetractedState()
+            
+            root.isDraggingOverDock = true
+            root.dockMouseX = drag.x
+            root.dockMouseY = drag.y
+            if (!root.dockLayoutVertical) {
+                root.logicalMouseX = drag.x - mainRow.x
+            } else {
+                root.logicalMouseY = drag.y - mainColumn.y
+            }
+        }
+
+        onPositionChanged: function(drag) {
+            if (drag.keys && drag.keys.indexOf("appItemDrag") >= 0) return
+            drag.acceptProposedAction()
+            root.dockMouseX = drag.x
+            root.dockMouseY = drag.y
+            if (!root.dockLayoutVertical) {
+                root.logicalMouseX = drag.x - mainRow.x
+            } else {
+                root.logicalMouseY = drag.y - mainColumn.y
+            }
+        }
+
+        onExited: {
+            root.isDraggingOverDock = false
+        }
+
+        onContainsDragChanged: {
+            if (containsDrag) {
+                root.dockRetracted = false
+                root.dockAutoHideLatched = false
+                root.applyDockRetractedState()
+            } else {
+                root.isDraggingOverDock = false
+            }
+        }
+        onDropped: function(drop) {
+            root.isDraggingOverDock = false
+            drop.acceptProposedAction()
+            var plasmoidId = ""
+            var hasPlasmoidFormat = drop.keys ? drop.keys.indexOf("text/x-plasmoidservicename") >= 0 : false
+            var hasWidgetFormat = drop.keys ? drop.keys.indexOf("text/x-plasma-widget") >= 0 : false
+            var hasDesktopFormat = drop.keys ? drop.keys.indexOf("application/x-desktop") >= 0 : false
+
+            if (hasPlasmoidFormat) {
+                plasmoidId = String(drop.getDataAsString("text/x-plasmoidservicename")).trim()
+            } else if (hasWidgetFormat) {
+                plasmoidId = String(drop.getDataAsString("text/x-plasma-widget")).trim()
+            }
+
+            if (!plasmoidId && drop.hasText) {
+                var txt = String(drop.text).trim()
+                if (txt.indexOf("org.kde.plasma.") >= 0) {
+                    plasmoidId = txt
+                }
+            }
+
+            if (plasmoidId) {
+                let info = taskBackend.parsePlasmoidDropInfo(plasmoidId)
+                if (info && info.name) {
+                    root.addPlasmoidFromDropInfo(info)
+                    return
+                }
+            }
+
+            if (hasDesktopFormat) {
+                var desktopPath = String(drop.getDataAsString("application/x-desktop")).trim()
+                if (desktopPath) {
+                    root.addPinnedAppFromDesktopUrl(desktopPath)
+                    return
+                }
+            }
+
+            if (drop.hasUrls && drop.urls.length > 0) {
+                for (var i = 0; i < drop.urls.length; i++) {
+                    var urlStr = drop.urls[i].toString()
+                    
+                    if (urlStr.indexOf("org.kde.plasma.") >= 0 || urlStr.indexOf("/plasma/plasmoids/") >= 0) {
+                        let info = taskBackend.parsePlasmoidDropInfo(urlStr)
+                        if (info && info.name) {
+                            root.addPlasmoidFromDropInfo(info)
+                            continue
+                        }
+                    }
+                    
+                    root.addPinnedAppFromDesktopUrl(urlStr)
+                }
+                return
+            }
+
+            if (drop.hasText && drop.text) {
+                var textLines = String(drop.text).split("\n")
+                for (var j = 0; j < textLines.length; j++) {
+                    var line = textLines[j].trim()
+                    if (line.length > 0) {
+                        root.addPinnedAppFromDesktopUrl(line)
+                    }
                 }
             }
         }
@@ -1980,6 +2343,20 @@ Window {
         target: settingsWin
         function onVisibleChanged() {
             if (settingsWin.visible) {
+                root.dockAutoHideLatched = false
+                autoHideDockTimer.stop()
+                root.dockRetracted = false
+                root.updateZone()
+            } else {
+                root.applyDockRetractedState()
+            }
+        }
+    }
+
+    Connections {
+        target: widgetPickerWindow
+        function onVisibleChanged() {
+            if (widgetPickerWindow.visible) {
                 root.dockAutoHideLatched = false
                 autoHideDockTimer.stop()
                 root.dockRetracted = false

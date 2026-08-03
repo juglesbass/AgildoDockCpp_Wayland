@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(agildodock VERSION 1.4.0 LANGUAGES CXX C)
+project(agildodock VERSION 1.4.1 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -18,6 +18,7 @@ find_package(KF6GlobalAccel REQUIRED)
 find_package(KF6Kirigami REQUIRED)
 find_package(LayerShellQt REQUIRED)
 find_package(Wayland REQUIRED Client)
+find_package(LibTaskManager REQUIRED)
 
 set(WAYLAND_PROTOCOLS
     "/usr/share/plasma-wayland-protocols/plasma-window-management.xml"
@@ -49,9 +50,12 @@ qt6_add_qml_module(agildodock
         main.qml
         DockBlurBackground.qml
         DockSettingsWindow.qml
+        LatteSliderRow.qml
         DockIconDelegate.qml
         DockIconContextMenu.qml
         DockAppMenuWindow.qml
+        DockWidgetPickerWindow.qml
+        DockWindowPreviewTooltip.qml
     )
 
 # Ícone embutido: fallback quando o tema do sistema ainda não indexou org.agildosoft.agildodock.
@@ -66,9 +70,12 @@ set(AGILDO_DOCK_QML_I18N_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/main.qml"
     "${CMAKE_CURRENT_SOURCE_DIR}/DockBlurBackground.qml"
     "${CMAKE_CURRENT_SOURCE_DIR}/DockSettingsWindow.qml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/LatteSliderRow.qml"
     "${CMAKE_CURRENT_SOURCE_DIR}/DockIconDelegate.qml"
     "${CMAKE_CURRENT_SOURCE_DIR}/DockIconContextMenu.qml"
     "${CMAKE_CURRENT_SOURCE_DIR}/DockAppMenuWindow.qml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/DockWidgetPickerWindow.qml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/DockWindowPreviewTooltip.qml"
 )
 
 qt_add_translations(agildodock
@@ -94,6 +101,7 @@ target_link_libraries(agildodock PRIVATE
     KF6::GlobalAccel
     KF6::Kirigami
     LayerShellQt::Interface
+    PW::LibTaskManager
 )
 
 # --- Instalação (make install / pacotes) ---

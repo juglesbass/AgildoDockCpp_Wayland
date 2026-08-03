@@ -7,6 +7,8 @@
 #include <QtGui/qguiapplication_platform.h>
 #include <QProcess>
 #include <QStringList>
+#include <QDir>
+#include <QFile>
 
 #include <QDBusConnection>
 #include <QDBusMessage>
@@ -233,8 +235,29 @@ bool commandMatchesForegroundHints(const QString &command,
         return cls.contains(QLatin1String("zen"));
     case AppType::AgildoMonitor:
         return cap.contains(QLatin1String("agildo monitor"));
-    case AppType::Chromium:
-        if (!cls.contains(execName)) {
+    case AppType::Chromium: {
+        // Chrome's WM class is "google-chrome" but the exec is "google-chrome-stable";
+        // check both the exact execName and common Wayland app_id patterns.
+        bool classMatches = cls.contains(execName);
+        if (!classMatches) {
+            // google-chrome-stable → try matching "google-chrome" or just "chrome"
+            if (execName == QLatin1String("google-chrome-stable") || execName == QLatin1String("google-chrome")) {
+                classMatches = cls.contains(QLatin1String("google-chrome")) || cls.contains(QLatin1String("chrome"));
+                // Exclude chromium false positives
+                if (classMatches && cls.contains(QLatin1String("chromium"))) {
+                    classMatches = false;
+                }
+            }
+            // microsoft-edge-stable → msedge
+            if (execName == QLatin1String("microsoft-edge-stable") || execName == QLatin1String("microsoft-edge")) {
+                classMatches = cls.contains(QLatin1String("msedge")) || cls.contains(QLatin1String("microsoft-edge"));
+            }
+            // Use wmClass from .desktop if available
+            if (!classMatches && !wmClass.isEmpty()) {
+                classMatches = cls.contains(wmClass);
+            }
+        }
+        if (!classMatches) {
             return false;
         }
         for (const QVariantMap &app : knownApps) {
@@ -246,6 +269,7 @@ bool commandMatchesForegroundHints(const QString &command,
             }
         }
         return true;
+    }
     case AppType::Generic:
     default:
         break;
@@ -292,6 +316,19 @@ QString runFirstKdotoolSearchHit(const QStringList &args, int timeoutMs)
     }
     if (p.exitStatus() != QProcess::NormalExit || p.exitCode() != 0) {
         const QString err = QString::fromUtf8(p.readAllStandardError()).trimmed();
+        if (err.contains(QLatin1String("No such object path")) || err.contains(QLatin1String("Scripting"))) {
+            // kdotool script cache stale after KWin reload — clean /tmp/kdotool*
+            QDir tmpDir(QDir::tempPath());
+            const QStringList staleFiles = tmpDir.entryList({QStringLiteral("kdotool*")}, QDir::Files);
+            for (const QString &f : staleFiles) {
+                QFile::remove(tmpDir.filePath(f));
+            }
+            QProcess retryP;
+            retryP.start(QStringLiteral("kdotool"), args);
+            if (retryP.waitForFinished(timeoutMs) && retryP.exitCode() == 0) {
+                return QString::fromUtf8(retryP.readAllStandardOutput()).trimmed().split(QLatin1Char('\n')).value(0).trimmed();
+            }
+        }
         qWarning() << "AgildoDock kdotool:" << args.join(QLatin1Char(' '))
                    << "exit" << p.exitCode() << err;
     }
@@ -314,6 +351,21 @@ static QStringList runAllKdotoolSearchHits(const QStringList &args, int timeoutM
     }
     if (p.exitStatus() != QProcess::NormalExit || p.exitCode() != 0) {
         const QString err = QString::fromUtf8(p.readAllStandardError()).trimmed();
+        if (err.contains(QLatin1String("No such object path")) || err.contains(QLatin1String("Scripting"))) {
+            QDir tmpDir(QDir::tempPath());
+            const QStringList staleFiles = tmpDir.entryList({QStringLiteral("kdotool*")}, QDir::Files);
+            for (const QString &f : staleFiles) {
+                QFile::remove(tmpDir.filePath(f));
+            }
+            QProcess retryP;
+            retryP.start(QStringLiteral("kdotool"), args);
+            if (retryP.waitForFinished(timeoutMs) && retryP.exitCode() == 0) {
+                const QString retryOut = QString::fromUtf8(retryP.readAllStandardOutput()).trimmed();
+                if (!retryOut.isEmpty()) {
+                    return retryOut.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+                }
+            }
+        }
         qWarning() << "AgildoDock kdotool:" << args.join(QLatin1Char(' '))
                    << "exit" << p.exitCode() << err;
     }
