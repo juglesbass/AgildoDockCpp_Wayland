@@ -15,9 +15,23 @@ Item {
     property real waveAmplitude: 0.0
     property bool waveCollapseArmed: false
 
-    readonly property bool waveBlurAnimating: dockRoot.waveAmpAnim.running || waveCollapseTimer.running || waveCollapseArmed
+    readonly property bool waveBlurAnimating: waveAmpAnim.running || waveCollapseTimer.running || waveCollapseArmed
 
     onWaveBlurAnimatingChanged: taskBackend.setDockWaveAnimating(waveBlurAnimating)
+
+    Behavior on waveAmplitude {
+        NumberAnimation {
+            id: waveAmpAnim
+            duration: dockRoot.liveWaveInertia === 0 ? DockConstants.waveAmpFastDurationMs : (dockRoot.liveWaveInertia === 2 ? DockConstants.waveAmpButteryDurationMs : DockConstants.waveAmpSmoothDurationMs)
+            easing.type: Easing.OutCubic
+            onRunningChanged: {
+                if (running)
+                    waveCollapseArmed = false
+                    else if (!dockHovered && waveAmplitude < DockConstants.waveAmplitudeCutoff)
+                        waveCollapseArmed = false
+            }
+        }
+    }
 
     readonly property real wavePeakDeltaPx: Math.max(0, dockRoot.liveMaxIconSize - dockRoot.liveMinIconSize)
     property real maxIconsExpansion: wavePeakDeltaPx * DockConstants.waveExpansionMultiplier * dockRoot.liveScaleFactor * 1.0

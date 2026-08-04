@@ -531,19 +531,7 @@ Window {
 
 
 
-    Behavior on waveAmplitude {
-        NumberAnimation {
-            id: waveAmpAnim
-            duration: root.liveWaveInertia === 0 ? 120 : (root.liveWaveInertia === 2 ? 380 : 220)
-            easing.type: Easing.OutCubic
-            onRunningChanged: {
-                if (running)
-                    root.waveCollapseArmed = false
-                    else if (!root.dockHovered && root.waveAmplitude < 0.02)
-                        root.waveCollapseArmed = false
-            }
-        }
-    }
+
 
 
 
