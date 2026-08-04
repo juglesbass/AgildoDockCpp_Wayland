@@ -179,8 +179,8 @@ Window {
 
     function animationDuration(baseMs) {
         if (liveAnimationProfile === 3) return 0
-            if (liveAnimationProfile === 1) return Math.max(60, Math.round(baseMs * 0.65))
-                if (liveAnimationProfile === 2) return Math.round(baseMs * 1.2)
+            if (liveAnimationProfile === 1) return Math.max(DockConstants.minAnimationDurationMs, Math.round(baseMs * DockConstants.fastProfileDurationFactor))
+                if (liveAnimationProfile === 2) return Math.round(baseMs * DockConstants.elasticProfileDurationFactor)
                     return baseMs
     }
 
@@ -596,10 +596,10 @@ Window {
     property real baseMinSize: root.liveMinIconSize * root.liveScaleFactor
 
     property real baseSpacing: root.liveIconSpacing * root.liveScaleFactor
-    property real baseItemWidth: baseMinSize + (15 * root.liveScaleFactor)
+    property real baseItemWidth: baseMinSize + (DockConstants.baseItemPaddingPx * root.liveScaleFactor)
     property real baseStride: baseItemWidth + baseSpacing
 
-    property real dividerWidth: baseStride * 0.4
+    property real dividerWidth: baseStride * DockConstants.dividerWidthRatio
     property int div1Count: dynamicModel.count > 0 ? 1 : 0
     property int div2Count: systemModel.count > 0 ? 1 : 0
     property real dividersWidth: (div1Count + div2Count) * dividerWidth
@@ -613,35 +613,35 @@ Window {
     property real smoothedWaveRowWidth: baseRowWidth
     onBaseRowWidthChanged: smoothedWaveRowWidth = baseRowWidth
 
-    readonly property int maxWinWidth: root.screen ? root.screen.width : 1920
-    readonly property int maxWinHeight: root.screen ? root.screen.height : 1080
+    readonly property int maxWinWidth: root.screen ? root.screen.width : DockConstants.fallbackScreenWidthPx
+    readonly property int maxWinHeight: root.screen ? root.screen.height : DockConstants.fallbackScreenHeightPx
 
     readonly property real wavePeakDeltaPx: Math.max(0, root.liveMaxIconSize - root.liveMinIconSize)
-    property real maxIconsExpansion: root.wavePeakDeltaPx * 7.0 * root.liveScaleFactor * 1.0
+    property real maxIconsExpansion: root.wavePeakDeltaPx * DockConstants.waveExpansionMultiplier * root.liveScaleFactor * 1.0
 
     readonly property real dockIconTopOverflowPx: Math.max(
         0,
         (Math.max(root.liveMinIconSize, root.liveMaxIconSize) * root.liveScaleFactor)
         - (root.dockBarHeightPx * root.liveScaleFactor)
-        + (10 * root.liveScaleFactor)
+        + (DockConstants.dockTopOverflowOffsetPx * root.liveScaleFactor)
     )
 
-    readonly property real dockVerticalMotionSlopPx: 165 * root.liveScaleFactor
+    readonly property real dockVerticalMotionSlopPx: DockConstants.motionSlopBufferPx * root.liveScaleFactor
 
     // Matemática global blindada contra retornos `undefined` durante animações
-    property real dividerExtraHitArea: Math.max(0, (Math.max(root.liveMinIconSize, root.liveMaxIconSize) * root.liveScaleFactor * root.waveAmplitude) - Math.round(root.dockBarHeightPx * root.liveScaleFactor) + (10 * root.liveScaleFactor))
+    property real dividerExtraHitArea: Math.max(0, (Math.max(root.liveMinIconSize, root.liveMaxIconSize) * root.liveScaleFactor * root.waveAmplitude) - Math.round(root.dockBarHeightPx * root.liveScaleFactor) + (DockConstants.dockTopOverflowOffsetPx * root.liveScaleFactor))
 
     // Janela Layer Shell: só o necessário para a onda (antes safePadding somava ~160–380px à toa)
     readonly property real winEdgeSlopPx: Math.max(
-        40 * root.liveScaleFactor,
-        root.wavePeakDeltaPx * root.liveScaleFactor * 2.0,
-        root.baseStride * 0.45
+        DockConstants.minWinEdgeSlopPx * root.liveScaleFactor,
+        root.wavePeakDeltaPx * root.liveScaleFactor * DockConstants.wavePeakSlopMultiplier,
+        root.baseStride * DockConstants.strideSlopRatio
     )
 
     property real rawWinWidth: baseRowWidth + maxIconsExpansion + (winEdgeSlopPx * 2)
     width: dockLayoutVertical
-    ? Math.min(maxWinWidth, Math.max(120, Math.round((dockBarHeightPx + liveDockMargin * 2) * liveScaleFactor + dockIconTopOverflowPx + 48)))
-    : Math.min(maxWinWidth, Math.max(420, Math.round(rawWinWidth / 2) * 2))
+    ? Math.min(maxWinWidth, Math.max(DockConstants.minVerticalDockWidthPx, Math.round((dockBarHeightPx + liveDockMargin * 2) * liveScaleFactor + dockIconTopOverflowPx + DockConstants.verticalDockWidthPaddingPx)))
+    : Math.min(maxWinWidth, Math.max(DockConstants.minDockWindowDimensionPx, Math.round(rawWinWidth / 2) * 2))
 
     readonly property real dockExpandedHeight: Math.round(
         (root.liveDockMargin + root.dockBarHeightPx) * root.liveScaleFactor
@@ -649,13 +649,13 @@ Window {
         + root.dockVerticalMotionSlopPx
     )
 
-    readonly property real dockPeekHeight: Math.round(Math.max(root.dockRevealBandPx, 48) * root.liveScaleFactor)
+    readonly property real dockPeekHeight: Math.round(Math.max(root.dockRevealBandPx, DockConstants.minDockPeekHeightPx) * root.liveScaleFactor)
 
     // Deslocamento visual ao recolher (Translate no dockContainer);
     readonly property real dockRetractSlidePixels: Math.max(0, root.dockExpandedHeight - root.dockPeekHeight)
 
     height: dockLayoutVertical
-    ? Math.min(maxWinHeight, Math.max(420, Math.round(rawWinWidth / 2) * 2))
+    ? Math.min(maxWinHeight, Math.max(DockConstants.minDockWindowDimensionPx, Math.round(rawWinWidth / 2) * 2))
     : (root.dockRetracted ? root.dockPeekHeight : root.dockExpandedHeight)
 
     onHeightChanged: {
@@ -668,7 +668,7 @@ Window {
     Behavior on height {
         enabled: !settingsWin.visible
         NumberAnimation {
-            duration: 280
+            duration: DockConstants.dockHeightAnimDurationMs
             easing.type: Easing.OutCubic
         }
     }
@@ -726,12 +726,12 @@ Window {
             tw = root.baseRowWidth
         }
 
-        var waveOn = root.waveAmplitude > 0.02
+        var waveOn = root.waveAmplitude > DockConstants.waveAmplitudeCutoff
         var alpha = 1.0
         if (root.liveWaveInertia === 2) {
-            alpha = waveOn ? 0.08 : 0.35
+            alpha = waveOn ? DockConstants.waveInertiaButteryActiveAlpha : DockConstants.waveInertiaButteryIdleAlpha
         } else if (root.liveWaveInertia === 1) {
-            alpha = waveOn ? 0.22 : 0.50
+            alpha = waveOn ? DockConstants.waveInertiaSmoothActiveAlpha : DockConstants.waveInertiaSmoothIdleAlpha
         } else {
             alpha = 1.0
         }
@@ -755,12 +755,12 @@ Window {
         if (root.liveWaveInertia === 0) {
             beta = 1.0  // 100% Instantânea 1:1 estilo macOS (0ms de atraso / resposta de hardware perfeita)
         } else if (root.liveWaveInertia === 2) {
-            beta = waveOn ? 0.08 : 0.35 // Amanteigada / Fluida
+            beta = waveOn ? DockConstants.waveInertiaButteryActiveAlpha : DockConstants.waveInertiaButteryIdleAlpha // Amanteigada / Fluida
         } else {
-            beta = waveOn ? 0.22 : 0.50 // Suave (Padrão)
+            beta = waveOn ? DockConstants.waveInertiaSmoothActiveAlpha : DockConstants.waveInertiaSmoothIdleAlpha // Suave (Padrão)
         }
         var lxOut = lxRaw
-        if (root.logicalMouseX > -100) {
+        if (root.logicalMouseX > DockConstants.mouseInitializedThreshold) {
             lxOut = root.logicalMouseX + (lxRaw - root.logicalMouseX) * beta
         }
         root.logicalMouseX = lxOut
@@ -782,13 +782,13 @@ Window {
         if (root.dockRetracted) return false
 
         var maxIcon = Math.max(root.liveMinIconSize, root.liveMaxIconSize) * root.liveScaleFactor
-        var waveExtra = root.wavePeakDeltaPx * 3.15 * root.liveScaleFactor * root.liveWaveIntensity
-        var hoverSpan = root.baseRowWidth + (30 * root.liveScaleFactor) + waveExtra
+        var waveExtra = root.wavePeakDeltaPx * DockConstants.waveHoverSpanFactor * root.liveScaleFactor * root.liveWaveIntensity
+        var hoverSpan = root.baseRowWidth + (DockConstants.dockHoverPaddingPx * root.liveScaleFactor) + waveExtra
 
         if (root.dockLayoutVertical) {
             var safeHitX = root.liveDockEdge === 2
-            ? (maxIcon + 25)
-            : (root.width - (maxIcon + 25))
+            ? (maxIcon + DockConstants.dockHoverMarginPx)
+            : (root.width - (maxIcon + DockConstants.dockHoverMarginPx))
             var dockTop = (root.height / 2) - (hoverSpan / 2)
             var dockBottom = dockTop + hoverSpan
             if (root.liveDockEdge === 2) {
@@ -797,9 +797,9 @@ Window {
             return (dockMouseX > safeHitX) && (dockMouseY >= dockTop) && (dockMouseY <= dockBottom)
         }
 
-        var safeHitY = root.height - (maxIcon + 25)
+        var safeHitY = root.height - (maxIcon + DockConstants.dockHoverMarginPx)
         if (root.liveDockEdge === 1) {
-            safeHitY = maxIcon + 25
+            safeHitY = maxIcon + DockConstants.dockHoverMarginPx
         }
         var dockLeft = (root.width / 2) - (hoverSpan / 2)
         var dockRight = dockLeft + hoverSpan
@@ -819,7 +819,7 @@ Window {
 
     Timer {
         id: waveCollapseTimer
-        interval: 120
+        interval: DockConstants.waveCollapseIntervalMs
         repeat: false
         onTriggered: {
             if (!root.dockHovered) {
@@ -853,7 +853,7 @@ Window {
             root.dockAutoHideLatched = false
             return
         }
-        autoHideDockTimer.interval = Math.max(200, root.liveBehaviorAutoHideDelayMs)
+        autoHideDockTimer.interval = Math.max(DockConstants.minAutoHideDelayMs, root.liveBehaviorAutoHideDelayMs)
         autoHideDockTimer.restart()
     }
 
@@ -912,12 +912,12 @@ Window {
     Behavior on waveAmplitude {
         NumberAnimation {
             id: waveAmpAnim
-            duration: root.liveWaveInertia === 0 ? 120 : (root.liveWaveInertia === 2 ? 380 : 220)
+            duration: root.liveWaveInertia === 0 ? DockConstants.waveAmpFastDurationMs : (root.liveWaveInertia === 2 ? DockConstants.waveAmpButteryDurationMs : DockConstants.waveAmpSmoothDurationMs)
             easing.type: Easing.OutCubic
             onRunningChanged: {
                 if (running)
                     root.waveCollapseArmed = false
-                    else if (!root.dockHovered && root.waveAmplitude < 0.02)
+                    else if (!root.dockHovered && root.waveAmplitude < DockConstants.waveAmplitudeCutoff)
                         root.waveCollapseArmed = false
             }
         }
@@ -1011,7 +1011,7 @@ Window {
 
     Timer {
         id: zoneDebouncer
-        interval: 150
+        interval: DockConstants.zoneUpdateDebounceMs
         repeat: false
         onTriggered: {
             var espacoTotal = 0
@@ -1031,7 +1031,7 @@ Window {
 
     Timer {
         id: pointerMaskDebouncer
-        interval: 48
+        interval: DockConstants.pointerMaskDebounceMs
         repeat: false
         onTriggered: {
             if (root.dockRetracted) {
@@ -1039,7 +1039,7 @@ Window {
                 return
             }
             var ex = Math.round(root.dockVerticalMotionSlopPx)
-            if (ex <= 0 || root.height < ex + 32) {
+            if (ex <= 0 || root.height < ex + DockConstants.pointerMaskMinMarginPx) {
                 taskBackend.setPointerInputExcludeTop(0)
             } else {
                 taskBackend.setPointerInputExcludeTop(ex)
@@ -1084,7 +1084,7 @@ Window {
             return
         }
         var center = iconItem.mapToItem(dockContainer, iconItem.width * 0.5, iconItem.height * 0.5)
-        var startY = Math.max(0, dockBg.y - (120 * root.liveScaleFactor))
+        var startY = Math.max(0, dockBg.y - (DockConstants.minimizeSuckStartOffsetYPx * root.liveScaleFactor))
         var uid = ++root.minimizeSuckSerial
         // Rastro curto para simular "sugar/suck" ao minimizar.
         minimizeSuckModel.append({
@@ -1093,8 +1093,8 @@ Window {
             startY: startY,
             destX: center.x,
             destY: center.y,
-            size: Math.max(10, 14 * root.liveScaleFactor),
-                                 durationMs: 210
+            size: Math.max(DockConstants.minMinimizeSuckSizePx, DockConstants.baseMinimizeSuckSizePx * root.liveScaleFactor),
+            durationMs: DockConstants.minimizeSuckDurationMs
         })
     }
 
@@ -1511,7 +1511,7 @@ Window {
 
     Timer {
         id: saveFlushTimer
-        interval: 300
+        interval: DockConstants.saveSettingsFlushDelayMs
         repeat: false
         onTriggered: {
             if (typeof dockSettings.sync === "function") dockSettings.sync()
@@ -1548,7 +1548,7 @@ Window {
         }
 
         property real dockSlidePixels: root.dockRetracted ? root.dockRetractSlidePixels : 0
-        Behavior on dockSlidePixels { enabled: !settingsWin.visible; NumberAnimation { duration: 320; easing.type: Easing.OutBack; easing.overshoot: 1.15 } }
+        Behavior on dockSlidePixels { enabled: !settingsWin.visible; NumberAnimation { duration: DockConstants.dockSlideAnimDurationMs; easing.type: Easing.OutBack; easing.overshoot: DockConstants.dockSlideEasingOvershoot } }
         transform: Translate {
             x: root.liveDockEdge === 2 ? -dockContainer.dockSlidePixels : (root.liveDockEdge === 3 ? dockContainer.dockSlidePixels : 0)
             y: root.liveDockEdge === 1 ? -dockContainer.dockSlidePixels : (root.liveDockEdge === 0 ? dockContainer.dockSlidePixels : 0)
@@ -1564,13 +1564,13 @@ Window {
         }
 
         Component.onCompleted: {
-            startupOffsetY = 200 * root.liveScaleFactor
+            startupOffsetY = DockConstants.startupOffsetYPx * root.liveScaleFactor
             startupAnim.start()
         }
 
         Timer {
             id: blurStartupSettleTimer
-            interval: 150
+            interval: DockConstants.blurStartupSettleDelayMs
             repeat: false
             onTriggered: dockBg.syncBlurAfterStyleChange()
         }
@@ -1582,14 +1582,14 @@ Window {
                 property: "opacity"
                 from: 0.0
                 to: 1.0
-                duration: 600
+                duration: DockConstants.startupFadeDurationMs
                 easing.type: Easing.OutQuad
             }
             NumberAnimation {
                 target: dockContainer
                 property: "startupOffsetY"
                 to: 0
-                duration: 900
+                duration: DockConstants.startupSlideDurationMs
                 easing.type: Easing.OutBack
             }
             onFinished: {
@@ -1618,8 +1618,8 @@ Window {
             spacing: root.baseSpacing
 
             add: Transition {
-                NumberAnimation { property: "scale"; from: 0; to: 1; duration: 300; easing.type: Easing.OutBack }
-                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200 }
+                NumberAnimation { property: "scale"; from: 0; to: 1; duration: DockConstants.iconAddScaleDurationMs; easing.type: Easing.OutBack }
+                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: DockConstants.iconAddOpacityDurationMs }
             }
 
             Repeater {
@@ -1641,7 +1641,7 @@ Window {
                     hoverEnabled: true
 
                     anchors.topMargin: -root.dividerExtraHitArea
-                    anchors.bottomMargin: -40
+                    anchors.bottomMargin: -DockConstants.dividerHitBottomMarginPx
 
                     function updateLogicalMouse(mx) {
                         if (mx === undefined || isNaN(mx) || width <= 0) return
