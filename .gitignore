@@ -4,6 +4,7 @@
 
 # Backups locais de desenvolvimento
 /.backup/
+transcript_full.jsonl
 
 # Metadados do editor / agente (não faz parte do código-fonte)
 .cursor/
