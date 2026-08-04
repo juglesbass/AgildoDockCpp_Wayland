@@ -55,7 +55,7 @@ Item {
 
     function applyLayerShellFromSettings() {
         var mode = liveBehaviorKeepAppsFocused ? 0 : 2
-        taskBackend.setLayerShellMode(mode)
+        taskBackend.applyLayerShellKeyboardMode(mode)
         taskBackend.setLayerShellActivateOnShow(!liveBehaviorKeepAppsFocused)
     }
 

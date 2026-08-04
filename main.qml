@@ -98,6 +98,10 @@ Window {
     property int liveNightStartHour: 18
     property int liveDayStartHour: 7
     property string livePresetName: "Dark Glass"
+    property alias liveProfilesJson: modelCtrl.liveProfilesJson
+    property alias liveAppRulesJson: modelCtrl.liveAppRulesJson
+    property alias liveCustomCommandsJson: modelCtrl.liveCustomCommandsJson
+    property alias liveWidgetsJson: modelCtrl.liveWidgetsJson
     property var customizationUndoStack: []
     property var customizationRedoStack: []
 
@@ -445,9 +449,9 @@ Window {
     )
 
     property real rawWinWidth: baseRowWidth + wavePhysics.maxIconsExpansion + (winEdgeSlopPx * 2)
-    width: dockLayoutVertical
+    width: Math.max(1, dockLayoutVertical
     ? Math.min(maxWinWidth, Math.max(120, Math.round((dockBarHeightPx + liveDockMargin * 2) * liveScaleFactor + dockIconTopOverflowPx + 48)))
-    : Math.min(maxWinWidth, Math.max(420, Math.round(rawWinWidth / 2) * 2))
+    : Math.min(maxWinWidth, Math.max(420, Math.round(rawWinWidth / 2) * 2)))
 
     readonly property real dockExpandedHeight: Math.round(
         (root.liveDockMargin + root.dockBarHeightPx) * root.liveScaleFactor
@@ -460,9 +464,9 @@ Window {
     // Deslocamento visual ao recolher (Translate no dockContainer);
     readonly property real dockRetractSlidePixels: Math.max(0, root.dockExpandedHeight - root.dockPeekHeight)
 
-    height: dockLayoutVertical
+    height: Math.max(1, dockLayoutVertical
     ? Math.min(maxWinHeight, Math.max(420, Math.round(rawWinWidth / 2) * 2))
-    : (root.dockRetracted ? root.dockPeekHeight : root.dockExpandedHeight)
+    : (root.dockRetracted ? root.dockPeekHeight : root.dockExpandedHeight))
 
     onHeightChanged: {
         pointerMaskDebouncer.restart()

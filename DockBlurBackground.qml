@@ -107,6 +107,10 @@ Rectangle {
         syncBlurAfterStyleChange()
     }
 
+    function invalidateBlurGeometry() {
+        requestBlurUpdate()
+    }
+
     Connections {
         target: dockRoot.wavePhysics
         function onWaveBlurAnimatingChanged() {
