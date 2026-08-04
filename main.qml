@@ -112,6 +112,8 @@ Window {
     property alias liveBehaviorShowUnpinnedApps: autoHideCtrl.liveBehaviorShowUnpinnedApps
     property alias liveBehaviorRememberRecentApps: autoHideCtrl.liveBehaviorRememberRecentApps
     property alias liveBehaviorAutoHideDelayMs: autoHideCtrl.liveBehaviorAutoHideDelayMs
+    property alias ghostClearTimer: modelCtrl.ghostClearTimer
+    property alias saveFlushTimer: modelCtrl.saveFlushTimer
     property var customizationUndoStack: []
     property var customizationRedoStack: []
 

@@ -12,7 +12,32 @@ Item {
 
     property string liveWidgetsJson: "[]"
 
-    property bool isDraggingOverDock: false
+    readonly property alias ghostClearTimer: ghostClearTimer
+    readonly property alias saveFlushTimer: saveFlushTimer
+
+    Timer {
+        id: ghostClearTimer
+        interval: DockConstants.ghostAppClearTimeoutMs
+        repeat: false
+        onTriggered: clearGhostApps()
+    }
+
+    Timer {
+        id: saveFlushTimer
+        interval: DockConstants.saveSettingsFlushDelayMs
+        repeat: false
+        onTriggered: {
+            let list = []
+            for (let i = 0; i < appModel.count; i++) {
+                let e = appModel.get(i)
+                list.push({ name: e.name, icon: e.icon, cmd: e.cmd })
+            }
+            let text = JSON.stringify({ version: 2, savedAt: Date.now(), apps: list })
+            dockRoot.dockSettings.dockApps = text
+            if (typeof dockRoot.dockSettings.sync === "function") dockRoot.dockSettings.sync()
+            taskBackend.saveDockAppsSnapshot(text)
+        }
+    }
 
 
 
