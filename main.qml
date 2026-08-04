@@ -29,6 +29,19 @@ Window {
         dockRoot: root
     }
 
+    HoverHandler {
+        id: globalHover
+        property bool updatePending: false
+        onPointChanged: {
+            if (updatePending) return
+            updatePending = true
+            Qt.callLater(function() {
+                updatePending = false
+                wavePhysics._processHoverPoint(globalHover.point.position.x, globalHover.point.position.y)
+            })
+        }
+    }
+
     // Accessible: só em tipos derivados de Item — ver dockContainer.
 
     // Métricas nomeadas (geometria da onda e da barra)

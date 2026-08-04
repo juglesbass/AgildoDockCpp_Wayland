@@ -39,7 +39,7 @@ Item {
     property real dividerExtraHitArea: Math.max(0, (Math.max(dockRoot.liveMinIconSize, dockRoot.liveMaxIconSize) * dockRoot.liveScaleFactor * waveAmplitude) - Math.round(dockRoot.dockBarHeightPx * dockRoot.liveScaleFactor) + (DockConstants.dockTopOverflowOffsetPx * dockRoot.liveScaleFactor))
 
     property bool dockHovered: {
-        if (!globalHover.hovered && !dockRoot.isDraggingOverDock) return false
+        if (dockMouseX < 0 && dockMouseY < 0 && !dockRoot.isDraggingOverDock) return false
         if (dockRoot.dockRetracted) return false
 
         var maxIcon = Math.max(dockRoot.liveMinIconSize, dockRoot.liveMaxIconSize) * dockRoot.liveScaleFactor
@@ -171,20 +171,7 @@ Item {
         }
     }
 
-    HoverHandler {
-        id: globalHover
-        target: dockRoot ? dockRoot.contentItem : parent
-        property bool updatePending: false
 
-        onPointChanged: {
-            if (updatePending) return
-            updatePending = true
-            Qt.callLater(function() {
-                updatePending = false
-                _processHoverPoint(globalHover.point.position.x, globalHover.point.position.y)
-            })
-        }
-    }
 
     Timer {
         id: waveCollapseTimer
