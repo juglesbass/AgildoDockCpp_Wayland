@@ -517,8 +517,8 @@ Window {
 
     onLiveBehaviorRememberRecentAppsChanged: {
         if (!liveBehaviorRememberRecentApps) {
-            ghostClearTimer.stop()
-            clearGhostApps()
+            modelCtrl.ghostClearTimer.stop()
+            modelCtrl.clearGhostApps()
             taskBackend.writeUserJsonFile("last_seen_dynamic.json", "[]")
         }
     }
@@ -747,6 +747,11 @@ Window {
     readonly property alias dynamicModel: modelCtrl.dynamicModel
     readonly property alias systemModel: modelCtrl.systemModel
 
+    function addPinnedAppFromDesktopUrl(urlStr) { return modelCtrl.addPinnedAppFromDesktopUrl(urlStr) }
+    function addWidgetShortcutFromDesktopUrl(urlStr) { return modelCtrl.addWidgetShortcutFromDesktopUrl(urlStr) }
+    function openPinnedAppPicker() { modelCtrl.openPinnedAppPicker() }
+    function openSystemShortcutPicker() { modelCtrl.openSystemShortcutPicker() }
+
 
 
 
@@ -887,11 +892,11 @@ Window {
             appModel.append({name: qsTr("Terminal"), icon: "konsole", cmd: "konsole"})
             appModel.append({name: qsTr("Ficheiros"), icon: "system-file-manager", cmd: "dolphin"})
             appModel.append({name: qsTr("Steam"), icon: "steam", cmd: "steam"})
-            saveApps()
+            modelCtrl.saveApps()
         } else {
-            if (!populatePinnedAppsFromJson(savedData)) {
+            if (!modelCtrl.populatePinnedAppsFromJson(savedData)) {
                 const recovered = taskBackend.loadDockAppsSnapshot()
-                if (recovered !== "" && recovered !== savedData && populatePinnedAppsFromJson(recovered)) {
+                if (recovered !== "" && recovered !== savedData && modelCtrl.populatePinnedAppsFromJson(recovered)) {
                     dockSettings.dockApps = recovered
                     if (typeof dockSettings.sync === "function") dockSettings.sync()
                         taskBackend.saveDockAppsSnapshot(dockSettings.dockApps)
@@ -908,13 +913,13 @@ Window {
         }
         systemModel.append({name: qsTr("Transferências"), icon: "folder-downloads", cmd: "dolphin ~/Downloads", isSystem: true})
         systemModel.append({name: qsTr("Reciclagem"), icon: "user-trash", cmd: "dolphin trash:/", isSystem: true})
-        reloadCustomWidgets()
+        modelCtrl.reloadCustomWidgets()
         if (root.liveBehaviorRememberRecentApps) {
-            loadLastSeenDynamic()
-            ghostClearTimer.start()
+            modelCtrl.loadLastSeenDynamic()
+            modelCtrl.ghostClearTimer.start()
         }
         if (root.liveBehaviorShowUnpinnedApps)
-            updateDynamicApps()
+            modelCtrl.updateDynamicApps()
     }
 
 

@@ -178,7 +178,7 @@ Item {
     }
 
     Connections {
-        target: dock
+        target: dock.wavePhysics
         function onWaveBlurAnimatingChanged() {
             if (!dock.wavePhysics.waveBlurAnimating)
                 delegateRoot.syncDownloadProgress()
