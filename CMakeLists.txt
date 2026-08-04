@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(agildodock VERSION 1.4.3 LANGUAGES CXX C)
+project(agildodock VERSION 1.5.0 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -41,6 +41,9 @@ set(WAYLAND_PROTOCOLS
 
 add_library(agildodock_core STATIC
     taskbackend.cpp
+    dock_config_manager.cpp
+    dock_app_launcher.cpp
+    dock_process_scanner.cpp
     taskbackend_launcher_progress.cpp
     dock_window_management.cpp
     dock_global_shortcuts.cpp
@@ -76,11 +79,17 @@ add_executable(agildodock main.cpp)
 target_link_libraries(agildodock PRIVATE agildodock_core)
 target_compile_definitions(agildodock PRIVATE AGILDO_DOCK_VERSION="${PROJECT_VERSION}")
 
+set_source_files_properties(DockConstants.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+
 qt6_add_qml_module(agildodock
     URI AgildoDock
     VERSION 1.0
     QML_FILES
         main.qml
+        DockWavePhysics.qml
+        DockAutoHideController.qml
+        DockModelController.qml
+        DockConstants.qml
         DockBlurBackground.qml
         DockSettingsWindow.qml
         LatteSliderRow.qml
@@ -101,6 +110,9 @@ qt_add_resources(agildodock "agildodock_app_icon"
 
 set(AGILDO_DOCK_QML_I18N_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/main.qml"
+        DockWavePhysics.qml
+        DockAutoHideController.qml
+        DockModelController.qml
     "${CMAKE_CURRENT_SOURCE_DIR}/DockBlurBackground.qml"
     "${CMAKE_CURRENT_SOURCE_DIR}/DockSettingsWindow.qml"
     "${CMAKE_CURRENT_SOURCE_DIR}/LatteSliderRow.qml"

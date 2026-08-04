@@ -2,7 +2,7 @@
 
 Doca de aplicações para **Plasma (KDE) em Wayland**, com Layer Shell, blur KWin, efeito de onda e integração com janelas: **preferencialmente «kdotool»** no Plasma/Wayland, ou **KX11Extras/KWindowInfo** quando a sessão Qt corre em **X11**.
 
-Versão actual: **1.3.16** (ver `CHANGELOG.md`).
+Versão actual: **1.5.0** (ver `CHANGELOG.md`).
 
 ## Requisitos
 
@@ -54,9 +54,9 @@ sudo gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true
 ### Pacote Arch / CachyOS
 
 ```bash
-./packaging/make_dist.sh 1.3.16
+./packaging/make_dist.sh 1.4.3
 cd packaging
-mv ../agildodock-1.3.16.tar.gz .
+mv ../agildodock-1.4.3.tar.gz .
 updpkgsums
 makepkg -sic
 ```
@@ -69,7 +69,7 @@ Ver **`packaging/aur/README.txt`** para AUR.
 cmake -S . -B build && cmake --build build && ctest --test-dir build
 ```
 
-Inclui smoke `--version` e **`test_dock_browser_utils`**.
+Inclui smoke `--version`, **`test_dock_browser_utils`** e **`test_taskbackend`**.
 
 ## Plasmoid preview (Plasma 6)
 
@@ -88,10 +88,10 @@ cmake --build build                                # gera .qm
 
 ## Restaurar versão anterior (git)
 
-Se actualizaste a partir do repositório local:
+Para reverter a uma release anterior:
 
 ```bash
-git checkout backup/pre-melhorias-2026-05-30
+git checkout v1.4.3    # ou qualquer tag: git tag -l
 ```
 
 ## Acessibilidade

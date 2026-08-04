@@ -22,7 +22,7 @@ Item {
     property bool isValid: model.name !== undefined && model.icon !== ""
     property bool scheduledRemove: model.removing === true
     property bool reorderDragging: false
-    property var appRule: dock.appRuleForCommand(model.cmd)
+    property var appRule: dock.modelCtrl.appRuleForCommand(model.cmd)
 
     // Barra de progresso — estado local; permanece visível na onda (sem Loader)
     property real downloadProgress: 0
@@ -67,7 +67,7 @@ Item {
         const visible = lp !== undefined && lp.progressVisible === true
         if (visible) {
             const p = Math.max(0, Math.min(1, Number(lp.progress) || 0))
-            const rule = dock.appRuleForCommand(model.cmd)
+            const rule = dock.modelCtrl.appRuleForCommand(model.cmd)
             const color = rule.progressColor ? rule.progressColor : dock.accentFocus
             const icon = lp.progressIcon !== undefined ? String(lp.progressIcon) : ""
             const fileName = lp.progressFileName !== undefined ? String(lp.progressFileName) : ""
@@ -162,7 +162,7 @@ Item {
     Connections {
         target: taskBackend
         function onWindowsUpdated() {
-            if (dock.waveBlurAnimating)
+            if (dock.wavePhysics.waveBlurAnimating)
                 return
             if (delegateRoot.isRunning) {
                 delegateRoot.refreshWindowCount()
@@ -180,7 +180,7 @@ Item {
     Connections {
         target: dock
         function onWaveBlurAnimatingChanged() {
-            if (!dock.waveBlurAnimating)
+            if (!dock.wavePhysics.waveBlurAnimating)
                 delegateRoot.syncDownloadProgress()
         }
     }
@@ -201,15 +201,15 @@ Item {
             return itemIndex * dock.baseStride
         }
         if (isSystemItem) {
-            return ((dock.launcherModel.count + dock.appModel.count + dock.dynamicModel.count) * dock.baseStride)
+            return ((dock.modelCtrl.launcherModel.count + dock.modelCtrl.appModel.count + dock.modelCtrl.dynamicModel.count) * dock.baseStride)
             + ((dock.div1Count * dock.dividerWidth) + (dock.div2Count * dock.dividerWidth))
             + (itemIndex * dock.baseStride)
         }
         if (isDynamicItem) {
-            return ((dock.launcherModel.count + dock.appModel.count) * dock.baseStride)
+            return ((dock.modelCtrl.launcherModel.count + dock.modelCtrl.appModel.count) * dock.baseStride)
             + (dock.div1Count * dock.dividerWidth) + (itemIndex * dock.baseStride)
         }
-        return (dock.launcherModel.count * dock.baseStride) + (itemIndex * dock.baseStride)
+        return (dock.modelCtrl.launcherModel.count * dock.baseStride) + (itemIndex * dock.baseStride)
     }
 
     property real myLogicalCenter: myLogicalX + (dock.baseItemWidth / 2)
@@ -217,11 +217,11 @@ Item {
     property real targetIconSize: {
         var minSize = dock.baseMinSize
         var maxSize = Math.max(dock.liveMinIconSize, dock.liveMaxIconSize) * dock.liveScaleFactor
-        var effAmp = Math.max(0.0, Math.min(1.0, dock.waveAmplitude * dock.liveWaveIntensity))
+        var effAmp = Math.max(0.0, Math.min(1.0, dock.wavePhysics.waveAmplitude * dock.liveWaveIntensity))
         if (effAmp === 0.0 || maxSize <= minSize) {
             return minSize
         }
-        var dist = Math.abs(dock.logicalMouseX - myLogicalCenter)
+        var dist = Math.abs(dock.wavePhysics.logicalMouseX - myLogicalCenter)
         var wRadius = dock.baseStride * dock.dockWaveRadiusStrideFactor
         if (dist >= wRadius) {
             return minSize
@@ -261,7 +261,7 @@ Item {
     Timer {
         id: waylandGeometrySyncTimer
         interval: 1000
-        running: delegateRoot.isRunning && delegateRoot.isValid && !dock.waveBlurAnimating
+        running: delegateRoot.isRunning && delegateRoot.isValid && !dock.wavePhysics.waveBlurAnimating
         repeat: true
         onTriggered: {
             if (typeof taskBackend.reportIconGeometry === "function") {
@@ -399,7 +399,7 @@ Item {
             id: exitAnim
             onFinished: {
                 if (delegateRoot.scheduledRemove && model.removing === true) {
-                    dock.finalizeDynamicRemove(model.cmd)
+                    dock.modelCtrl.finalizeDynamicRemove(model.cmd)
                 }
             }
             NumberAnimation {
@@ -809,7 +809,7 @@ Item {
                 color: downloadProgressColor
 
                 Behavior on width {
-                    enabled: !dock.waveBlurAnimating
+                    enabled: !dock.wavePhysics.waveBlurAnimating
                     NumberAnimation {
                         duration: dock.animationDuration(120)
                         easing.type: Easing.OutCubic
@@ -856,15 +856,15 @@ Item {
         }
 
         function updateLogicalMouse(mx, my) {
-            if (dock.dockHovered || dock.waveAmplitude > 0.02) {
+            if (dock.wavePhysics.dockHovered || dock.wavePhysics.waveAmplitude > 0.02) {
                 return
             }
             var logicalStart = delegateRoot.myLogicalX - (dock.baseSpacing / 2)
             var logicalWidth = dock.baseItemWidth + dock.baseSpacing
             if (dock.dockLayoutVertical) {
-                dock.logicalMouseX = logicalStart + ((my / height) * logicalWidth)
+                dock.wavePhysics.logicalMouseX = logicalStart + ((my / height) * logicalWidth)
             } else {
-                dock.logicalMouseX = logicalStart + ((mx / width) * logicalWidth)
+                dock.wavePhysics.logicalMouseX = logicalStart + ((mx / width) * logicalWidth)
             }
         }
 
@@ -888,7 +888,7 @@ Item {
                 if (!delegateRoot.reorderDragging && Math.abs(delta) >= reorderDragThreshold) {
                     delegateRoot.reorderDragging = true
                     dock.hideDockIconTip()
-                    dock.waveAmplitude = 0
+                    dock.wavePhysics.waveAmplitude = 0
                 }
                 if (delegateRoot.reorderDragging) {
                     if (dock.dockLayoutVertical) {
@@ -919,19 +919,19 @@ Item {
                 const axisOffset = dock.dockLayoutVertical ? visualItem.y : visualItem.x
                 const stride = dock.baseStride
                 const delta = Math.round(axisOffset / stride)
-                const target = Math.max(0, Math.min(dock.appModel.count - 1, startIdx + delta))
+                const target = Math.max(0, Math.min(dock.modelCtrl.appModel.count - 1, startIdx + delta))
 
                 // Reordena primeiro; reset visual depois — evita “voltar ao slot antigo e saltar”.
                 if (target !== startIdx) {
-                    dock.appModel.move(startIdx, target, 1)
-                    dock.saveApps()
+                    dock.modelCtrl.appModel.move(startIdx, target, 1)
+                    dock.modelCtrl.saveApps()
                 }
 
                 visualItem.x = 0
                 visualItem.y = 0
                 delegateRoot.reorderDragging = false
-                if (dock.dockHovered) {
-                    dock.waveAmplitude = 1.0
+                if (dock.wavePhysics.dockHovered) {
+                    dock.wavePhysics.waveAmplitude = 1.0
                 }
                 mouse.accepted = true
                 return
@@ -952,7 +952,7 @@ Item {
                 return
             }
             if (mouse.button === Qt.MiddleButton) {
-                const midAct = dock.effectiveMiddleClickAction(model.cmd)
+                const midAct = dock.modelCtrl.effectiveMiddleClickAction(model.cmd)
                 if (midAct === 1) {
                     taskBackend.closeApp(model.cmd)
                     return
@@ -975,7 +975,7 @@ Item {
             if (delegateRoot.isLaunching) {
                 return
             }
-            const leftAct = dock.effectiveLeftClickAction(model.cmd)
+            const leftAct = dock.modelCtrl.effectiveLeftClickAction(model.cmd)
             if (leftAct === 1) {
                 dock.showIconContextMenu(appIcon, buildContextPayload())
                 return

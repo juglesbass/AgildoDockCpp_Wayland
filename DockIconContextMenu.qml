@@ -216,7 +216,7 @@ Window {
         ctxItemIndex = data.itemIndex !== undefined ? data.itemIndex : -1
         ctxDelegate = data.delegate || null
         ctxLogicalCenter = data.logicalCenter !== undefined ? data.logicalCenter : -1
-        ctxCustomCommands = dock.customCommandsFor(ctxCmd)
+        ctxCustomCommands = dock.modelCtrl.customCommandsFor(ctxCmd)
         const rawRecent = taskBackend.recentItemsForCommand(ctxCmd, 5)
         const filteredRecent = []
         for (let i = 0; i < rawRecent.length; ++i) {
@@ -323,12 +323,12 @@ Window {
             recentSubmenuAllowed = false
             submenuHoverOpenTimer.stop()
             menuOpenGraceTimer.restart()
-            dock.lockDockForContextMenu(true, ctxIsSurfaceMenu ? -1 : ctxLogicalCenter)
+            dock.wavePhysics.lockDockForContextMenu(true, ctxIsSurfaceMenu ? -1 : ctxLogicalCenter)
             taskBackend.applyLayerShellKeyboardMode(2)
             scheduleReposition()
         } else {
-            dock.lockDockForContextMenu(false)
-            dock.applyLayerShellFromSettings()
+            dock.wavePhysics.lockDockForContextMenu(false)
+            dock.autoHideCtrl.applyLayerShellFromSettings()
             recentSubmenuOpen = false
             recentSubmenuAllowed = false
             recentSubmenuAnchor = null
@@ -508,13 +508,13 @@ Window {
                     iconText: "⚡"
                     label: {
                         const names = [qsTr("Padrão"), qsTr("Menu"), qsTr("Nova janela")]
-                        const idx = menuWin.dock.effectiveLeftClickAction(menuWin.ctxCmd)
+                        const idx = menuWin.dock.modelCtrl.effectiveLeftClickAction(menuWin.ctxCmd)
                         return qsTr("Clique esquerdo: %1").arg(names[idx] || names[0])
                     }
                     rowVisible: menuWin.ctxIsAppItem
                     onRowClicked: {
-                        const cur = menuWin.dock.effectiveLeftClickAction(menuWin.ctxCmd)
-                        menuWin.dock.setAppClickRule(menuWin.ctxCmd, "leftClickAction", (cur + 1) % 3)
+                        const cur = menuWin.dock.modelCtrl.effectiveLeftClickAction(menuWin.ctxCmd)
+                        menuWin.dock.modelCtrl.setAppClickRule(menuWin.ctxCmd, "leftClickAction", (cur + 1) % 3)
                         menuWin.closeMenu()
                     }
                 }
@@ -523,13 +523,13 @@ Window {
                     iconText: "⚙"
                     label: {
                         const names = [qsTr("Padrão"), qsTr("Fechar"), qsTr("Nova janela"), qsTr("Minimizar")]
-                        const idx = menuWin.dock.effectiveMiddleClickAction(menuWin.ctxCmd)
+                        const idx = menuWin.dock.modelCtrl.effectiveMiddleClickAction(menuWin.ctxCmd)
                         return qsTr("Clique do meio: %1").arg(names[idx] || names[0])
                     }
                     rowVisible: menuWin.ctxIsAppItem
                     onRowClicked: {
-                        const cur = menuWin.dock.effectiveMiddleClickAction(menuWin.ctxCmd)
-                        menuWin.dock.setAppClickRule(menuWin.ctxCmd, "middleClickAction", (cur + 1) % 4)
+                        const cur = menuWin.dock.modelCtrl.effectiveMiddleClickAction(menuWin.ctxCmd)
+                        menuWin.dock.modelCtrl.setAppClickRule(menuWin.ctxCmd, "middleClickAction", (cur + 1) % 4)
                         menuWin.closeMenu()
                     }
                 }
@@ -566,14 +566,14 @@ Window {
                     rowVisible: menuWin.ctxIsAppItem
                     onRowClicked: {
                         if (menuWin.ctxIsDynamic) {
-                            menuWin.dock.appModel.append({
+                            menuWin.dock.modelCtrl.appModel.append({
                                 name: menuWin.ctxName,
                                 icon: menuWin.ctxIcon,
                                 cmd: menuWin.ctxCmd
                             })
-                            menuWin.dock.saveApps()
+                            menuWin.dock.modelCtrl.saveApps()
                         } else if (menuWin.ctxItemIndex >= 0) {
-                            menuWin.dock.unpinApp(menuWin.ctxItemIndex)
+                            menuWin.dock.modelCtrl.unpinApp(menuWin.ctxItemIndex)
                         }
                         menuWin.closeMenu()
                     }
@@ -638,7 +638,7 @@ Window {
                     label: qsTr("Remover da doca")
                     rowVisible: menuWin.ctxIsGenericSystem
                     onRowClicked: {
-                        menuWin.dock.removeAppOrWidget({ cmd: menuWin.ctxCmd, name: menuWin.ctxName })
+                        menuWin.dock.modelCtrl.removeAppOrWidget({ cmd: menuWin.ctxCmd, name: menuWin.ctxName })
                         menuWin.closeMenu()
                     }
                 }
@@ -689,7 +689,7 @@ Window {
                     rowVisible: menuWin.ctxIsSurfaceMenu
                     onRowClicked: {
                         menuWin.closeMenu()
-                        menuWin.dock.openPinnedAppPicker()
+                        menuWin.dock.modelCtrl.openPinnedAppPicker()
                     }
                 }
 
@@ -699,7 +699,7 @@ Window {
                     rowVisible: menuWin.ctxIsSurfaceMenu
                     onRowClicked: {
                         menuWin.closeMenu()
-                        menuWin.dock.openSystemShortcutPicker()
+                        menuWin.dock.modelCtrl.openSystemShortcutPicker()
                     }
                 }
 
@@ -708,7 +708,7 @@ Window {
                     label: qsTr("Atualizar lista de apps")
                     rowVisible: menuWin.ctxIsSurfaceMenu
                     onRowClicked: {
-                        menuWin.dock.updateDynamicApps()
+                        menuWin.dock.modelCtrl.updateDynamicApps()
                         menuWin.closeMenu()
                     }
                 }
@@ -718,7 +718,7 @@ Window {
                     label: menuWin.dock.visible ? qsTr("Ocultar doca") : qsTr("Mostrar doca")
                     rowVisible: menuWin.ctxIsSurfaceMenu
                     onRowClicked: {
-                        menuWin.dock.toggleDockGlobal()
+                        menuWin.dock.autoHideCtrl.toggleDockGlobal()
                         menuWin.closeMenu()
                     }
                 }

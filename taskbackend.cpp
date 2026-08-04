@@ -4,6 +4,9 @@
 #include "dock_browser_integration.h"
 #include "kwin_dbus_helper.h"
 #include "plasma_wayland_manager.h"
+#include "dock_config_manager.h"
+#include "dock_app_launcher.h"
+#include "dock_process_scanner.h"
 
 #include <QDateTime>
 #include <QDirIterator>
@@ -158,15 +161,8 @@ namespace {
     }
 
     // Atalhos de sistema que usam Dolphin com localização específica.
-    static bool isDolphinScopedCommand(const QString &commandLower)
-    {
-        if (!commandLower.startsWith(QStringLiteral("dolphin"))) {
-            return false;
-        }
-        return commandLower.contains(QStringLiteral("trash:/"))
-            || commandLower.contains(QStringLiteral("~/downloads"))
-            || commandLower.contains(QStringLiteral("/downloads"));
-    }
+
+
 
     static bool titleLooksLikeDownloads(QStringView titleLower)
     {
@@ -296,9 +292,29 @@ namespace {
         return false;
     }
 
-    static QString firstScopedDolphinWindowId(const QString &commandLower,
-                                              bool kdotoolAvailable)
+    static bool anyDolphinWindowExists(bool kdotoolAvailable)
     {
+        if (!kdotoolAvailable) {
+            return false;
+        }
+        QMutexLocker locker(&s_dolphinCacheMutex);
+        return !s_dolphinCache.ids.isEmpty();
+    }
+} // namespace
+        
+bool TaskBackend::isDolphinScopedCommand(const QString &commandLower)
+{
+    if (!commandLower.startsWith(QStringLiteral("dolphin"))) {
+        return false;
+    }
+    return commandLower.contains(QStringLiteral("trash:/"))
+        || commandLower.contains(QStringLiteral("~/downloads"))
+        || commandLower.contains(QStringLiteral("/downloads"));
+}
+
+QString TaskBackend::firstScopedDolphinWindowId(const QString &commandLower,
+                                          bool kdotoolAvailable)
+{
         if (!kdotoolAvailable) {
             return {};
         }
@@ -317,9 +333,9 @@ namespace {
         return {};
     }
 
-    static QStringList allScopedDolphinWindowIds(const QString &commandLower,
-                                                 bool kdotoolAvailable)
-    {
+QStringList TaskBackend::allScopedDolphinWindowIds(const QString &commandLower,
+                                              bool kdotoolAvailable)
+{
         if (!kdotoolAvailable) {
             return {};
         }
@@ -339,29 +355,11 @@ namespace {
         return ids;
     }
 
-    static bool anyDolphinWindowExists(bool kdotoolAvailable)
-    {
-        if (!kdotoolAvailable) {
-            return false;
-        }
-        QMutexLocker locker(&s_dolphinCacheMutex);
-        return !s_dolphinCache.ids.isEmpty();
-    }
-} // namespace
+
 
 QString TaskBackend::readProcCmdlineFile(const QString &path)
 {
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly)) {
-        return {};
-    }
-    QByteArray raw = f.readAll();
-    for (int i = 0; i < raw.size(); ++i) {
-        if (raw.at(i) == '\0') {
-            raw[i] = ' ';
-        }
-    }
-    return QString::fromUtf8(raw).toLower().trimmed();
+    return DockProcessScanner::readProcCmdlineFile(path);
 }
 
 
@@ -424,96 +422,27 @@ void TaskBackend::setMainWindow(QWindow *win)
 
 QString TaskBackend::dockAppsSnapshotPath()
 {
-    const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
-    return dir + QStringLiteral("/dock_apps_snapshot.json");
+    return DockConfigManager::dockAppsSnapshotPath();
 }
 
 QString TaskBackend::dockAppsSnapshotBackupPath()
 {
-    return dockAppsSnapshotPath() + QStringLiteral(".bak");
+    return DockConfigManager::dockAppsSnapshotBackupPath();
 }
 
 bool TaskBackend::saveDockAppsSnapshot(const QString &dockAppsJson) const
 {
-    if (dockAppsJson.trimmed().isEmpty()) {
-        return false;
-    }
-
-    QJsonParseError jerr;
-    QJsonDocument::fromJson(dockAppsJson.toUtf8(), &jerr);
-    if (jerr.error != QJsonParseError::NoError) {
-        if (m_debugLogsEnabled) {
-            qWarning() << "AgildoDock[debug]: snapshot dockApps inválido, ignorando:"
-                       << jerr.errorString();
-        }
-        return false;
-    }
-
-    const QString targetPath = dockAppsSnapshotPath();
-    const QString backupPath = dockAppsSnapshotBackupPath();
-    const QString targetDir = QFileInfo(targetPath).absolutePath();
-    QDir().mkpath(targetDir);
-
-    if (QFile::exists(targetPath)) {
-        QFile::remove(backupPath);
-        QFile::copy(targetPath, backupPath);
-    }
-
-    QSaveFile out(targetPath);
-    if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        qWarning() << "AgildoDock: falha ao abrir snapshot dockApps para escrita:" << targetPath;
-        return false;
-    }
-    out.write(dockAppsJson.toUtf8());
-    if (!out.commit()) {
-        qWarning() << "AgildoDock: falha ao gravar snapshot dockApps:" << targetPath;
-        return false;
-    }
-
-    if (m_debugLogsEnabled) {
-        qInfo() << "AgildoDock[debug]: snapshot dockApps salvo em" << targetPath;
-    }
-    return true;
+    return DockConfigManager::saveDockAppsSnapshot(dockAppsJson);
 }
 
 QString TaskBackend::loadDockAppsSnapshot() const
 {
-    const QStringList paths = {dockAppsSnapshotPath(), dockAppsSnapshotBackupPath()};
-    for (const QString &p : paths) {
-        QFile f(p);
-        if (!f.exists() || !f.open(QIODevice::ReadOnly)) {
-            continue;
-        }
-        const QByteArray raw = f.readAll();
-        f.close();
-        if (raw.trimmed().isEmpty()) {
-            continue;
-        }
-        QJsonParseError jerr;
-        QJsonDocument::fromJson(raw, &jerr);
-        if (jerr.error == QJsonParseError::NoError) {
-            if (m_debugLogsEnabled) {
-                qInfo() << "AgildoDock[debug]: snapshot dockApps carregado de" << p;
-            }
-            return QString::fromUtf8(raw);
-        }
-    }
-    return {};
+    return DockConfigManager::loadDockAppsSnapshot();
 }
 
 QString TaskBackend::appDataPathForFile(const QString &relativeName)
 {
-    QString safe = relativeName;
-    safe.replace('\\', '/');
-    safe.remove(QStringLiteral(".."));
-    while (safe.startsWith('/')) {
-        safe.remove(0, 1);
-    }
-    QString dir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
-    if (dir.isEmpty()) {
-        dir = QDir::tempPath() + QStringLiteral("/agildodock");
-    }
-    return dir + QLatin1Char('/') + safe;
+    return DockConfigManager::appDataPathForFile(relativeName);
 }
 
 bool TaskBackend::debugCategoryEnabled(const QString &category) const
@@ -530,60 +459,12 @@ bool TaskBackend::debugCategoryEnabled(const QString &category) const
 
 bool TaskBackend::writeUserJsonFile(const QString &relativeName, const QString &jsonText) const
 {
-    if (relativeName.trimmed().isEmpty() || jsonText.trimmed().isEmpty()) {
-        return false;
-    }
-    QJsonParseError err;
-    QJsonDocument doc = QJsonDocument::fromJson(jsonText.toUtf8(), &err);
-    if (err.error != QJsonParseError::NoError) {
-        qWarning() << "AgildoDock[debug][persist]: JSON inválido para" << relativeName << err.errorString();
-        return false;
-    }
-    const QString outPath = appDataPathForFile(relativeName);
-    const QString outDir = QFileInfo(outPath).absolutePath();
-    bool mkOk = QDir().mkpath(outDir);
-    if (!mkOk) {
-        qWarning() << "AgildoDock[debug][persist]: mkpath falhou para" << outDir;
-    }
-    QSaveFile out(outPath);
-    if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        qWarning() << "AgildoDock[debug][persist]: Falha ao abrir QSaveFile" << outPath << out.errorString();
-        return false;
-    }
-    out.write(jsonText.toUtf8());
-    const bool ok = out.commit();
-    if (!ok) {
-        qWarning() << "AgildoDock[debug][persist]: Falha ao dar commit QSaveFile" << outPath << out.errorString();
-    } else if (debugCategoryEnabled(QStringLiteral("persist"))) {
-        qInfo() << "AgildoDock[debug][persist]: arquivo salvo" << outPath;
-    }
-    return ok;
+    return DockConfigManager::writeUserJsonFile(relativeName, jsonText);
 }
 
 QString TaskBackend::readUserJsonFile(const QString &relativeName) const
 {
-    if (relativeName.trimmed().isEmpty()) {
-        return {};
-    }
-    const QString inPath = appDataPathForFile(relativeName);
-    QFile in(inPath);
-    if (!in.exists() || !in.open(QIODevice::ReadOnly)) {
-        return {};
-    }
-    const QByteArray raw = in.readAll();
-    in.close();
-    if (raw.trimmed().isEmpty()) {
-        return {};
-    }
-    QJsonParseError err;
-    QJsonDocument::fromJson(raw, &err);
-    if (err.error != QJsonParseError::NoError) {
-        if (debugCategoryEnabled(QStringLiteral("persist"))) {
-            qWarning() << "AgildoDock[debug][persist]: JSON inválido em" << inPath << err.errorString();
-        }
-        return {};
-    }
-    return QString::fromUtf8(raw);
+    return DockConfigManager::readUserJsonFile(relativeName);
 }
 
 void TaskBackend::debugLog(const QString &category, const QString &message) const
@@ -1111,58 +992,7 @@ void TaskBackend::rebuildExecIndex()
 
 bool TaskBackend::appMatchesRunningCmdLine(const QString &cmdLineLower, const QVariantMap &app)
 {
-    const QString appCmd = app[QStringLiteral("cmd")].toString();
-    const QString appCmdLower = appCmd.toLower();
-    QString appExec = appCmd.split(' ').first().split('/').last().toLower();
-    appExec.remove('"').remove('\'');
-
-    if (appCmdLower.contains(QStringLiteral("--app-id"))) {
-        QString appId;
-        const QStringList parts = appCmdLower.split(' ');
-        for (const QString &p : parts) {
-            if (p.startsWith(QStringLiteral("--app-id="))) {
-                appId = p;
-                appId.remove('"').remove('\'');
-                break;
-            }
-        }
-        if (!appId.isEmpty() && cmdLineLower.contains(appId)) {
-            return true;
-        }
-        return false;
-    }
-    if (appExec.isEmpty()) {
-        return false;
-    }
-
-    QStringList appExecAlts;
-    appExecAlts << appExec;
-    if (appExec == QLatin1String("google-chrome-stable") || appExec == QLatin1String("google-chrome") || appExec == QLatin1String("chrome")) {
-        appExecAlts << QStringLiteral("google-chrome-stable") << QStringLiteral("google-chrome") << QStringLiteral("chrome");
-    } else if (appExec == QLatin1String("microsoft-edge-stable") || appExec == QLatin1String("microsoft-edge") || appExec == QLatin1String("msedge")) {
-        appExecAlts << QStringLiteral("microsoft-edge-stable") << QStringLiteral("microsoft-edge") << QStringLiteral("msedge");
-    } else if (appExec == QLatin1String("brave-browser") || appExec == QLatin1String("brave")) {
-        appExecAlts << QStringLiteral("brave-browser") << QStringLiteral("brave");
-    }
-
-    if (DockBrowserUtils::commandLooksLikeBrowser(appExec)) {
-        if (!cmdLineLower.contains(QStringLiteral("--app-id")) && !cmdLineLower.contains(QStringLiteral("--type=renderer"))
-            && !cmdLineLower.contains(QStringLiteral("--type=zygote"))) {
-            for (const QString &alt : appExecAlts) {
-                if (cmdLineLower.startsWith(alt) || cmdLineLower.contains(QStringLiteral("/") + alt)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    for (const QString &alt : appExecAlts) {
-        if (cmdLineLower.startsWith(alt) || cmdLineLower.contains(QStringLiteral("/") + alt)) {
-            return true;
-        }
-    }
-    return false;
+    return DockProcessScanner::appMatchesRunningCmdLine(cmdLineLower, app);
 }
 
 QVariantMap TaskBackend::matchRunningLineToApp(const QString &cmdLineLower) const
@@ -1271,44 +1101,12 @@ bool TaskBackend::lactHasVisibleWindow(const QString &command) const
 
 void TaskBackend::forceLaunchApp(const QString &command)
 {
-    if (command.isEmpty()) {
-        return;
-    }
-
-    QString desktopPath;
-    if (knownApps.contains(command) && knownApps[command].contains(QStringLiteral("desktopPath"))) {
-        desktopPath = knownApps[command][QStringLiteral("desktopPath")].toString();
-    }
-
-    QProcess process;
-    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-    env.remove(QStringLiteral("QT_WAYLAND_SHELL_INTEGRATION"));
-    process.setProcessEnvironment(env);
-
-    if (!desktopPath.isEmpty()) {
-        process.setProgram(QStringLiteral("kioclient"));
-        process.setArguments({QStringLiteral("exec"), desktopPath});
-    } else {
-        process.setProgram(QStringLiteral("sh"));
-        process.setArguments({QStringLiteral("-c"), command});
-    }
-
-    process.startDetached();
+    DockAppLauncher(this).forceLaunchApp(command);
 }
 
-// Clique no ícone já focado: overview estilo macOS via Window View do KWin.
 bool TaskBackend::tryShowAppWindowOverview(const QString &command)
 {
-    if (command.isEmpty() || !m_windowOverviewOnRefocus) {
-        return false;
-    }
-
-    QStringList handles = windowHandlesForCommand(command, knownApps);
-
-    if (handles.isEmpty() || handles.size() < 2) {
-        return false;
-    }
-    return DockWindowManagement::activateKWinWindowView(handles);
+    return DockAppLauncher(this).tryShowAppWindowOverview(command);
 }
 
 QStringList TaskBackend::windowHandlesForCommand(const QString &command, const QHash<QString, QVariantMap> &apps)
@@ -1327,139 +1125,22 @@ QStringList TaskBackend::windowHandlesForCommand(const QString &command, const Q
 
 void TaskBackend::completeLaunchApp(const QString &command, const QString &winToken)
 {
-    if (command.isEmpty()) {
-        return;
-    }
-
-    if (!winToken.isEmpty()) {
-        const bool dockItemMatchesForeground = isAppFocused(command);
-
-        if (winToken.startsWith(QLatin1String("x11:"))) {
-            QString wmGuess;
-            if (dockItemMatchesForeground) {
-                if (tryShowAppWindowOverview(command)) {
-                    emitWindowsUpdatedCoalesced();
-                    return;
-                }
-            }
-            // KX11Extras concentra ativar/minimizar; kdotool fica apenas para Plasma/Wayland.
-            if (DockWindowManagement::activatePackedOrMinimize(winToken,
-                                                               dockItemMatchesForeground,
-                                                               command,
-                                                               wmGuess)) {
-                if (dockItemMatchesForeground) {
-                    m_activeAppClass.clear();
-                    m_activeAppTitle.clear();
-                } else if (!wmGuess.isEmpty()) {
-                    m_activeAppClass = wmGuess;
-                }
-                emitWindowsUpdatedCoalesced();
-            }
-            return;
-        }
-
-        if (dockItemMatchesForeground) {
-            if (tryShowAppWindowOverview(command)) {
-                emitWindowsUpdatedCoalesced();
-                return;
-            }
-            QProcess::startDetached(QStringLiteral("kdotool"), {QStringLiteral("windowminimize"), winToken});
-            m_activeAppClass.clear();
-            m_activeAppTitle.clear();
-            emitWindowsUpdatedCoalesced();
-        } else {
-            QProcess::startDetached(QStringLiteral("kdotool"), {QStringLiteral("windowactivate"), winToken});
-            m_activeAppClass = DockBrowserUtils::execBasenameFromCommand(command);
-            emitWindowsUpdatedCoalesced();
-        }
-    } else {
-        forceLaunchApp(command);
-    }
+    DockAppLauncher(this).completeLaunchApp(command, winToken);
 }
 
 void TaskBackend::launchApp(const QString &command)
 {
-    if (command.isEmpty()) {
-        return;
-    }
-    // Downloads/Lixeira: comportamento de atalho de pasta.
-    // - se já estiver em foco: minimiza (paridade com ícone normal do Dolphin)
-    // - caso contrário: abre nova janela nessa localização
-    if (isDolphinScopedCommand(command.toLower())) {
-        const QString scopedLower = command.toLower();
-        if (isAppFocused(command) && m_kdotoolAvailable) {
-            if (tryShowAppWindowOverview(command)) {
-                emitWindowsUpdatedCoalesced();
-                return;
-            }
-            QProcess::startDetached(QStringLiteral("kdotool"),
-                                    {QStringLiteral("getactivewindow"), QStringLiteral("windowminimize")});
-            m_activeAppClass.clear();
-            m_activeAppTitle.clear();
-            emitWindowsUpdatedCoalesced();
-            return;
-        }
-        const QString existingWin = firstScopedDolphinWindowId(scopedLower, m_kdotoolAvailable);
-        if (!existingWin.isEmpty() && m_kdotoolAvailable) {
-            QProcess::startDetached(QStringLiteral("kdotool"),
-                                    {QStringLiteral("windowactivate"), existingWin});
-            return;
-        }
-        forceLaunchApp(command);
-        return;
-    }
-    const QString cmdCopy = command;
-    const quint64 seq = ++m_launchSeq[cmdCopy];
-    // Descobre janela em thread do pool — evita travar a UI durante vários kdotool/waitForFinished.
-    const QHash<QString, QVariantMap> currentKnownApps = knownApps;
-    (void)QtConcurrent::run([this, cmdCopy, seq, currentKnownApps]() {
-        const QString winId = DockWindowManagement::resolveWindowHandleForLaunch(cmdCopy, currentKnownApps, m_kdotoolAvailable, kKdotoolTimeoutMs);
-        QMetaObject::invokeMethod(
-            this,
-            [this, cmdCopy, winId, seq]() {
-                if (m_launchSeq.value(cmdCopy) != seq) {
-                    return;
-                }
-                completeLaunchApp(cmdCopy, winId);
-            },
-            Qt::QueuedConnection);
-    });
+    DockAppLauncher(this).launchApp(command);
 }
 
 void TaskBackend::completeCloseApp(const QString &command, const QString &winToken)
 {
-    if (!winToken.isEmpty()) {
-        if (winToken.startsWith(QLatin1String("x11:"))) {
-            DockWindowManagement::closePackedWindow(winToken, m_kdotoolAvailable);
-            return;
-        }
-        QProcess::startDetached(QStringLiteral("kdotool"),
-                                {QStringLiteral("windowclose"), winToken});
-        return;
-    }
-    qWarning() << "AgildoDock: não foi possível fechar app (janela não encontrada):" << command;
+    DockAppLauncher(this).completeCloseApp(command, winToken);
 }
 
 void TaskBackend::closeApp(const QString &command)
 {
-    if (command.isEmpty()) {
-        return;
-    }
-    const QString cmdCopy = command;
-    const quint64 seq = ++m_closeSeq[cmdCopy];
-    const QHash<QString, QVariantMap> currentKnownApps = knownApps;
-    (void)QtConcurrent::run([this, cmdCopy, seq, currentKnownApps]() {
-        const QString winId = DockWindowManagement::resolveWindowHandleForLaunch(cmdCopy, currentKnownApps, m_kdotoolAvailable, kKdotoolTimeoutMs);
-        QMetaObject::invokeMethod(
-            this,
-            [this, cmdCopy, winId, seq]() {
-                if (m_closeSeq.value(cmdCopy) != seq) {
-                    return;
-                }
-                completeCloseApp(cmdCopy, winId);
-            },
-            Qt::QueuedConnection);
-    });
+    DockAppLauncher(this).closeApp(command);
 }
 
 bool TaskBackend::isAppRunning(const QString &command)
@@ -1731,36 +1412,7 @@ int TaskBackend::appWindowCount(const QString &command)
 
 void TaskBackend::cycleAppWindows(const QString &command, int direction)
 {
-    if (command.isEmpty() || direction == 0 || !m_kdotoolAvailable) {
-        return;
-    }
-    
-    const QHash<QString, QVariantMap> currentKnownApps = knownApps;
-    (void)QtConcurrent::run([this, command, direction, currentKnownApps]() {
-        const QStringList handles = windowHandlesForCommand(command, currentKnownApps);
-        if (handles.isEmpty()) {
-            return;
-        }
-        if (handles.size() == 1) {
-            QProcess::startDetached(QStringLiteral("kdotool"), {QStringLiteral("windowactivate"), handles.first()});
-            return;
-        }
-
-        QString activeHandle;
-        QProcess activeP;
-        activeP.start(QStringLiteral("kdotool"), {QStringLiteral("getactivewindow")});
-        if (activeP.waitForFinished(kKdotoolTimeoutMs)) {
-            activeHandle = QString::fromUtf8(activeP.readAllStandardOutput()).trimmed();
-        }
-
-        int idx = handles.indexOf(activeHandle);
-        if (idx < 0) {
-            idx = 0;
-        } else {
-            idx = (idx + (direction > 0 ? 1 : handles.size() - 1)) % handles.size();
-        }
-        QProcess::startDetached(QStringLiteral("kdotool"), {QStringLiteral("windowactivate"), handles.at(idx)});
-    });
+    DockAppLauncher(this).cycleAppWindows(command, direction);
 }
 
 void TaskBackend::adjustVolume(int deltaSteps)

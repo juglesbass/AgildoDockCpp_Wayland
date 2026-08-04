@@ -24,6 +24,7 @@ class PlasmaWaylandManager;
 class TaskBackend : public QObject
 {
     Q_OBJECT
+    friend class DockAppLauncher;
     Q_PROPERTY(bool activeWindowCoversWorkArea READ activeWindowCoversWorkArea NOTIFY activeWindowCoversWorkAreaChanged)
     Q_PROPERTY(bool kdotoolAvailable READ kdotoolAvailable CONSTANT)
     Q_PROPERTY(bool windowManagementAvailable READ windowManagementAvailable CONSTANT)
@@ -138,6 +139,10 @@ private:
     bool lactHasVisibleWindow(const QString &command) const;
 
     static QString readProcCmdlineFile(const QString &path);
+    
+    static bool isDolphinScopedCommand(const QString &commandLower);
+    static QString firstScopedDolphinWindowId(const QString &commandLower, bool kdotoolAvailable);
+    static QStringList allScopedDolphinWindowIds(const QString &commandLower, bool kdotoolAvailable);
 
     void emitWindowsUpdatedCoalesced();
     void setupNotificationBadgeWatcher();

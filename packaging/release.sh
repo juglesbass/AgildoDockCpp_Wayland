@@ -41,7 +41,7 @@ QT_QPA_PLATFORM=offscreen ctest --test-dir build-asan --output-on-failure
 
 # 4. Cria a tag local (sem push — o push fica manual, de propósito)
 echo "==> Criando tag v${NEW_VER}..."
-git add CMakeLists.txt packaging/aur/PKGBUILD CHANGELOG.md main.qml taskbackend.cpp taskbackend.h dock_browser_downloads.cpp dock_unity_launcher.cpp kwin_dbus_helper.cpp kwin_dbus_helper.h tests/test_taskbackend.cpp .gitignore packaging/release.sh 2>/dev/null || true
+git add -A
 git commit -m "release: v${NEW_VER}"
 git tag -a "v${NEW_VER}" -m "v${NEW_VER}"
 

@@ -2,6 +2,24 @@
 
 Todas as alterações notáveis deste projeto são documentadas neste ficheiro.
 
+## [1.5.0] — 2026-08-04
+
+### Refatoração de Arquitetura & Eliminação de Dívida Técnica
+- **Decomposição Modular do QML (`main.qml`)**:
+  - `main.qml` reduzido de 2.416 para ~800 linhas através da extração de 3 componentes especialistas:
+    - `DockWavePhysics.qml`: Isolamento de toda a matemática da onda, inércia, rastreamento de ponteiro e amplitude.
+    - `DockAutoHideController.qml`: Controle dedicado de auto-hide, desvio de janelas (*dodge*) e detecção de hover na borda da tela.
+    - `DockModelController.qml`: Gerenciamento centralizado dos modelos de dados (launcher, apps, dinâmico e sistema), drag-and-drop e persistência de JSONs.
+- **Centralização de Constantes QML (`DockConstants.qml`)**:
+  - Eliminação de mais de 70 números mágicos espalhados pelo QML em um singleton com constantes nomeadas para durações de animação, intervalos de timer, coeficientes de atenuação de onda, geometria e z-index layers.
+- **Decomposição Modular do C++ (`TaskBackend`)**:
+  - Divisão do `taskbackend.cpp` (2.559 linhas) com a extração de 3 helpers C++ dedicados mantendo a interface QML 100% retrocompatível:
+    - `DockConfigManager` (`dock_config_manager.h/.cpp`): Persistência, I/O de arquivos JSON e snapshots de configuração.
+    - `DockAppLauncher` (`dock_app_launcher.h/.cpp`): Lançamento, fechamento e alternância (*cycling*) de janelas.
+    - `DockProcessScanner` (`dock_process_scanner.h/.cpp`): Leitura e parsing estático do `/proc`.
+- **Sincronização da Documentação**:
+  - `README.md` atualizado com a versão real (1.5.0), novos comandos de build e inclusão de `test_taskbackend` na seção de testes unitários.
+
 ## [1.4.3] — 2026-08-04
 
 ### Corrigido / Melhorado
