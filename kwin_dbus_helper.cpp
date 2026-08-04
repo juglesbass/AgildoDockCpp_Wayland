@@ -94,20 +94,20 @@ KWinDBusHelper::~KWinDBusHelper()
 
 void KWinDBusHelper::initialize()
 {
-    if (m_initialized) return;
-    m_initialized = true;
-    m_available = loadScript();
-    
-    if (m_available) {
-        qDebug() << "AgildoDock: KWin DBus Helper initialized successfully at" << m_scriptPath;
-    } else {
-        qWarning() << "AgildoDock: Failed to initialize KWin DBus Helper. Ensure KWin is running.";
-    }
+    std::call_once(m_initFlag, [this]() {
+        m_available = loadScript();
+
+        if (m_available) {
+            qDebug() << "AgildoDock: KWin DBus Helper initialized successfully at" << m_scriptPath;
+        } else {
+            qWarning() << "AgildoDock: Failed to initialize KWin DBus Helper. Ensure KWin is running.";
+        }
+    });
 }
 
 bool KWinDBusHelper::isAvailable()
 {
-    if (!m_initialized) initialize();
+    initialize();
     return m_available;
 }
 

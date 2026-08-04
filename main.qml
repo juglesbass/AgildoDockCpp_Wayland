@@ -703,63 +703,72 @@ Window {
 
     HoverHandler {
         id: globalHover
+        property bool updatePending: false
+
         onPointChanged: {
-            var px = globalHover.point.position.x
-            var py = globalHover.point.position.y
-            if (px === undefined || py === undefined) return;
+            if (updatePending) return
+            updatePending = true
+            Qt.callLater(function() {
+                updatePending = false
+                root._processHoverPoint(globalHover.point.position.x, globalHover.point.position.y)
+            })
+        }
+    }
 
-            root.dockMouseX = px
-            root.dockMouseY = py
+    function _processHoverPoint(px, py) {
+        if (px === undefined || py === undefined) return;
 
-            var tw = root.dockLayoutVertical ? mainColumn.height : mainRow.width
-            if (tw <= 0) {
-                tw = root.baseRowWidth
-            }
+        root.dockMouseX = px
+        root.dockMouseY = py
 
-            var waveOn = root.waveAmplitude > 0.02
-            var alpha = 1.0
-            if (root.liveWaveInertia === 2) {
-                alpha = waveOn ? 0.08 : 0.35
-            } else if (root.liveWaveInertia === 1) {
-                alpha = waveOn ? 0.22 : 0.50
-            } else {
-                alpha = 1.0
-            }
+        var tw = root.dockLayoutVertical ? mainColumn.height : mainRow.width
+        if (tw <= 0) {
+            tw = root.baseRowWidth
+        }
 
-            root.smoothedWaveRowWidth = Math.max(
-                root.baseRowWidth,
-                (root.smoothedWaveRowWidth * (1.0 - alpha)) + (tw * alpha)
-            )
+        var waveOn = root.waveAmplitude > 0.02
+        var alpha = 1.0
+        if (root.liveWaveInertia === 2) {
+            alpha = waveOn ? 0.08 : 0.35
+        } else if (root.liveWaveInertia === 1) {
+            alpha = waveOn ? 0.22 : 0.50
+        } else {
+            alpha = 1.0
+        }
 
-            var lxRaw = 0
-            if (root.dockLayoutVertical) {
-                var colTop = (root.height * 0.5) - (root.baseRowWidth * 0.5)
-                lxRaw = root.dockMouseY - colTop
-            } else {
-                var rowLeft = (root.width * 0.5) - (root.baseRowWidth * 0.5)
-                lxRaw = root.dockMouseX - rowLeft
-            }
-            lxRaw = Math.max(0, Math.min(root.baseRowWidth, lxRaw))
+        root.smoothedWaveRowWidth = Math.max(
+            root.baseRowWidth,
+            (root.smoothedWaveRowWidth * (1.0 - alpha)) + (tw * alpha)
+        )
 
-            var beta = 1.0
-            if (root.liveWaveInertia === 0) {
-                beta = 1.0  // 100% Instantânea 1:1 estilo macOS (0ms de atraso / resposta de hardware perfeita)
-            } else if (root.liveWaveInertia === 2) {
-                beta = waveOn ? 0.08 : 0.35 // Amanteigada / Fluida
-            } else {
-                beta = waveOn ? 0.22 : 0.50 // Suave (Padrão)
-            }
-            var lxOut = lxRaw
-            if (root.logicalMouseX > -100) {
-                lxOut = root.logicalMouseX + (lxRaw - root.logicalMouseX) * beta
-            }
-            root.logicalMouseX = lxOut
+        var lxRaw = 0
+        if (root.dockLayoutVertical) {
+            var colTop = (root.height * 0.5) - (root.baseRowWidth * 0.5)
+            lxRaw = root.dockMouseY - colTop
+        } else {
+            var rowLeft = (root.width * 0.5) - (root.baseRowWidth * 0.5)
+            lxRaw = root.dockMouseX - rowLeft
+        }
+        lxRaw = Math.max(0, Math.min(root.baseRowWidth, lxRaw))
 
-            if (root.dockRetracted && root.dockRevealEdgeHovered()) {
-                root.dockAutoHideLatched = false
-                root.dockRetracted = false
-                root.updateZone()
-            }
+        var beta = 1.0
+        if (root.liveWaveInertia === 0) {
+            beta = 1.0  // 100% Instantânea 1:1 estilo macOS (0ms de atraso / resposta de hardware perfeita)
+        } else if (root.liveWaveInertia === 2) {
+            beta = waveOn ? 0.08 : 0.35 // Amanteigada / Fluida
+        } else {
+            beta = waveOn ? 0.22 : 0.50 // Suave (Padrão)
+        }
+        var lxOut = lxRaw
+        if (root.logicalMouseX > -100) {
+            lxOut = root.logicalMouseX + (lxRaw - root.logicalMouseX) * beta
+        }
+        root.logicalMouseX = lxOut
+
+        if (root.dockRetracted && root.dockRevealEdgeHovered()) {
+            root.dockAutoHideLatched = false
+            root.dockRetracted = false
+            root.updateZone()
         }
     }
 

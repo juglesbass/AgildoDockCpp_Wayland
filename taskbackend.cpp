@@ -29,6 +29,8 @@
 #include <QUrl>
 #include <QXmlStreamReader>
 #include <QtConcurrent/QtConcurrentRun>
+#include <QMutex>
+#include <QMutexLocker>
 #include <utility>
 
 #include <QDBusConnection>
@@ -213,6 +215,7 @@ namespace {
         qint64 timestampMs = 0;
     };
     static DolphinWindowCache s_dolphinCache;
+    static QMutex s_dolphinCacheMutex;
     constexpr qint64 kDolphinWindowCacheTtlMs = 1800;
 
     // Preenche/renova o cache de IDs+títulos Dolphin se necessário.
@@ -279,8 +282,8 @@ namespace {
         if (!kdotoolAvailable) {
             return false;
         }
-        
 
+        QMutexLocker locker(&s_dolphinCacheMutex);
         const bool isTrash = commandLower.contains(QStringLiteral("trash:/"));
         for (const QString &title : std::as_const(s_dolphinCache.titlesLower)) {
             if (title.isEmpty()) {
@@ -299,10 +302,8 @@ namespace {
         if (!kdotoolAvailable) {
             return {};
         }
-        // Ao lançar app, invalida o cache para obter IDs frescos.
-        
-        
 
+        QMutexLocker locker(&s_dolphinCacheMutex);
         const bool isTrash = commandLower.contains(QStringLiteral("trash:/"));
         for (int i = 0; i < s_dolphinCache.ids.size(); ++i) {
             const QString &title = s_dolphinCache.titlesLower.value(i);
@@ -322,9 +323,8 @@ namespace {
         if (!kdotoolAvailable) {
             return {};
         }
-        
-        
 
+        QMutexLocker locker(&s_dolphinCacheMutex);
         QStringList ids;
         const bool isTrash = commandLower.contains(QStringLiteral("trash:/"));
         for (int i = 0; i < s_dolphinCache.ids.size(); ++i) {
@@ -344,7 +344,7 @@ namespace {
         if (!kdotoolAvailable) {
             return false;
         }
-        
+        QMutexLocker locker(&s_dolphinCacheMutex);
         return !s_dolphinCache.ids.isEmpty();
     }
 } // namespace
@@ -509,7 +509,10 @@ QString TaskBackend::appDataPathForFile(const QString &relativeName)
     while (safe.startsWith('/')) {
         safe.remove(0, 1);
     }
-    const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    QString dir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    if (dir.isEmpty()) {
+        dir = QDir::tempPath() + QStringLiteral("/agildodock");
+    }
     return dir + QLatin1Char('/') + safe;
 }
 
@@ -531,23 +534,27 @@ bool TaskBackend::writeUserJsonFile(const QString &relativeName, const QString &
         return false;
     }
     QJsonParseError err;
-    QJsonDocument::fromJson(jsonText.toUtf8(), &err);
+    QJsonDocument doc = QJsonDocument::fromJson(jsonText.toUtf8(), &err);
     if (err.error != QJsonParseError::NoError) {
-        if (debugCategoryEnabled(QStringLiteral("persist"))) {
-            qWarning() << "AgildoDock[debug][persist]: JSON inválido para" << relativeName << err.errorString();
-        }
+        qWarning() << "AgildoDock[debug][persist]: JSON inválido para" << relativeName << err.errorString();
         return false;
     }
     const QString outPath = appDataPathForFile(relativeName);
     const QString outDir = QFileInfo(outPath).absolutePath();
-    QDir().mkpath(outDir);
+    bool mkOk = QDir().mkpath(outDir);
+    if (!mkOk) {
+        qWarning() << "AgildoDock[debug][persist]: mkpath falhou para" << outDir;
+    }
     QSaveFile out(outPath);
     if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        qWarning() << "AgildoDock[debug][persist]: Falha ao abrir QSaveFile" << outPath << out.errorString();
         return false;
     }
     out.write(jsonText.toUtf8());
     const bool ok = out.commit();
-    if (ok && debugCategoryEnabled(QStringLiteral("persist"))) {
+    if (!ok) {
+        qWarning() << "AgildoDock[debug][persist]: Falha ao dar commit QSaveFile" << outPath << out.errorString();
+    } else if (debugCategoryEnabled(QStringLiteral("persist"))) {
         qInfo() << "AgildoDock[debug][persist]: arquivo salvo" << outPath;
     }
     return ok;
@@ -629,7 +636,6 @@ void TaskBackend::setLayerShellActivateOnShow(bool activate)
 
 void TaskBackend::applyLayerShellEdge(int edge)
 {
-    Q_UNUSED(edge);
     if (!m_mainWindow) {
         return;
     }
@@ -637,7 +643,24 @@ void TaskBackend::applyLayerShellEdge(int edge)
     if (!layerWindow) {
         return;
     }
-    layerWindow->setAnchors(LayerShellQt::Window::AnchorBottom);
+    LayerShellQt::Window::Anchors anchors = LayerShellQt::Window::AnchorBottom;
+    switch (edge) {
+    case 1: // Top
+        anchors = LayerShellQt::Window::AnchorTop;
+        break;
+    case 2: // Left
+        anchors = LayerShellQt::Window::AnchorLeft;
+        break;
+    case 3: // Right
+        anchors = LayerShellQt::Window::AnchorRight;
+        break;
+    case 0: // Bottom
+    default:
+        anchors = LayerShellQt::Window::AnchorBottom;
+        break;
+    }
+    layerWindow->setAnchors(anchors);
+    m_hasLastBlur = false;
     m_mainWindow->requestUpdate();
 }
 
@@ -664,31 +687,39 @@ void TaskBackend::pollActiveForegroundHints()
     }
 
     if (KWinDBusHelper::instance()->isAvailable()) {
-        QString info = KWinDBusHelper::instance()->getActiveWindowInfo();
-        if (!info.isEmpty()) {
-            QStringList lines = info.split(QLatin1Char('\n'));
-            if (lines.size() >= 4) {
-                m_activeAppClass = lines[1].toLower();
-                m_activeAppTitle = lines[2].toLower();
-                
-                QString geometry = lines[3];
-                QStringList geomParts = geometry.split(QLatin1Char('x'));
-                if (geomParts.size() == 2) {
-                    QSize windowSize(geomParts[0].toInt(), geomParts[1].toInt());
-                    if (m_mainWindow && m_mainWindow->screen()) {
-                        const QRect sg = m_mainWindow->screen()->geometry();
-                        const bool covers = DockWindowManagement::activeWindowProbablyCoversWorkArea(
-                            windowSize, QSize(sg.width(), sg.height()));
-                        if (covers != m_activeWindowCoversWorkArea) {
-                            m_activeWindowCoversWorkArea = covers;
-                            emit activeWindowCoversWorkAreaChanged();
-                        }
+        (void)QtConcurrent::run([this]() {
+            // Chamada bloqueante (até 1000ms) — agora roda fora da GUI thread.
+            const QString info = KWinDBusHelper::instance()->getActiveWindowInfo();
+
+            QString classLower;
+            QString titleLower;
+            QSize windowSize;
+            bool valid = false;
+
+            if (!info.isEmpty()) {
+                const QStringList lines = info.split(QLatin1Char('\n'));
+                if (lines.size() >= 4) {
+                    classLower = lines[1].toLower();
+                    titleLower = lines[2].toLower();
+                    const QStringList geomParts = lines[3].split(QLatin1Char('x'));
+                    if (geomParts.size() == 2) {
+                        windowSize = QSize(geomParts[0].toInt(), geomParts[1].toInt());
                     }
+                    valid = true;
                 }
             }
-            emitWindowsUpdatedCoalesced();
-            return;
-        }
+
+            QMetaObject::invokeMethod(
+                this,
+                [this, valid, classLower, titleLower, windowSize]() {
+                    if (valid) {
+                        applyActiveWindowHints(classLower, titleLower, windowSize);
+                    }
+                    emitWindowsUpdatedCoalesced();
+                },
+                Qt::QueuedConnection);
+        });
+        return;
     }
 
     if (!m_kdotoolAvailable) {
@@ -738,6 +769,22 @@ void TaskBackend::pollActiveForegroundHints()
               QStringLiteral("getwindowgeometry")});
 }
 
+void TaskBackend::applyActiveWindowHints(const QString &classLower, const QString &titleLower, const QSize &windowSize)
+{
+    m_activeAppClass = classLower;
+    m_activeAppTitle = titleLower;
+
+    if (windowSize.isValid() && m_mainWindow && m_mainWindow->screen()) {
+        const QRect sg = m_mainWindow->screen()->geometry();
+        const bool covers = DockWindowManagement::activeWindowProbablyCoversWorkArea(
+            windowSize, QSize(sg.width(), sg.height()));
+        if (covers != m_activeWindowCoversWorkArea) {
+            m_activeWindowCoversWorkArea = covers;
+            emit activeWindowCoversWorkAreaChanged();
+        }
+    }
+}
+
 void TaskBackend::updateSystemState()
 {
     if (m_procScanRunning) {
@@ -780,7 +827,10 @@ void TaskBackend::updateSystemState()
         QMetaObject::invokeMethod(
             this,
             [this, next, newDolphinWindowCache]() {
-                s_dolphinCache = newDolphinWindowCache;
+                {
+                    QMutexLocker locker(&s_dolphinCacheMutex);
+                    s_dolphinCache = newDolphinWindowCache;
+                }
                 m_procScanRunning = false;
                 m_runningCmdLines = next;
                 // Indicadores “a correr” baseiam-se em /proc — não esperar pelo kdotool.

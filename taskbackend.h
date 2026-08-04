@@ -125,6 +125,7 @@ private slots:
 private:
     void updateSystemState();
     void pollActiveForegroundHints();
+    void applyActiveWindowHints(const QString &classLower, const QString &titleLower, const QSize &windowSize);
     void loadKnownApps();
     void rebuildExecIndex();
 

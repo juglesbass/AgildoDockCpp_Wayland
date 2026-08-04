@@ -5,6 +5,7 @@
 #include <QStringList>
 #include <QRect>
 #include <QSize>
+#include <mutex>
 
 class KWinDBusHelper : public QObject
 {
@@ -25,8 +26,8 @@ private:
     explicit KWinDBusHelper(QObject *parent = nullptr);
     ~KWinDBusHelper();
 
-    bool m_initialized = false;
     bool m_available = false;
+    std::once_flag m_initFlag;
     QString m_scriptPath;
     
     bool loadScript();

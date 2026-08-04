@@ -2,6 +2,17 @@
 
 Todas as alterações notáveis deste projeto são documentadas neste ficheiro.
 
+## [1.4.3] — 2026-08-04
+
+### Corrigido / Melhorado
+- **Eliminação Crítica de Data Races (Thread Safety)**:
+  - Proteção atômica com `QMutex` na cache global `s_dolphinCache` em `taskbackend.cpp`, eliminando data races entre a thread principal de interface e workers em segundo plano.
+  - Unificação de mutexes e caches locais desconectados em `dock_browser_downloads.cpp`, garantindo sincronização real entre consulta e gravação do histórico de falhas do Chromium.
+  - Inicialização estritamente thread-safe (`std::call_once`) no `KWinDBusHelper`, evitando condições de corrida em consultas simultâneas.
+  - Enfileiramento thread-safe (`QMetaObject::invokeMethod` com `Qt::QueuedConnection`) e proteção com `QPointer` no `DockUnityLauncherService` para emissão de sinais a partir de worker threads sem risco de use-after-free.
+- **Consulta Assíncrona de Janela Ativa no KWin**:
+  - Refatoração do `pollActiveForegroundHints` no `taskbackend.cpp`: a chamada DBus `getActiveWindowInfo()` (que podia bloquear a thread de interface por até 1000ms) agora executa fora da GUI thread via `QtConcurrent::run`, prevenindo engasgos e mantendo a rolagem da doca fluida.
+
 ## [1.4.2] — 2026-08-03
 
 ### Adicionado / Melhorado

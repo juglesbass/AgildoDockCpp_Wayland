@@ -1,5 +1,6 @@
 # Pasta de compilação local (CMake)
 /build/
+/build-asan/
 
 # Backups locais de desenvolvimento
 /.backup/

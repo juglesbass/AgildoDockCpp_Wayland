@@ -5,6 +5,8 @@
 #include <QDBusInterface>
 #include <QDBusReply>
 #include <QXmlStreamReader>
+#include <QPointer>
+#include <QMetaObject>
 #include <QtConcurrent>
 
 DockUnityLauncherService::DockUnityLauncherService(QObject *parent)
@@ -16,7 +18,11 @@ DockUnityLauncherService::DockUnityLauncherService(QObject *parent)
     if (QDBusConnectionInterface *bus = QDBusConnection::sessionBus().interface()) {
         connect(bus, &QDBusConnectionInterface::serviceRegistered, this, [this](const QString &service) {
             if (!service.startsWith(QLatin1Char(':'))) {
-                (void)QtConcurrent::run(&DockUnityLauncherService::scanServiceForLauncherEntries, this, service);
+                QPointer<DockUnityLauncherService> guard(this);
+                (void)QtConcurrent::run([guard, service]() {
+                    if (guard)
+                        guard->scanServiceForLauncherEntries(service);
+                });
             }
         });
     }
@@ -110,7 +116,11 @@ void DockUnityLauncherService::scanServiceForLauncherEntries(const QString &serv
                     const QMap<QString, QVariant> props =
                         qdbus_cast<QMap<QString, QVariant>>(reply.arguments().at(1));
                     if (!appUri.isEmpty() && !props.isEmpty()) {
-                        onUnityLauncherUpdate(appUri, props);
+                        // Marshaliza para a main thread — scanServiceForLauncherEntries
+                        // roda em worker thread via QtConcurrent::run.
+                        QMetaObject::invokeMethod(this, [this, appUri, props]() {
+                            onUnityLauncherUpdate(appUri, props);
+                        }, Qt::QueuedConnection);
                     }
                 }
             }
@@ -135,7 +145,11 @@ void DockUnityLauncherService::rescanExistingLauncherEntries()
         if (service.startsWith(QLatin1Char(':'))) {
             continue;
         }
-        (void)QtConcurrent::run(&DockUnityLauncherService::scanServiceForLauncherEntries, this, service);
+        QPointer<DockUnityLauncherService> guard(this);
+        (void)QtConcurrent::run([guard, service]() {
+            if (guard)
+                guard->scanServiceForLauncherEntries(service);
+        });
     }
 }
 

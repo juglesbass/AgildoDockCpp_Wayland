@@ -233,20 +233,22 @@ bool isChromiumProfileDirectory(const QDir &browserRoot, const QString &profileN
         && QFile::exists(browserRoot.filePath(profileName + QStringLiteral("/Preferences")));
 }
 
+// Cache e mutex compartilhados entre chromiumHistoryFailUntil / setChromiumHistoryFailUntil.
+// Ambas as funções DEVEM usar o mesmo mutex e cache — declarar estáticos locais
+// separados criava uma data race silenciosa (set escrevia num, get lia de outro).
+static QMutex s_chromiumFailMutex;
+static QHash<QString, qint64> s_chromiumFailCache;
+
 qint64 chromiumHistoryFailUntil(const QString &historyPath)
 {
-    static QMutex mutex;
-    static QHash<QString, qint64> cache;
-    QMutexLocker locker(&mutex);
-    return cache.value(historyPath, 0);
+    QMutexLocker locker(&s_chromiumFailMutex);
+    return s_chromiumFailCache.value(historyPath, 0);
 }
 
 void setChromiumHistoryFailUntil(const QString &historyPath, qint64 value)
 {
-    static QMutex mutex;
-    static QHash<QString, qint64> cache;
-    QMutexLocker locker(&mutex);
-    cache[historyPath] = value;
+    QMutexLocker locker(&s_chromiumFailMutex);
+    s_chromiumFailCache[historyPath] = value;
 }
 
 bool queryChromiumHistorySnapshot(const QString &historyPath, DownloadScanBest &best)
