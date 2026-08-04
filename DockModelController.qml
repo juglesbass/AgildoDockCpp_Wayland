@@ -251,7 +251,7 @@ Item {
     }
 
     function saveLastSeenDynamic() {
-        if (!root.dockRoot.liveBehaviorRememberRecentApps)
+        if (!dockRoot.liveBehaviorRememberRecentApps)
             return
             let apps = []
             for (let i = 0; i < dynamicModel.count; i++) {
@@ -264,7 +264,7 @@ Item {
     }
 
     function loadLastSeenDynamic() {
-        if (!root.dockRoot.liveBehaviorRememberRecentApps)
+        if (!dockRoot.liveBehaviorRememberRecentApps)
             return
             let raw = taskBackend.readUserJsonFile("last_seen_dynamic.json")
             if (!raw || raw === "") return
@@ -332,7 +332,7 @@ Item {
     }
 
     function updateDynamicApps() {
-        if (!root.dockRoot.liveBehaviorShowUnpinnedApps) {
+        if (!dockRoot.liveBehaviorShowUnpinnedApps) {
             if (dynamicModel.count > 0)
                 clearDynamicModel()
                 return

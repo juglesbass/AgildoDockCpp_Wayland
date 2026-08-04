@@ -104,6 +104,13 @@ Window {
     property alias liveWidgetsJson: modelCtrl.liveWidgetsJson
     property alias dockRetracted: autoHideCtrl.dockRetracted
     property alias dockAutoHideLatched: autoHideCtrl.dockAutoHideLatched
+    property alias liveBehaviorAutoHide: autoHideCtrl.liveBehaviorAutoHide
+    property alias liveBehaviorDodgeWindows: autoHideCtrl.liveBehaviorDodgeWindows
+    property alias liveBehaviorKeepAppsFocused: autoHideCtrl.liveBehaviorKeepAppsFocused
+    property alias liveBehaviorWindowOverviewOnRefocus: autoHideCtrl.liveBehaviorWindowOverviewOnRefocus
+    property alias liveBehaviorShowUnpinnedApps: autoHideCtrl.liveBehaviorShowUnpinnedApps
+    property alias liveBehaviorRememberRecentApps: autoHideCtrl.liveBehaviorRememberRecentApps
+    property alias liveBehaviorAutoHideDelayMs: autoHideCtrl.liveBehaviorAutoHideDelayMs
     property var customizationUndoStack: []
     property var customizationRedoStack: []
 
@@ -342,10 +349,7 @@ Window {
             liveThemeMode = isNight ? liveNightThemeMode : liveDayThemeMode
     }
 
-    // Cópias “live” só para a janela de configurações
-    property bool liveBehaviorWindowOverviewOnRefocus: true
-    property bool liveBehaviorShowUnpinnedApps: true
-    property bool liveBehaviorRememberRecentApps: false
+
 
 
 

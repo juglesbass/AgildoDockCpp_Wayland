@@ -8,6 +8,9 @@ Item {
     property bool liveBehaviorAutoHide: false
     property bool liveBehaviorDodgeWindows: false
     property bool liveBehaviorKeepAppsFocused: false
+    property bool liveBehaviorWindowOverviewOnRefocus: true
+    property bool liveBehaviorShowUnpinnedApps: true
+    property bool liveBehaviorRememberRecentApps: true
     property int liveBehaviorAutoHideDelayMs: 900
     property bool dockRetracted: false
     property bool dockAutoHideLatched: false
