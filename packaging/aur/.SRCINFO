@@ -21,6 +21,6 @@ pkgbase = agildodock
 	depends = qt6-wayland
 	optdepends = kdotool: focar, minimizar e fechar janelas em sessão Plasma Wayland
 	source = AgildoDockCpp_Wayland-1.5.0.tar.gz::https://github.com/juglesbass/AgildoDockCpp_Wayland/archive/refs/tags/v1.5.0.tar.gz
-	sha256sums = 2c6920a59888cfe7c4593fa6e10e804c36a4759f9f57bc18f9e4ad86c9921acb
+	sha256sums = 387d6c1d980ec1d9732d2ff8328bd6af46565df3a8626efc3ab6ee3f1f1dd295
 
 pkgname = agildodock
