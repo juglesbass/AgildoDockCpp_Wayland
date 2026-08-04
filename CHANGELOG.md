@@ -2,6 +2,19 @@
 
 Todas as alterações notáveis deste projeto são documentadas neste ficheiro.
 
+## [1.4.2] — 2026-08-03
+
+### Adicionado / Melhorado
+- **Melhorias de Arquitetura e Compilação Rigorosa**:
+  - Adicionadas flags estritas C++ (`-Wall -Wextra`) e opção de sanitizers (`-DENABLE_SANITIZERS=ON`) no CMake.
+  - Criação da biblioteca estática `agildodock_core` e isolamento dos builds em `build/` (Release nativo) e `build-asan/` (Debug com ASan).
+- **Testes Unitários Automatizados**:
+  - Suite de testes unitários C++ (`test_taskbackend`, `dock_browser_utils`, `agildodock_version`) com 100% de cobertura nos métodos core e execução headless em CTest.
+- **Correção da Ancoragem LayerShellQt em Bordas**:
+  - Mapeamento dinâmico correto para ancoragem do LayerShellQt em todas as 4 posições de tela (`Bottom`, `Top`, `Left`, `Right`) com invalidação automática da região de blur do KWin.
+- **Otimização de Desempenho e Coalescimento no Hover**:
+  - Coalescimento de eventos de movimento no `HoverHandler` via `Qt.callLater`, limitando a avaliação da física a no máximo 1 vez por frame em mouses de alto polling rate (1000Hz+).
+
 ## [1.4.1] — 2026-08-03
 
 ### Corrigido / Melhorado

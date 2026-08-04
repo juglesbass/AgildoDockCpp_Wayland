@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(agildodock VERSION 1.4.1 LANGUAGES CXX C)
+project(agildodock VERSION 1.4.2 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -10,6 +10,21 @@ set(CMAKE_AUTOUIC ON)
 
 # Oculta o aviso de ligação do módulo privado do Qt (necessário pelo Wayland/KWin)
 set(QT_NO_PRIVATE_MODULE_WARNING ON)
+
+# Flags rigorosas de aviso (compilador GCC / Clang)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_compile_options(-Wall -Wextra -Wnon-virtual-dtor -Wshadow -Wcast-align -Wunused -Woverloaded-virtual -Wnull-dereference -Wformat=2)
+endif()
+
+# Suporte opcional a Sanitizers (-DENABLE_SANITIZERS=ON)
+option(ENABLE_SANITIZERS "Habilita AddressSanitizer e UndefinedBehaviorSanitizer" OFF)
+if(ENABLE_SANITIZERS)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(STATUS "Habilitando AddressSanitizer e UndefinedBehaviorSanitizer")
+        add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+        add_link_options(-fsanitize=address,undefined)
+    endif()
+endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui GuiPrivate Qml Quick WaylandClient Concurrent DBus Sql LinguistTools Test)
 qt_policy(SET QTP0001 NEW)
@@ -24,8 +39,7 @@ set(WAYLAND_PROTOCOLS
     "/usr/share/plasma-wayland-protocols/plasma-window-management.xml"
 )
 
-add_executable(agildodock
-    main.cpp
+add_library(agildodock_core STATIC
     taskbackend.cpp
     taskbackend_launcher_progress.cpp
     dock_window_management.cpp
@@ -38,9 +52,28 @@ add_executable(agildodock
     plasma_wayland_manager.cpp
 )
 
-qt6_generate_wayland_protocol_client_sources(agildodock FILES ${WAYLAND_PROTOCOLS})
-target_link_libraries(agildodock PRIVATE Wayland::Client Qt6::GuiPrivate)
+qt6_generate_wayland_protocol_client_sources(agildodock_core FILES ${WAYLAND_PROTOCOLS})
+target_compile_definitions(agildodock_core PRIVATE AGILDO_DOCK_VERSION="${PROJECT_VERSION}")
+target_link_libraries(agildodock_core PUBLIC
+    Wayland::Client
+    Qt6::Core
+    Qt6::Gui
+    Qt6::GuiPrivate
+    Qt6::Qml
+    Qt6::Quick
+    Qt6::WaylandClient
+    Qt6::Concurrent
+    Qt6::DBus
+    Qt6::Sql
+    KF6::WindowSystem
+    KF6::GlobalAccel
+    KF6::Kirigami
+    LayerShellQt::Interface
+    PW::LibTaskManager
+)
 
+add_executable(agildodock main.cpp)
+target_link_libraries(agildodock PRIVATE agildodock_core)
 target_compile_definitions(agildodock PRIVATE AGILDO_DOCK_VERSION="${PROJECT_VERSION}")
 
 qt6_add_qml_module(agildodock
@@ -88,22 +121,6 @@ qt_add_translations(agildodock
     LUPDATE_OPTIONS -locations relative
 )
 
-target_link_libraries(agildodock PRIVATE
-    Qt6::Core
-    Qt6::Gui
-    Qt6::Qml
-    Qt6::Quick
-    Qt6::WaylandClient
-    Qt6::Concurrent
-    Qt6::DBus
-    Qt6::Sql
-    KF6::WindowSystem
-    KF6::GlobalAccel
-    KF6::Kirigami
-    LayerShellQt::Interface
-    PW::LibTaskManager
-)
-
 # --- Instalação (make install / pacotes) ---
 include(GNUInstallDirs)
 install(TARGETS agildodock
@@ -115,9 +132,6 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/org.agildosoft.agildodock.deskto
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/icons/hicolor/scalable/apps/org.agildosoft.agildodock.svg"
     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/apps")
 
-# PNG em vários tamanhos: o editor de menus do KDE/Plasma muitas vezes ignora só SVG em scalable/.
-# Se rsvg-convert estiver disponível, os PNGs são gerados automaticamente no configure; caso
-# contrário, espera-se que já existam (gerados por packaging/generate_icons.sh).
 set(_agildo_icon_png_sizes 16 22 24 32 48 64 128 256)
 find_program(_rsvg_convert rsvg-convert)
 if(_rsvg_convert)
@@ -144,7 +158,6 @@ foreach(_sz IN LISTS _agildo_icon_png_sizes)
         DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/${_sz}x${_sz}/apps")
 endforeach()
 
-# Fallback legado para menus que procuram pixmap (nome sem extensão no .desktop).
 install(FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/data/icons/hicolor/48x48/apps/org.agildosoft.agildodock.png"
     DESTINATION "${CMAKE_INSTALL_DATADIR}/pixmaps"
@@ -169,8 +182,18 @@ set_tests_properties(agildodock_version PROPERTIES
 
 add_executable(test_dock_browser_utils
     tests/test_dock_browser_utils.cpp
-    dock_browser_utils.cpp
 )
 target_include_directories(test_dock_browser_utils PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(test_dock_browser_utils PRIVATE Qt6::Core Qt6::Test)
+target_link_libraries(test_dock_browser_utils PRIVATE agildodock_core Qt6::Test)
 add_test(NAME dock_browser_utils COMMAND test_dock_browser_utils)
+
+add_executable(test_taskbackend
+    tests/test_taskbackend.cpp
+)
+target_include_directories(test_taskbackend PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(test_taskbackend PRIVATE agildodock_core Qt6::Test)
+add_test(NAME taskbackend COMMAND test_taskbackend)
+
+set_tests_properties(dock_browser_utils taskbackend PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)
