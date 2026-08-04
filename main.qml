@@ -50,7 +50,7 @@ Window {
 
 
 
-    onLiveMinIconSizeChanged: clampMaxIconSizeForZoomCap()
+    onLiveMinIconSizeChanged: wavePhysics.clampMaxIconSizeForZoomCap()
     property int liveThemeMode: 0 // 0 Escuro, 1 Claro, 2 Noite Azul, 3 Ametista
     property int liveAccentMode: 0 // 0 Ciano, 1 Roxo, 2 Verde, 3 Laranja, 4 Rosa
     property real liveWaveIntensity: 1.0 // 0.6..1.0 (máx. 100%)
@@ -444,7 +444,7 @@ Window {
         root.baseStride * 0.45
     )
 
-    property real rawWinWidth: baseRowWidth + maxIconsExpansion + (winEdgeSlopPx * 2)
+    property real rawWinWidth: baseRowWidth + wavePhysics.maxIconsExpansion + (winEdgeSlopPx * 2)
     width: dockLayoutVertical
     ? Math.min(maxWinWidth, Math.max(120, Math.round((dockBarHeightPx + liveDockMargin * 2) * liveScaleFactor + dockIconTopOverflowPx + 48)))
     : Math.min(maxWinWidth, Math.max(420, Math.round(rawWinWidth / 2) * 2))
@@ -756,16 +756,16 @@ Window {
 
 
 
+    function applyLayerShellFromSettings() { autoHideCtrl.applyLayerShellFromSettings() }
+    function applyDockRetractedState() { autoHideCtrl.applyDockRetractedState() }
+
     Connections {
         target: taskBackend
         function onWindowsUpdated() {
-            updateDynamicApps()
+            modelCtrl.updateDynamicApps()
         }
         function onActiveWindowCoversWorkAreaChanged() {
-            applyDockRetractedState()
-        }
-        function onPlasmaEditModeChanged() {
-            applyDockRetractedState()
+            autoHideCtrl.applyDockRetractedState()
         }
     }
 
@@ -776,7 +776,7 @@ Window {
         root.liveBgOpacity    = dockSettings.bgOpacity
         root.liveMinIconSize  = dockSettings.minIconSize
         root.liveMaxIconSize  = Math.max(dockSettings.minIconSize, dockSettings.maxIconSize)
-        root.clampMaxIconSizeForZoomCap()
+        wavePhysics.clampMaxIconSizeForZoomCap()
         root.liveThemeMode    = dockSettings.themeMode
         root.liveAccentMode   = dockSettings.accentMode
         root.liveWaveIntensity = Math.max(0.6, Math.min(1.0, dockSettings.waveIntensity))

@@ -108,21 +108,7 @@ Rectangle {
     }
 
     Connections {
-        target: waveAmpAnim
-        function onRunningChanged() {
-            if (waveAmpAnim.running || dockRoot.wavePhysics.dockHovered)
-                return
-            if (dockRoot.wavePhysics.waveAmplitude < 0.05)
-                dockBg.flushCollapseBlur()
-        }
-    }
-
-    function invalidateBlurGeometry() {
-        requestBlurUpdate()
-    }
-
-    Connections {
-        target: dockRoot
+        target: dockRoot.wavePhysics
         function onWaveBlurAnimatingChanged() {
             blurThrottleTimer.stop()
             if (dockRoot.wavePhysics.waveBlurAnimating) {
