@@ -738,14 +738,10 @@ Window {
 
 
 
-    ListModel { id: _appModel }
-    ListModel { id: _dynamicModel }
-    ListModel { id: _systemModel }
-
-    readonly property alias launcherModel: _launcherModel
-    readonly property alias appModel: _appModel
-    readonly property alias dynamicModel: _dynamicModel
-    readonly property alias systemModel: _systemModel
+    readonly property alias launcherModel: modelCtrl.launcherModel
+    readonly property alias appModel: modelCtrl.appModel
+    readonly property alias dynamicModel: modelCtrl.dynamicModel
+    readonly property alias systemModel: modelCtrl.systemModel
 
 
 

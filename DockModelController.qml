@@ -19,7 +19,15 @@ Item {
 
 
 
-    property alias launcherModel: _launcherModel
+    ListModel { id: _launcherModel }
+    ListModel { id: _appModel }
+    ListModel { id: _dynamicModel }
+    ListModel { id: _systemModel }
+
+    readonly property alias launcherModel: _launcherModel
+    readonly property alias appModel: _appModel
+    readonly property alias dynamicModel: _dynamicModel
+    readonly property alias systemModel: _systemModel
 
 
     function customCommandsFor(cmd) {
