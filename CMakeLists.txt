@@ -86,9 +86,6 @@ qt6_add_qml_module(agildodock
     VERSION 1.0
     QML_FILES
         main.qml
-        DockWavePhysics.qml
-        DockAutoHideController.qml
-        DockModelController.qml
         DockConstants.qml
         DockBlurBackground.qml
         DockSettingsWindow.qml

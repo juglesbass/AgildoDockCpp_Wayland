@@ -35,10 +35,10 @@ Rectangle {
 
     readonly property real sidePad: 24 * dockRoot.liveScaleFactor
     readonly property real waveMultiplier: (dockRoot.liveWaveInertia === 0) ? 3.0 : 4.2
-    readonly property real maxWaveExtraWidth: dockRoot.wavePhysics.wavePeakDeltaPx * waveMultiplier * dockRoot.liveScaleFactor * dockRoot.liveWaveIntensity
+    readonly property real maxWaveExtraWidth: dockRoot.wavePeakDeltaPx * waveMultiplier * dockRoot.liveScaleFactor * dockRoot.liveWaveIntensity
 
     readonly property real edgeContractFactor: {
-        var lx = dockRoot.wavePhysics.logicalMouseX
+        var lx = dockRoot.logicalMouseX
         if (lx < 0 || lx > dockRoot.baseRowWidth) return 1.0;
         var edgeThreshold = dockRoot.baseStride * 2.5
         var distFromEdge = Math.min(lx, dockRoot.baseRowWidth - lx)
@@ -47,7 +47,7 @@ Rectangle {
         return 0.15 + (0.85 * Math.sin(norm * (Math.PI / 2)))
     }
 
-    readonly property real rawBgSpan: dockRoot.baseRowWidth + sidePad + (maxWaveExtraWidth * edgeContractFactor * dockRoot.wavePhysics.waveAmplitude)
+    readonly property real rawBgSpan: dockRoot.baseRowWidth + sidePad + (maxWaveExtraWidth * edgeContractFactor * dockRoot.waveAmplitude)
     readonly property int dockSpanEvenPx: {
         var w = Math.round(rawBgSpan)
         if ((w & 1) !== 0)
@@ -56,7 +56,7 @@ Rectangle {
     }
     readonly property real barThickness: Math.round(dockRoot.dockBarHeightPx * dockRoot.liveScaleFactor)
 
-    readonly property bool waveBlurAnimating: dockRoot.wavePhysics.waveBlurAnimating
+    readonly property bool waveBlurAnimating: dockRoot.waveBlurAnimating
 
     property int blurLastSentW: -1
     property int blurLastSentH: -1
@@ -107,16 +107,26 @@ Rectangle {
         syncBlurAfterStyleChange()
     }
 
+    Connections {
+        target: waveAmpAnim
+        function onRunningChanged() {
+            if (waveAmpAnim.running || dockRoot.dockHovered)
+                return
+            if (dockRoot.waveAmplitude < 0.05)
+                dockBg.flushCollapseBlur()
+        }
+    }
+
     function invalidateBlurGeometry() {
         requestBlurUpdate()
     }
 
     Connections {
-        target: dockRoot.wavePhysics
+        target: dockRoot
         function onWaveBlurAnimatingChanged() {
             blurThrottleTimer.stop()
-            if (dockRoot.wavePhysics.waveBlurAnimating) {
-                if (dockRoot.wavePhysics.dockHovered) {
+            if (dockRoot.waveBlurAnimating) {
+                if (dockRoot.dockHovered) {
                     waveBlurLayerHoldTimer.stop()
                     waveBlurLayerHold = false
                 }
@@ -127,7 +137,7 @@ Rectangle {
             } else {
                 blurStableCx = -1
                 blurStableCy = -1
-                if (dockRoot.wavePhysics.dockHovered) {
+                if (dockRoot.dockHovered) {
                     waveBlurLayerHold = true
                     waveBlurLayerHoldTimer.restart()
                 } else {
@@ -138,7 +148,7 @@ Rectangle {
                 }
             }
             updateBlurNative(true)
-            if (dockRoot.wavePhysics.dockHovered)
+            if (dockRoot.dockHovered)
                 Qt.callLater(function() { dockBg.updateBlurNative(true) })
             else
                 Qt.callLater(function() { dockBg.flushCollapseBlur() })

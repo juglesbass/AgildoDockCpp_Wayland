@@ -216,7 +216,7 @@ Window {
         dock.liveBgOpacity = dock.appSettings.bgOpacity
         dock.liveMinIconSize = dock.appSettings.minIconSize
         dock.liveMaxIconSize = Math.max(dock.appSettings.minIconSize, dock.appSettings.maxIconSize)
-        dock.wavePhysics.clampMaxIconSizeForZoomCap()
+        dock.clampMaxIconSizeForZoomCap()
         dock.liveThemeMode = dock.appSettings.themeMode
         dock.liveAccentMode = dock.appSettings.accentMode
         dock.liveWaveIntensity = Math.max(0.6, Math.min(1.0, dock.appSettings.waveIntensity))
@@ -253,19 +253,19 @@ Window {
         dock.liveNightThemeMode = dock.appSettings.nightThemeMode
         dock.liveNightStartHour = dock.appSettings.nightStartHour
         dock.liveDayStartHour = dock.appSettings.dayStartHour
-        dock.modelCtrl.liveProfilesJson = dock.appSettings.profilesJson
-        dock.modelCtrl.liveAppRulesJson = dock.appSettings.appRulesJson
-        dock.modelCtrl.liveCustomCommandsJson = dock.appSettings.customCommandsJson
-        dock.modelCtrl.liveWidgetsJson = dock.appSettings.userWidgetsJson
+        dock.liveProfilesJson = dock.appSettings.profilesJson
+        dock.liveAppRulesJson = dock.appSettings.appRulesJson
+        dock.liveCustomCommandsJson = dock.appSettings.customCommandsJson
+        dock.liveWidgetsJson = dock.appSettings.userWidgetsJson
         dock.livePresetName = dock.appSettings.presetName
 
-        dock.autoHideCtrl.liveBehaviorAutoHide = dock.appSettings.behaviorAutoHide
-        dock.autoHideCtrl.liveBehaviorDodgeWindows = dock.appSettings.behaviorDodgeWindows
-        dock.autoHideCtrl.liveBehaviorKeepAppsFocused = dock.appSettings.behaviorKeepAppsFocused
+        dock.liveBehaviorAutoHide = dock.appSettings.behaviorAutoHide
+        dock.liveBehaviorDodgeWindows = dock.appSettings.behaviorDodgeWindows
+        dock.liveBehaviorKeepAppsFocused = dock.appSettings.behaviorKeepAppsFocused
         dock.liveBehaviorWindowOverviewOnRefocus = dock.appSettings.behaviorWindowOverviewOnRefocus
         dock.liveBehaviorShowUnpinnedApps = dock.appSettings.behaviorShowUnpinnedApps
         dock.liveBehaviorRememberRecentApps = dock.appSettings.behaviorRememberRecentApps
-        dock.autoHideCtrl.liveBehaviorAutoHideDelayMs = dock.appSettings.behaviorAutoHideDelayMs
+        dock.liveBehaviorAutoHideDelayMs = dock.appSettings.behaviorAutoHideDelayMs
         dock.liveScrollWheelAction = dock.appSettings.scrollWheelAction
         dock.liveDownloadProgressDisplayMode = dock.appSettings.downloadProgressDisplayMode
         taskBackend.windowOverviewOnRefocus = dock.liveBehaviorWindowOverviewOnRefocus
@@ -321,19 +321,19 @@ Window {
             dock.appSettings.nightThemeMode = dock.liveNightThemeMode
             dock.appSettings.nightStartHour = dock.liveNightStartHour
             dock.appSettings.dayStartHour = dock.liveDayStartHour
-            dock.appSettings.profilesJson = dock.modelCtrl.liveProfilesJson
-            dock.appSettings.appRulesJson = dock.modelCtrl.liveAppRulesJson
-            dock.appSettings.customCommandsJson = dock.modelCtrl.liveCustomCommandsJson
-            dock.appSettings.userWidgetsJson = dock.modelCtrl.liveWidgetsJson
+            dock.appSettings.profilesJson = dock.liveProfilesJson
+            dock.appSettings.appRulesJson = dock.liveAppRulesJson
+            dock.appSettings.customCommandsJson = dock.liveCustomCommandsJson
+            dock.appSettings.userWidgetsJson = dock.liveWidgetsJson
             dock.appSettings.presetName = dock.livePresetName
 
-            dock.appSettings.behaviorAutoHide = dock.autoHideCtrl.liveBehaviorAutoHide
-            dock.appSettings.behaviorDodgeWindows = dock.autoHideCtrl.liveBehaviorDodgeWindows
-            dock.appSettings.behaviorKeepAppsFocused = dock.autoHideCtrl.liveBehaviorKeepAppsFocused
+            dock.appSettings.behaviorAutoHide = dock.liveBehaviorAutoHide
+            dock.appSettings.behaviorDodgeWindows = dock.liveBehaviorDodgeWindows
+            dock.appSettings.behaviorKeepAppsFocused = dock.liveBehaviorKeepAppsFocused
             dock.appSettings.behaviorWindowOverviewOnRefocus = dock.liveBehaviorWindowOverviewOnRefocus
             dock.appSettings.behaviorShowUnpinnedApps = dock.liveBehaviorShowUnpinnedApps
             dock.appSettings.behaviorRememberRecentApps = dock.liveBehaviorRememberRecentApps
-            dock.appSettings.behaviorAutoHideDelayMs = dock.autoHideCtrl.liveBehaviorAutoHideDelayMs
+            dock.appSettings.behaviorAutoHideDelayMs = dock.liveBehaviorAutoHideDelayMs
             dock.appSettings.scrollWheelAction = dock.liveScrollWheelAction
             dock.appSettings.downloadProgressDisplayMode = dock.liveDownloadProgressDisplayMode
             taskBackend.windowOverviewOnRefocus = dock.liveBehaviorWindowOverviewOnRefocus
@@ -344,14 +344,14 @@ Window {
             if (typeof dock.appSettings.sync === "function") {
                 dock.appSettings.sync()
             }
-            taskBackend.writeUserJsonFile("profiles.json", dock.modelCtrl.liveProfilesJson)
-            taskBackend.writeUserJsonFile("app_rules.json", dock.modelCtrl.liveAppRulesJson)
-            taskBackend.writeUserJsonFile("custom_commands.json", dock.modelCtrl.liveCustomCommandsJson)
-            taskBackend.writeUserJsonFile("widgets.json", dock.modelCtrl.liveWidgetsJson)
-            dock.modelCtrl.reloadCustomWidgets()
+            taskBackend.writeUserJsonFile("profiles.json", dock.liveProfilesJson)
+            taskBackend.writeUserJsonFile("app_rules.json", dock.liveAppRulesJson)
+            taskBackend.writeUserJsonFile("custom_commands.json", dock.liveCustomCommandsJson)
+            taskBackend.writeUserJsonFile("widgets.json", dock.liveWidgetsJson)
+            dock.reloadCustomWidgets()
             dock.updateZone()
-            dock.autoHideCtrl.applyLayerShellFromSettings()
-            dock.autoHideCtrl.applyDockRetractedState()
+            dock.applyLayerShellFromSettings()
+            dock.applyDockRetractedState()
         } catch (e) {
             taskBackend.debugLog("settings", "Aviso em aplicarValores: " + e)
         } finally {
@@ -363,18 +363,18 @@ Window {
     function adicionarWidgetPreset(preset) {
         let widgets = []
         try {
-            widgets = JSON.parse(dock.modelCtrl.liveWidgetsJson || "[]")
+            widgets = JSON.parse(dock.liveWidgetsJson || "[]")
             if (!Array.isArray(widgets)) widgets = []
         } catch (e) {
             widgets = []
         }
         widgets.push(preset)
-        dock.modelCtrl.liveWidgetsJson = JSON.stringify(widgets, null, 2)
+        dock.liveWidgetsJson = JSON.stringify(widgets, null, 2)
     }
 
     function salvarPerfil(nomePerfil) {
         let profiles = {}
-        try { profiles = JSON.parse(dock.modelCtrl.liveProfilesJson || "{}") } catch (e) { profiles = {} }
+        try { profiles = JSON.parse(dock.liveProfilesJson || "{}") } catch (e) { profiles = {} }
         profiles[nomePerfil] = {
             savedAt: Date.now(),
             themeMode: dock.liveThemeMode,
@@ -404,12 +404,12 @@ Window {
             animationProfile: dock.liveAnimationProfile,
             launchBounceIntensity: dock.liveLaunchBounceIntensity
         }
-        dock.modelCtrl.liveProfilesJson = JSON.stringify(profiles)
+        dock.liveProfilesJson = JSON.stringify(profiles)
     }
 
     function aplicarPerfil(nomePerfil) {
         try {
-            let profiles = JSON.parse(dock.modelCtrl.liveProfilesJson || "{}")
+            let profiles = JSON.parse(dock.liveProfilesJson || "{}")
             let p = profiles[nomePerfil]
             if (!p) return
             dock.pushCustomizationHistory()
@@ -435,7 +435,7 @@ Window {
             if (p.minIconSize !== undefined) dock.liveMinIconSize = p.minIconSize
             if (p.maxIconSize !== undefined) {
                 dock.liveMaxIconSize = Math.max(p.minIconSize || dock.liveMinIconSize, p.maxIconSize)
-                dock.wavePhysics.clampMaxIconSizeForZoomCap()
+                dock.clampMaxIconSizeForZoomCap()
             }
             if (p.waveIntensity !== undefined) dock.liveWaveIntensity = p.waveIntensity
             if (p.waveRadiusFactor !== undefined) dock.liveWaveRadiusFactor = p.waveRadiusFactor
@@ -642,23 +642,23 @@ Window {
 
                                 SegmentedButton {
                                     labelText: qsTr("Sempre Visível")
-                                    selected: !dock.autoHideCtrl.liveBehaviorAutoHide && !dock.autoHideCtrl.liveBehaviorDodgeWindows
-                                    onClicked: { dock.autoHideCtrl.liveBehaviorAutoHide = false; dock.autoHideCtrl.liveBehaviorDodgeWindows = false }
+                                    selected: !dock.liveBehaviorAutoHide && !dock.liveBehaviorDodgeWindows
+                                    onClicked: { dock.liveBehaviorAutoHide = false; dock.liveBehaviorDodgeWindows = false }
                                 }
                                 SegmentedButton {
                                     labelText: qsTr("Auto-Ocultar")
-                                    selected: dock.autoHideCtrl.liveBehaviorAutoHide && !dock.autoHideCtrl.liveBehaviorDodgeWindows
-                                    onClicked: { dock.autoHideCtrl.liveBehaviorAutoHide = true; dock.autoHideCtrl.liveBehaviorDodgeWindows = false }
+                                    selected: dock.liveBehaviorAutoHide && !dock.liveBehaviorDodgeWindows
+                                    onClicked: { dock.liveBehaviorAutoHide = true; dock.liveBehaviorDodgeWindows = false }
                                 }
                                 SegmentedButton {
                                     labelText: qsTr("Desviar da Janela Ativa")
-                                    selected: dock.autoHideCtrl.liveBehaviorDodgeWindows
-                                    onClicked: { dock.autoHideCtrl.liveBehaviorDodgeWindows = true; dock.autoHideCtrl.liveBehaviorAutoHide = false }
+                                    selected: dock.liveBehaviorDodgeWindows
+                                    onClicked: { dock.liveBehaviorDodgeWindows = true; dock.liveBehaviorAutoHide = false }
                                 }
                                 SegmentedButton {
                                     labelText: qsTr("Desviar de Maximizadas")
-                                    selected: dock.autoHideCtrl.liveBehaviorAutoHide && dock.autoHideCtrl.liveBehaviorDodgeWindows
-                                    onClicked: { dock.autoHideCtrl.liveBehaviorAutoHide = true; dock.autoHideCtrl.liveBehaviorDodgeWindows = true }
+                                    selected: dock.liveBehaviorAutoHide && dock.liveBehaviorDodgeWindows
+                                    onClicked: { dock.liveBehaviorAutoHide = true; dock.liveBehaviorDodgeWindows = true }
                                 }
                             }
                         }
@@ -715,18 +715,18 @@ Window {
 
                                 DelayControl {
                                     labelText: qsTr("Atraso para ocultar:")
-                                    delayValue: dock.autoHideCtrl.liveBehaviorAutoHideDelayMs
+                                    delayValue: dock.liveBehaviorAutoHideDelayMs
                                     minValue: 100
                                     maxValue: 4000
                                     step: 50
-                                    onValueUpdated: (val) => dock.autoHideCtrl.liveBehaviorAutoHideDelayMs = val
+                                    onValueUpdated: (val) => dock.liveBehaviorAutoHideDelayMs = val
                                 }
                             }
 
                             CheckBox {
                                 text: qsTr("Não roubar foco do teclado")
-                                checked: dock.autoHideCtrl.liveBehaviorKeepAppsFocused
-                                onToggled: dock.autoHideCtrl.liveBehaviorKeepAppsFocused = checked
+                                checked: dock.liveBehaviorKeepAppsFocused
+                                onToggled: dock.liveBehaviorKeepAppsFocused = checked
                                 palette.text: settingsWin.uiTextPrimary
                             }
 
@@ -930,7 +930,7 @@ Window {
                             uiTextPrimary: settingsWin.uiTextPrimary
                             uiAccent: settingsWin.uiAccent
                             settingsDark: settingsWin.settingsDark
-                            onMoved: (val) => { dock.liveMinIconSize = val; dock.wavePhysics.clampMaxIconSizeForZoomCap() }
+                            onMoved: (val) => { dock.liveMinIconSize = val; dock.clampMaxIconSizeForZoomCap() }
                         }
 
                         Label {
@@ -950,7 +950,7 @@ Window {
                             uiTextPrimary: settingsWin.uiTextPrimary
                             uiAccent: settingsWin.uiAccent
                             settingsDark: settingsWin.settingsDark
-                            onMoved: (val) => dock.wavePhysics.setLiveMaxIconZoomPercent(val)
+                            onMoved: (val) => dock.setLiveMaxIconZoomPercent(val)
                         }
                     }
 
@@ -1358,12 +1358,12 @@ Window {
                             RowLayout {
                                 Layout.fillWidth: true
                                 spacing: 6
-                                ActionBtn { text: qsTr("Exportar perfis"); onClicked: taskBackend.writeUserJsonFile("profiles_export.json", dock.modelCtrl.liveProfilesJson) }
+                                ActionBtn { text: qsTr("Exportar perfis"); onClicked: taskBackend.writeUserJsonFile("profiles_export.json", dock.liveProfilesJson) }
                                 ActionBtn {
                                     text: qsTr("Importar perfis")
                                     onClicked: {
                                         const raw = taskBackend.readUserJsonFile("profiles_export.json")
-                                        if (raw !== "") dock.modelCtrl.liveProfilesJson = raw
+                                        if (raw !== "") dock.liveProfilesJson = raw
                                     }
                                 }
                                 ActionBtn { text: qsTr("Desfazer"); onClicked: dock.undoCustomization() }
@@ -1403,8 +1403,8 @@ Window {
                             JsonEditor {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 64
-                                text: dock.modelCtrl.liveWidgetsJson
-                                onTextChanged: dock.modelCtrl.liveWidgetsJson = text
+                                text: dock.liveWidgetsJson
+                                onTextChanged: dock.liveWidgetsJson = text
                                 placeholderText: "[{\"name\":\"CPU\",\"icon\":\"utilities-system-monitor\",\"cmd\":\"plasma-systemmonitor\"}]"
                             }
 
@@ -1412,8 +1412,8 @@ Window {
                             JsonEditor {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 64
-                                text: dock.modelCtrl.liveAppRulesJson
-                                onTextChanged: dock.modelCtrl.liveAppRulesJson = text
+                                text: dock.liveAppRulesJson
+                                onTextChanged: dock.liveAppRulesJson = text
                                 placeholderText: "{\"firefox\":{\"badgeText\":\"3\"}}"
                             }
 
@@ -1421,8 +1421,8 @@ Window {
                             JsonEditor {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 64
-                                text: dock.modelCtrl.liveCustomCommandsJson
-                                onTextChanged: dock.modelCtrl.liveCustomCommandsJson = text
+                                text: dock.liveCustomCommandsJson
+                                onTextChanged: dock.liveCustomCommandsJson = text
                                 placeholderText: "{\"konsole\":[{\"label\":\"Abrir htop\",\"command\":\"konsole -e htop\"}]}"
                             }
                         }

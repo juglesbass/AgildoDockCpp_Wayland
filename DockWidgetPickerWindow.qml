@@ -69,14 +69,14 @@ Window {
 
     function handleToggleWidget(modelItem) {
         if (!dock || !modelItem) return
-        const inDock = dock.modelCtrl.isItemInDock(modelItem)
+        const inDock = dock.isItemInDock(modelItem)
         if (inDock) {
-            const removed = dock.modelCtrl.removeAppOrWidget(modelItem)
+            const removed = dock.removeAppOrWidget(modelItem)
             if (removed) {
                 statusMessage = qsTr("✓ '%1' removido da doca!").arg(modelItem.name || "Item")
             }
         } else {
-            const added = dock.modelCtrl.addPlasmoidFromDropInfo(modelItem)
+            const added = dock.addPlasmoidFromDropInfo(modelItem)
             if (added) {
                 statusMessage = qsTr("✓ '%1' adicionado à doca!").arg(modelItem.name || "Item")
             }
@@ -281,7 +281,7 @@ Window {
                                     border.color: cardHover.containsMouse ? widgetPickerWin.uiAccent : widgetPickerWin.uiCardBorder
                                     border.width: 1
 
-                                    readonly property bool itemInDock: dock ? dock.modelCtrl.isItemInDock(modelData) : false
+                                    readonly property bool itemInDock: dock ? dock.isItemInDock(modelData) : false
 
                                     MouseArea {
                                         id: cardHover
@@ -404,7 +404,7 @@ Window {
                                     border.color: widgetPickerWin.uiCardBorder
                                     border.width: 1
 
-                                    readonly property bool itemInDock: dock ? dock.modelCtrl.isItemInDock(modelData) : false
+                                    readonly property bool itemInDock: dock ? dock.isItemInDock(modelData) : false
 
                                     MouseArea {
                                         id: appRowHover
