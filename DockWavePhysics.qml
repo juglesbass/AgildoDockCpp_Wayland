@@ -173,6 +173,7 @@ Item {
 
     HoverHandler {
         id: globalHover
+        target: dockRoot ? dockRoot.contentItem : parent
         property bool updatePending: false
 
         onPointChanged: {

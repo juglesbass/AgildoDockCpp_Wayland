@@ -17,6 +17,7 @@ Window {
     DockWavePhysics {
         id: wavePhysics
         dockRoot: root
+        parent: root.contentItem
         anchors.fill: parent
     }
     DockAutoHideController {
