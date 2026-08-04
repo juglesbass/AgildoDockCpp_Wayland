@@ -102,6 +102,8 @@ Window {
     property alias liveAppRulesJson: modelCtrl.liveAppRulesJson
     property alias liveCustomCommandsJson: modelCtrl.liveCustomCommandsJson
     property alias liveWidgetsJson: modelCtrl.liveWidgetsJson
+    property alias dockRetracted: autoHideCtrl.dockRetracted
+    property alias dockAutoHideLatched: autoHideCtrl.dockAutoHideLatched
     property var customizationUndoStack: []
     property var customizationRedoStack: []
 
@@ -448,10 +450,13 @@ Window {
         root.baseStride * 0.45
     )
 
-    property real rawWinWidth: baseRowWidth + wavePhysics.maxIconsExpansion + (winEdgeSlopPx * 2)
-    width: Math.max(1, dockLayoutVertical
-    ? Math.min(maxWinWidth, Math.max(120, Math.round((dockBarHeightPx + liveDockMargin * 2) * liveScaleFactor + dockIconTopOverflowPx + 48)))
-    : Math.min(maxWinWidth, Math.max(420, Math.round(rawWinWidth / 2) * 2)))
+    property real rawWinWidth: (isNaN(baseRowWidth) ? 0 : baseRowWidth) + (wavePhysics && !isNaN(wavePhysics.maxIconsExpansion) ? wavePhysics.maxIconsExpansion : 0) + (isNaN(winEdgeSlopPx) ? 0 : winEdgeSlopPx * 2)
+    width: {
+        var w = dockLayoutVertical
+            ? Math.min(maxWinWidth, Math.max(120, Math.round((dockBarHeightPx + liveDockMargin * 2) * liveScaleFactor + dockIconTopOverflowPx + 48)))
+            : Math.min(maxWinWidth, Math.max(420, Math.round(rawWinWidth / 2) * 2))
+        return (isNaN(w) || w < 1) ? 420 : Math.round(w)
+    }
 
     readonly property real dockExpandedHeight: Math.round(
         (root.liveDockMargin + root.dockBarHeightPx) * root.liveScaleFactor
@@ -464,9 +469,12 @@ Window {
     // Deslocamento visual ao recolher (Translate no dockContainer);
     readonly property real dockRetractSlidePixels: Math.max(0, root.dockExpandedHeight - root.dockPeekHeight)
 
-    height: Math.max(1, dockLayoutVertical
-    ? Math.min(maxWinHeight, Math.max(420, Math.round(rawWinWidth / 2) * 2))
-    : (root.dockRetracted ? root.dockPeekHeight : root.dockExpandedHeight))
+    height: {
+        var h = dockLayoutVertical
+            ? Math.min(maxWinHeight, Math.max(420, Math.round(rawWinWidth / 2) * 2))
+            : (root.dockRetracted ? root.dockPeekHeight : root.dockExpandedHeight)
+        return (isNaN(h) || h < 1) ? 120 : Math.round(h)
+    }
 
     onHeightChanged: {
         pointerMaskDebouncer.restart()
@@ -831,7 +839,7 @@ Window {
             const persistedRules = taskBackend.readUserJsonFile("app_rules.json")
             if (persistedRules !== "") root.liveAppRulesJson = persistedRules
         }
-        migrateAppRulesJson()
+        modelCtrl.migrateAppRulesJson()
         if (root.liveCustomCommandsJson === "{}") {
             const persistedCommands = taskBackend.readUserJsonFile("custom_commands.json")
             if (persistedCommands !== "") root.liveCustomCommandsJson = persistedCommands
