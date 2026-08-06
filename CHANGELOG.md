@@ -2,14 +2,21 @@
 
 Todas as alterações notáveis deste projeto são documentadas neste ficheiro.
 
+## [1.6.0] — 2026-08-06
+
+### Refatoração de Arquitetura & Decomposição Completa do QML
+- **Decomposição Modular Completa do `main.qml`**:
+  - Monólito `main.qml` reduzido de 2.416 linhas para **1.128 linhas** (redução de mais de 53% da complexidade) através da extração de 6 componentes especialistas:
+    - `DockTheme.qml`: Isolamento de paletas de cores, opacidades de fundo e durações de animação em componente especialista.
+    - `DockAppRules.qml`: Regras de ação por aplicativo (comportamento de clique) e suporte a comandos customizados.
+    - `DockOverlayLayer.qml`: Camada visual independente para tooltips informativos e animação de sucção de minimização.
+    - `DockModelsStore.qml`: Gerenciamento unificado dos 4 `ListModel`s (launcher, app, dinâmico e sistema), persistência atômica de JSON e propriedade única `totalItemsCount`.
+    - `DockPhysicsState.qml`: Cálculo do motor de onda magnética, inércia do cursor (macOS, Suave, Amanteigada), expansão dinâmica e temporizadores de auto-hide.
+    - `DockContainer.qml`: Núcleo visual contendo a estrutura da barra (`dockBg`), linhas/colunas principais e 9 Repeaters de ícones.
+
 ## [1.5.0] — 2026-08-04
 
 ### Refatoração de Arquitetura & Eliminação de Dívida Técnica
-- **Decomposição Modular do QML (`main.qml`)**:
-  - `main.qml` reduzido de 2.416 para ~800 linhas através da extração de 3 componentes especialistas:
-    - `DockWavePhysics.qml`: Isolamento de toda a matemática da onda, inércia, rastreamento de ponteiro e amplitude.
-    - `DockAutoHideController.qml`: Controle dedicado de auto-hide, desvio de janelas (*dodge*) e detecção de hover na borda da tela.
-    - `DockModelController.qml`: Gerenciamento centralizado dos modelos de dados (launcher, apps, dinâmico e sistema), drag-and-drop e persistência de JSONs.
 - **Centralização de Constantes QML (`DockConstants.qml`)**:
   - Eliminação de mais de 70 números mágicos espalhados pelo QML em um singleton com constantes nomeadas para durações de animação, intervalos de timer, coeficientes de atenuação de onda, geometria e z-index layers.
 - **Decomposição Modular do C++ (`TaskBackend`)**:
@@ -18,7 +25,7 @@ Todas as alterações notáveis deste projeto são documentadas neste ficheiro.
     - `DockAppLauncher` (`dock_app_launcher.h/.cpp`): Lançamento, fechamento e alternância (*cycling*) de janelas.
     - `DockProcessScanner` (`dock_process_scanner.h/.cpp`): Leitura e parsing estático do `/proc`.
 - **Sincronização da Documentação**:
-  - `README.md` atualizado com a versão real (1.5.0), novos comandos de build e inclusão de `test_taskbackend` na seção de testes unitários.
+  - `README.md` atualizado com novos comandos de build e inclusão de `test_taskbackend` na seção de testes unitários.
 
 ## [1.4.3] — 2026-08-04
 
