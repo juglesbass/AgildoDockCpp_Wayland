@@ -98,13 +98,23 @@ QString DockConfigManager::loadDockAppsSnapshot()
             continue;
         }
         QJsonParseError jerr;
-        QJsonDocument::fromJson(raw, &jerr);
-        if (jerr.error == QJsonParseError::NoError) {
-            if (debugLogsEnabled()) {
-                qInfo() << "AgildoDock[debug]: snapshot dockApps carregado de" << p;
-            }
-            return QString::fromUtf8(raw);
+        QJsonDocument doc = QJsonDocument::fromJson(raw, &jerr);
+        if (jerr.error != QJsonParseError::NoError) {
+            continue;
         }
+        // Skip snapshots with empty apps array — keep looking in .bak
+        QJsonObject obj = doc.object();
+        QJsonArray apps = obj.value(QStringLiteral("apps")).toArray();
+        if (apps.isEmpty()) {
+            if (debugLogsEnabled()) {
+                qInfo() << "AgildoDock[debug]: snapshot" << p << "has empty apps array, skipping";
+            }
+            continue;
+        }
+        if (debugLogsEnabled()) {
+            qInfo() << "AgildoDock[debug]: snapshot dockApps carregado de" << p;
+        }
+        return QString::fromUtf8(raw);
     }
     return {};
 }
