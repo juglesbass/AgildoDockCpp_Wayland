@@ -161,8 +161,8 @@ Window {
     readonly property alias dockHovered: physicsState.dockHovered
     readonly property alias waveAmplitude: physicsState.waveAmplitude
     readonly property alias smoothedWaveRowWidth: physicsState.smoothedWaveRowWidth
-    readonly property alias dockRetracted: physicsState.dockRetracted
-    readonly property alias dockAutoHideLatched: physicsState.dockAutoHideLatched
+    property alias dockRetracted: physicsState.dockRetracted
+    property alias dockAutoHideLatched: physicsState.dockAutoHideLatched
     readonly property alias waveBlurAnimating: physicsState.waveBlurAnimating
     readonly property alias waveAmpAnim: physicsState.waveAmpAnim
     property alias isDraggingOverDock: physicsState.isDraggingOverDock
@@ -706,9 +706,6 @@ Window {
             updateDynamicApps()
         }
         function onActiveWindowCoversWorkAreaChanged() {
-            applyDockRetractedState()
-        }
-        function onPlasmaEditModeChanged() {
             applyDockRetractedState()
         }
     }

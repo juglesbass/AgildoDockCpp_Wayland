@@ -108,9 +108,9 @@ Rectangle {
     }
 
     Connections {
-        target: waveAmpAnim
+        target: dockRoot.waveAmpAnim
         function onRunningChanged() {
-            if (waveAmpAnim.running || dockRoot.dockHovered)
+            if ((dockRoot.waveAmpAnim && dockRoot.waveAmpAnim.running) || dockRoot.dockHovered)
                 return
             if (dockRoot.waveAmplitude < 0.05)
                 dockBg.flushCollapseBlur()
