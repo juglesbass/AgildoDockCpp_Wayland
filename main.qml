@@ -900,62 +900,16 @@ Window {
         dockBg.syncBlurAfterStyleChange()
     }
 
-    property bool dockTipVisible: false
-    property string dockTipName: ""
-    property string dockTipStatus: ""
-    property color dockTipStatusColor: "#00E5FF"
-    property string dockTipHint: ""
-    property real dockTipAnchorX: 0
-    property real dockTipAnchorY: 0
-    property var dockTipWindowData: null
-    property int minimizeSuckSerial: 0
-
-    function removeMinimizeSuck(uid) {
-        for (let i = minimizeSuckModel.count - 1; i >= 0; i--) {
-            if (minimizeSuckModel.get(i).uid === uid) {
-                minimizeSuckModel.remove(i)
-                return
-            }
-        }
-    }
-
-    function playMinimizeSuckAt(iconItem) {
-        if (!iconItem) {
-            return
-        }
-        var center = iconItem.mapToItem(dockContainer, iconItem.width * 0.5, iconItem.height * 0.5)
-        var startY = Math.max(0, dockBg.y - (DockConstants.minimizeSuckStartOffsetYPx * root.liveScaleFactor))
-        var uid = ++root.minimizeSuckSerial
-        // Rastro curto para simular "sugar/suck" ao minimizar.
-        minimizeSuckModel.append({
-            uid: uid,
-            startX: center.x,
-            startY: startY,
-            destX: center.x,
-            destY: center.y,
-            size: Math.max(DockConstants.minMinimizeSuckSizePx, DockConstants.baseMinimizeSuckSizePx * root.liveScaleFactor),
-            durationMs: DockConstants.minimizeSuckDurationMs
-        })
-    }
-
     function showDockIconTip(iconItem, name, statusLine, statusColor, hintLine, winData) {
-        if (!iconItem) {
-            return
-        }
-        var pTop = iconItem.mapToItem(dockContainer, iconItem.width * 0.5, 0)
-        var pCenter = iconItem.mapToItem(dockContainer, iconItem.width * 0.5, iconItem.height * 0.5)
-        root.dockTipAnchorX = pCenter.x
-        root.dockTipAnchorY = pTop.y
-        root.dockTipName = name !== undefined ? name : ""
-        root.dockTipStatus = statusLine !== undefined ? statusLine : ""
-        root.dockTipStatusColor = statusColor
-        root.dockTipHint = hintLine !== undefined ? hintLine : ""
-        root.dockTipWindowData = winData || null
-        root.dockTipVisible = root.dockTipName.length > 0
+        overlayLayer.showDockIconTip(iconItem, name, statusLine, statusColor, hintLine, winData)
     }
 
     function hideDockIconTip() {
-        root.dockTipVisible = false
+        overlayLayer.hideDockIconTip()
+    }
+
+    function playMinimizeSuckAt(iconItem) {
+        overlayLayer.playMinimizeSuckAt(iconItem)
     }
 
     Timer {
@@ -1597,200 +1551,20 @@ Window {
             }
         }
 
-        // Tooltip global (coordenadas relativas ao dockContainer — mapToItem não aceita Window).
-        Item {
-            id: dockGlobalTip
-            z: 200000
-            visible: root.dockTipVisible && !root.dockContextMenuOpen
-            width: windowPreviewCard.visible ? windowPreviewCard.implicitWidth : globalTipBox.width
-            height: windowPreviewCard.visible ? windowPreviewCard.implicitHeight : globalTipBox.height
-
-            readonly property real marginGap: Math.round(10 * root.liveScaleFactor)
-
-            x: {
-                var edge = root.liveDockEdge
-                if (edge === 2) {
-                    return Math.round(dockBg.x + dockBg.width + marginGap)
-                } else if (edge === 3) {
-                    return Math.round(dockBg.x - width - marginGap)
-                } else {
-                    var targetX = root.dockTipAnchorX - (width * 0.5)
-                    return Math.round(Math.max(8, Math.min(targetX, root.width - width - 8)))
-                }
-            }
-
-            y: {
-                var edge = root.liveDockEdge
-                if (edge === 1) {
-                    return Math.round(dockBg.y + dockBg.height + marginGap)
-                } else if (edge === 2 || edge === 3) {
-                    var targetY = root.dockTipAnchorY - (height * 0.5)
-                    return Math.round(Math.max(8, Math.min(targetY, root.height - height - 8)))
-                } else {
-                    var iconTop = Math.min(dockBg.y, root.dockTipAnchorY)
-                    return Math.round(iconTop - height - marginGap)
-                }
-            }
-
-            DockWindowPreviewTooltip {
-                id: windowPreviewCard
-                dock: root
-                windowData: root.dockTipWindowData
-                visible: root.dockTipWindowData && root.dockTipWindowData.isRunning
-            }
-
-            Rectangle {
-                id: globalTipBox
-                visible: !windowPreviewCard.visible
-                property real tipInnerWidth: Math.min(
-                    320,
-                    Math.max(
-                        globalTipName.implicitWidth,
-                        globalTipStatus.visible ? globalTipStatus.implicitWidth : 0,
-                        globalTipHint.visible ? globalTipHint.implicitWidth : 0,
-                        80
-                    )
-                )
-                width: tipInnerWidth + 24
-                height: globalTipColumn.implicitHeight + 12
-                radius: 8
-                color: root.themeColors.tipBg
-                border.color: root.themeColors.tipBorder
-                border.width: 1
-                clip: true
-
-                Column {
-                    id: globalTipColumn
-                    x: 12
-                    y: 6
-                    spacing: 4
-                    width: globalTipBox.tipInnerWidth
-
-                    Text {
-                        id: globalTipName
-                        width: globalTipBox.tipInnerWidth
-                        text: root.dockTipName
-                        font.bold: true
-                        font.pixelSize: 13
-                        color: root.themeColors.textPrimary
-                        horizontalAlignment: Text.AlignHCenter
-                        elide: Text.ElideRight
-                        maximumLineCount: 1
-                    }
-                    Text {
-                        id: globalTipStatus
-                        visible: text.length > 0
-                        width: globalTipBox.tipInnerWidth
-                        text: root.dockTipStatus
-                        font.pixelSize: 12
-                        color: root.dockTipStatusColor
-                        horizontalAlignment: Text.AlignHCenter
-                        wrapMode: Text.NoWrap
-                    }
-                    Text {
-                        id: globalTipHint
-                        visible: text.length > 0
-                        width: globalTipBox.tipInnerWidth
-                        text: root.dockTipHint
-                        font.pixelSize: 12
-                        color: root.themeColors.textSecondary
-                        horizontalAlignment: Text.AlignHCenter
-                        wrapMode: Text.WordWrap
-                    }
-                }
-            }
-        }
-
-        Item {
-            id: minimizeSuckOverlay
+        DockOverlayLayer {
+            id: overlayLayer
             anchors.fill: parent
-            z: 210000
-
-            ListModel {
-                id: minimizeSuckModel
-            }
-
-            Repeater {
-                model: minimizeSuckModel
-                delegate: Item {
-                    required property int uid
-                    required property real startX
-                    required property real startY
-                    required property real destX
-                    required property real destY
-                    required property real size
-                    required property int durationMs
-
-                    x: startX - (size * 0.5)
-                    y: startY - (size * 0.5)
-                    width: size
-                    height: size
-                    opacity: 0.0
-                    scale: 1.0
-
-                    Rectangle {
-                        anchors.centerIn: parent
-                        width: parent.width
-                        height: parent.height
-                        radius: width * 0.5
-                        color: root.accentFocus
-                        opacity: 0.85
-                    }
-
-                    Rectangle {
-                        anchors.centerIn: parent
-                        width: parent.width * 1.9
-                        height: parent.height * 0.44
-                        radius: height * 0.5
-                        color: root.accentIdle
-                        opacity: 0.45
-                        rotation: -90
-                    }
-
-                    ParallelAnimation {
-                        running: true
-                        NumberAnimation {
-                            target: parent
-                            property: "x"
-                            to: destX - (size * 0.5)
-                            duration: durationMs
-                            easing.type: Easing.InCubic
-                        }
-                        NumberAnimation {
-                            target: parent
-                            property: "y"
-                            to: destY - (size * 0.5)
-                            duration: durationMs
-                            easing.type: Easing.InCubic
-                        }
-                        NumberAnimation {
-                            target: parent
-                            property: "scale"
-                            to: 0.2
-                            duration: durationMs
-                            easing.type: Easing.InCubic
-                        }
-                        SequentialAnimation {
-                            NumberAnimation {
-                                target: parent
-                                property: "opacity"
-                                from: 0.0
-                                to: 0.9
-                                duration: Math.max(40, durationMs * 0.30)
-                                easing.type: Easing.OutQuad
-                            }
-                            NumberAnimation {
-                                target: parent
-                                property: "opacity"
-                                to: 0.0
-                                duration: Math.max(90, durationMs * 0.70)
-                                easing.type: Easing.InQuad
-                            }
-                        }
-                        onFinished: root.removeMinimizeSuck(uid)
-                    }
-                }
-            }
+            dock: root
+            dockEdge: root.liveDockEdge
+            scaleFactor: root.liveScaleFactor
+            themeColors: root.themeColors
+            accentFocus: root.accentFocus
+            accentIdle: root.accentIdle
+            contextMenuOpen: root.dockContextMenuOpen
+            bgX: dockBg.x
+            bgY: dockBg.y
+            bgW: dockBg.width
+            bgH: dockBg.height
         }
     }
 

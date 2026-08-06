@@ -98,6 +98,7 @@ qt6_add_qml_module(agildodock
         DockAppMenuWindow.qml
         DockWidgetPickerWindow.qml
         DockWindowPreviewTooltip.qml
+        DockOverlayLayer.qml
     )
 
 # Ícone embutido: fallback quando o tema do sistema ainda não indexou org.agildosoft.agildodock.
@@ -121,6 +122,7 @@ set(AGILDO_DOCK_QML_I18N_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/DockAppMenuWindow.qml"
     "${CMAKE_CURRENT_SOURCE_DIR}/DockWidgetPickerWindow.qml"
     "${CMAKE_CURRENT_SOURCE_DIR}/DockWindowPreviewTooltip.qml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/DockOverlayLayer.qml"
 )
 
 qt_add_translations(agildodock
