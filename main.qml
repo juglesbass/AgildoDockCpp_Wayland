@@ -139,9 +139,11 @@ Window {
         id: physicsState
         dockRoot: root
         globalHover: globalHover
-        mainRow: mainRow
-        mainColumn: mainColumn
+        mainRow: dockContainer.mainRowRef
+        mainColumn: dockContainer.mainColumnRef
     }
+
+    readonly property alias dockBg: dockContainer.dockBgRef
 
     readonly property alias appRules: appRules
     property alias liveAppRulesJson: appRules.liveAppRulesJson
@@ -672,15 +674,15 @@ Window {
     }
 
     function showDockIconTip(iconItem, name, statusLine, statusColor, hintLine, winData) {
-        overlayLayer.showDockIconTip(iconItem, name, statusLine, statusColor, hintLine, winData)
+        dockContainer.showDockIconTip(iconItem, name, statusLine, statusColor, hintLine, winData)
     }
 
     function hideDockIconTip() {
-        overlayLayer.hideDockIconTip()
+        dockContainer.hideDockIconTip()
     }
 
     function playMinimizeSuckAt(iconItem) {
-        overlayLayer.playMinimizeSuckAt(iconItem)
+        dockContainer.playMinimizeSuckAt(iconItem)
     }
 
     Timer {
@@ -832,270 +834,9 @@ Window {
 
 
 
-    Item {
+    DockContainer {
         id: dockContainer
-        anchors.fill: parent
-        opacity: 0.0
-
-        Accessible.role: Accessible.Pane
-        Accessible.name: qsTr("AgildoDock")
-        Accessible.description: {
-            switch (root.liveDockEdge) {
-                case 1: return qsTr("Dock de aplicações na margem superior do ecrã.")
-                case 2: return qsTr("Dock de aplicações na margem esquerda do ecrã.")
-                case 3: return qsTr("Dock de aplicações na margem direita do ecrã.")
-                default: return qsTr("Dock de aplicações na margem inferior do ecrã.")
-            }
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            z: 300000
-            enabled: root.dockContextMenuOpen
-            hoverEnabled: false
-            propagateComposedEvents: false
-            acceptedButtons: Qt.AllButtons
-            onPressed: (mouse) => {
-                iconContextMenu.closeMenu()
-                mouse.accepted = true
-            }
-        }
-
-        property real dockSlidePixels: root.dockRetracted ? root.dockRetractSlidePixels : 0
-        Behavior on dockSlidePixels { enabled: !settingsWin.visible; NumberAnimation { duration: DockConstants.dockSlideAnimDurationMs; easing.type: Easing.OutBack; easing.overshoot: DockConstants.dockSlideEasingOvershoot } }
-        transform: Translate {
-            x: root.liveDockEdge === 2 ? -dockContainer.dockSlidePixels : (root.liveDockEdge === 3 ? dockContainer.dockSlidePixels : 0)
-            y: root.liveDockEdge === 1 ? -dockContainer.dockSlidePixels : (root.liveDockEdge === 0 ? dockContainer.dockSlidePixels : 0)
-        }
-
-        onDockSlidePixelsChanged: dockBg.syncBlurAfterStyleChange()
-
-        property real startupOffsetY: 0
-
-        onStartupOffsetYChanged: {
-            if (startupOffsetY < 0.5)
-                dockBg.syncBlurAfterStyleChange()
-        }
-
-        Component.onCompleted: {
-            startupOffsetY = DockConstants.startupOffsetYPx * root.liveScaleFactor
-            startupAnim.start()
-        }
-
-        Timer {
-            id: blurStartupSettleTimer
-            interval: DockConstants.blurStartupSettleDelayMs
-            repeat: false
-            onTriggered: dockBg.syncBlurAfterStyleChange()
-        }
-
-        ParallelAnimation {
-            id: startupAnim
-            NumberAnimation {
-                target: dockContainer
-                property: "opacity"
-                from: 0.0
-                to: 1.0
-                duration: DockConstants.startupFadeDurationMs
-                easing.type: Easing.OutQuad
-            }
-            NumberAnimation {
-                target: dockContainer
-                property: "startupOffsetY"
-                to: 0
-                duration: DockConstants.startupSlideDurationMs
-                easing.type: Easing.OutBack
-            }
-            onFinished: {
-                dockBg.syncBlurAfterStyleChange()
-                blurStartupSettleTimer.restart()
-            }
-        }
-
-        DockBlurBackground {
-            id: dockBg
-            dockRoot: root
-            dockContainer: dockContainer
-            waveAmpAnim: waveAmpAnim
-            onSurfaceContextMenuRequested: (surface, globalX, globalY) =>
-            root.showDockSurfaceContextMenu(surface, globalX, globalY)
-        }
-
-        Row {
-            id: mainRow
-            visible: !root.dockLayoutVertical
-            anchors.horizontalCenter: dockBg.horizontalCenter
-            anchors.bottom: root.liveDockEdge === 0 ? dockBg.bottom : undefined
-            anchors.top: root.liveDockEdge === 1 ? dockBg.top : undefined
-
-            height: Math.round(root.dockBarHeightPx * root.liveScaleFactor)
-            spacing: root.baseSpacing
-
-            add: Transition {
-                NumberAnimation { property: "scale"; from: 0; to: 1; duration: DockConstants.iconAddScaleDurationMs; easing.type: Easing.OutBack }
-                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: DockConstants.iconAddOpacityDurationMs }
-            }
-
-            Repeater {
-                model: launcherModel
-                delegate: DockIconDelegate { dock: root }
-            }
-            Repeater {
-                model: appModel
-                delegate: DockIconDelegate { dock: root }
-            }
-
-            Item {
-                width: root.dividerWidth
-                height: Math.round(root.dockBarHeightPx * root.liveScaleFactor)
-                visible: root.div1Count > 0
-
-                MouseArea {
-                    anchors.fill: parent
-                    hoverEnabled: true
-
-                    anchors.topMargin: -root.dividerExtraHitArea
-                    anchors.bottomMargin: -DockConstants.dividerHitBottomMarginPx
-
-                    function updateLogicalMouse(mx) {
-                        if (mx === undefined || isNaN(mx) || width <= 0) return
-                            if (root.dockHovered || root.waveAmplitude > 0.02) return
-                                var logicalStart = ((launcherModel.count + appModel.count) * root.baseStride) - (root.baseSpacing / 2)
-                                root.logicalMouseX = logicalStart + ((mx / width) * (root.dividerWidth + root.baseSpacing))
-                    }
-                    onPositionChanged: { updateLogicalMouse(mouseX) }
-                    onEntered: { updateLogicalMouse(mouseX) }
-                }
-
-                Rectangle {
-                    width: Math.max(2, Math.round(2 * root.liveScaleFactor))
-                    height: Math.round(root.dockBarHeightPx * root.liveScaleFactor) * 0.45
-                    color: root.themeColors.divider
-                    anchors.centerIn: parent
-                    radius: 1
-                    antialiasing: true
-                }
-            }
-
-            Repeater {
-                model: dynamicModel
-                delegate: DockIconDelegate { dock: root }
-            }
-
-            Item {
-                width: root.dividerWidth
-                height: Math.round(root.dockBarHeightPx * root.liveScaleFactor)
-                visible: root.div2Count > 0
-
-                MouseArea {
-                    anchors.fill: parent
-                    hoverEnabled: true
-
-                    anchors.topMargin: -root.dividerExtraHitArea
-                    anchors.bottomMargin: -40
-
-                    function updateLogicalMouse(mx) {
-                        if (mx === undefined || isNaN(mx) || width <= 0) return
-                            if (root.dockHovered || root.waveAmplitude > 0.02) return
-                                var prevCount = launcherModel.count + appModel.count + dynamicModel.count
-                                var logicalStart = (prevCount * root.baseStride) + (root.div1Count * root.dividerWidth) - (root.baseSpacing / 2)
-                                root.logicalMouseX = logicalStart + ((mx / width) * (root.dividerWidth + root.baseSpacing))
-                    }
-                    onPositionChanged: { updateLogicalMouse(mouseX) }
-                    onEntered: { updateLogicalMouse(mouseX) }
-                }
-
-                Rectangle {
-                    width: Math.max(2, Math.round(2 * root.liveScaleFactor))
-                    height: Math.round(root.dockBarHeightPx * root.liveScaleFactor) * 0.45
-                    color: root.themeColors.divider
-                    anchors.centerIn: parent
-                    radius: 1
-                    antialiasing: true
-                }
-            }
-
-            Repeater {
-                model: systemModel
-                delegate: DockIconDelegate { dock: root }
-            }
-        }
-
-        Column {
-            id: mainColumn
-            visible: root.dockLayoutVertical
-            anchors.verticalCenter: dockBg.verticalCenter
-            anchors.left: root.liveDockEdge === 2 ? dockBg.left : undefined
-            anchors.right: root.liveDockEdge === 3 ? dockBg.right : undefined
-            width: Math.round(root.dockBarHeightPx * root.liveScaleFactor)
-            spacing: root.baseSpacing
-
-            add: Transition {
-                NumberAnimation { property: "scale"; from: 0; to: 1; duration: 300; easing.type: Easing.OutBack }
-                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200 }
-            }
-
-            Repeater {
-                model: launcherModel
-                delegate: DockIconDelegate { dock: root }
-            }
-            Repeater {
-                model: appModel
-                delegate: DockIconDelegate { dock: root }
-            }
-
-            Item {
-                width: Math.round(root.dockBarHeightPx * root.liveScaleFactor)
-                height: root.dividerWidth
-                visible: root.div1Count > 0
-                Rectangle {
-                    width: Math.round(root.dockBarHeightPx * root.liveScaleFactor) * 0.45
-                    height: Math.max(2, Math.round(2 * root.liveScaleFactor))
-                    color: root.themeColors.divider
-                    anchors.centerIn: parent
-                    radius: 1
-                }
-            }
-
-            Repeater {
-                model: dynamicModel
-                delegate: DockIconDelegate { dock: root }
-            }
-
-            Item {
-                width: Math.round(root.dockBarHeightPx * root.liveScaleFactor)
-                height: root.dividerWidth
-                visible: root.div2Count > 0
-                Rectangle {
-                    width: Math.round(root.dockBarHeightPx * root.liveScaleFactor) * 0.45
-                    height: Math.max(2, Math.round(2 * root.liveScaleFactor))
-                    color: root.themeColors.divider
-                    anchors.centerIn: parent
-                    radius: 1
-                }
-            }
-
-            Repeater {
-                model: systemModel
-                delegate: DockIconDelegate { dock: root }
-            }
-        }
-
-        DockOverlayLayer {
-            id: overlayLayer
-            anchors.fill: parent
-            dock: root
-            dockEdge: root.liveDockEdge
-            scaleFactor: root.liveScaleFactor
-            themeColors: root.themeColors
-            accentFocus: root.accentFocus
-            accentIdle: root.accentIdle
-            contextMenuOpen: root.dockContextMenuOpen
-            bgX: dockBg.x
-            bgY: dockBg.y
-            bgW: dockBg.width
-            bgH: dockBg.height
-        }
+        dockRoot: root
     }
 
     DockIconContextMenu {

@@ -101,6 +101,7 @@ qt6_add_qml_module(agildodock
         DockOverlayLayer.qml
         DockModelsStore.qml
         DockPhysicsState.qml
+        DockContainer.qml
     )
 
 # Ícone embutido: fallback quando o tema do sistema ainda não indexou org.agildosoft.agildodock.
@@ -127,6 +128,7 @@ set(AGILDO_DOCK_QML_I18N_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/DockOverlayLayer.qml"
     "${CMAKE_CURRENT_SOURCE_DIR}/DockModelsStore.qml"
     "${CMAKE_CURRENT_SOURCE_DIR}/DockPhysicsState.qml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/DockContainer.qml"
 )
 
 qt_add_translations(agildodock
