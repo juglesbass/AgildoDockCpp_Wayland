@@ -89,6 +89,7 @@ qt6_add_qml_module(agildodock
         main.qml
         DockConstants.qml
         DockTheme.qml
+        DockAppRules.qml
         DockBlurBackground.qml
         DockSettingsWindow.qml
         LatteSliderRow.qml

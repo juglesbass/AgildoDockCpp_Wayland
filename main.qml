@@ -86,148 +86,29 @@ Window {
     property int liveDayThemeMode: 1
     property int liveNightThemeMode: 0
     property int liveNightStartHour: 18
-    property int liveDayStartHour: 7
     property string liveProfilesJson: "{}"
-    property string liveAppRulesJson: "{}"
-    property string liveCustomCommandsJson: "{}"
     property string liveWidgetsJson: "[]"
     property string livePresetName: "Dark Glass"
     property var customizationUndoStack: []
     property var customizationRedoStack: []
 
-    function themePalette(mode) { return DockTheme.themePalette(mode) }
-    readonly property var themeColors: DockTheme.themePalette(liveThemeMode)
-    readonly property color themeMenuBg: themeColors.menuBg
-    readonly property color themeMenuBorder: themeColors.menuBorder
-    readonly property color themeMenuHover: themeColors.menuHover
-    readonly property color themeTextPrimary: themeColors.textPrimary
-    readonly property color themeTextSecondary: themeColors.textSecondary
-
-    function accentPalette(mode) { return DockTheme.accentPalette(mode) }
-    readonly property var accentColors: DockTheme.accentPalette(liveAccentMode)
-    readonly property color accentIdle: accentColors.idle
-    readonly property color accentFocus: accentColors.focus
-
-    function animationDuration(baseMs) { return DockTheme.animationDuration(baseMs, liveAnimationProfile) }
-
-    function applyThemeForCommand(cmd) {
-        if (!liveAutoThemeByActiveApp || !cmd) return
-            let c = String(cmd).toLowerCase()
-            if (c.indexOf("dolphin") >= 0) liveAccentMode = 2
-                else if (c.indexOf("firefox") >= 0 || c.indexOf("chrom") >= 0) liveAccentMode = 0
-                    else if (c.indexOf("steam") >= 0) liveAccentMode = 3
-                        else if (c.indexOf("code") >= 0 || c.indexOf("cursor") >= 0) liveAccentMode = 1
+    DockAppRules {
+        id: appRules
+        dockRoot: root
     }
 
-    function customCommandsFor(cmd) {
-        try {
-            let parsed = JSON.parse(liveCustomCommandsJson || "{}")
-            let arr = parsed[cmd]
-            return Array.isArray(arr) ? arr : []
-        } catch (e) {
-            return []
-        }
-    }
+    readonly property alias appRules: appRules
+    property alias liveAppRulesJson: appRules.liveAppRulesJson
+    property alias liveCustomCommandsJson: appRules.liveCustomCommandsJson
 
-    function normalizeAppCommandKey(cmd) {
-        if (!cmd) {
-            return ""
-        }
-        let token = String(cmd).trim().toLowerCase().split(/\s+/)[0] || ""
-        const slash = token.lastIndexOf("/")
-        if (slash >= 0) {
-            token = token.substring(slash + 1)
-        }
-        return token.replace(/['"]/g, "")
-    }
-
-    function appRuleForCommand(cmd) {
-        try {
-            let parsed = JSON.parse(liveAppRulesJson || "{}")
-            const norm = normalizeAppCommandKey(cmd)
-            let rule = parsed[cmd]
-            if (!rule && norm.length > 0) {
-                for (let key in parsed) {
-                    if (normalizeAppCommandKey(key) === norm) {
-                        rule = parsed[key]
-                        break
-                    }
-                }
-            }
-            rule = rule && typeof rule === "object" ? Object.assign({}, rule) : {}
-            const nb = taskBackend.notificationBadges[cmd]
-            if (nb !== undefined && Number(nb) > 0) {
-                rule.badgeText = String(nb)
-            }
-            return rule
-        } catch (e) {
-            return {}
-        }
-    }
-
-    function effectiveLeftClickAction(cmd) {
-        const rule = appRuleForCommand(cmd)
-        if (rule.leftClickAction !== undefined) return rule.leftClickAction
-            return liveLeftClickAction
-    }
-    function effectiveMiddleClickAction(cmd) {
-        const rule = appRuleForCommand(cmd)
-        if (rule.middleClickAction !== undefined) return rule.middleClickAction
-            return liveMiddleClickAction
-    }
-    function effectiveRightClickAction(cmd) {
-        const rule = appRuleForCommand(cmd)
-        if (rule.rightClickAction !== undefined) return rule.rightClickAction
-            return liveRightClickAction
-    }
-
-    function setAppClickRule(cmd, field, value) {
-        let rules = {}
-        try { rules = JSON.parse(liveAppRulesJson || "{}") } catch (e) { rules = {} }
-        const norm = normalizeAppCommandKey(cmd)
-        const key = norm.length > 0 ? norm : cmd
-        // Remove chaves antigas equivalentes (ex.: "/usr/bin/chromium" vs "chromium").
-        for (let oldKey in rules) {
-            if (oldKey !== key && normalizeAppCommandKey(oldKey) === key) {
-                delete rules[oldKey]
-            }
-        }
-        if (!rules[key]) {
-            rules[key] = {}
-        }
-        rules[key][field] = value
-        liveAppRulesJson = JSON.stringify(rules)
-        dockSettings.appRulesJson = liveAppRulesJson
-        taskBackend.writeUserJsonFile("app_rules.json", liveAppRulesJson)
-    }
-
-    function migrateAppRulesJson() {
-        let rules = {}
-        try { rules = JSON.parse(liveAppRulesJson || "{}") } catch (e) { return }
-        let out = {}
-        let changed = false
-        for (let key in rules) {
-            const nk = normalizeAppCommandKey(key)
-            const target = nk.length > 0 ? nk : key
-            if (!out[target]) {
-                out[target] = {}
-            }
-            Object.assign(out[target], rules[key])
-            if (target !== key) {
-                changed = true
-            }
-        }
-        // Clique esquerdo em "Menu" no Chromium costuma ser acidental ao testar regras no menu.
-        if (out.chromium && out.chromium.leftClickAction === 1) {
-            delete out.chromium.leftClickAction
-            changed = true
-        }
-        if (changed) {
-            liveAppRulesJson = JSON.stringify(out)
-            dockSettings.appRulesJson = liveAppRulesJson
-            taskBackend.writeUserJsonFile("app_rules.json", liveAppRulesJson)
-        }
-    }
+    function customCommandsFor(cmd) { return appRules.customCommandsFor(cmd) }
+    function normalizeAppCommandKey(cmd) { return appRules.normalizeAppCommandKey(cmd) }
+    function appRuleForCommand(cmd) { return appRules.appRuleForCommand(cmd) }
+    function effectiveLeftClickAction(cmd) { return appRules.effectiveLeftClickAction(cmd) }
+    function effectiveMiddleClickAction(cmd) { return appRules.effectiveMiddleClickAction(cmd) }
+    function effectiveRightClickAction(cmd) { return appRules.effectiveRightClickAction(cmd) }
+    function setAppClickRule(cmd, field, value) { return appRules.setAppClickRule(cmd, field, value) }
+    function migrateAppRulesJson() { return appRules.migrateAppRulesJson() }
 
     function openSettingsGlobal() {
         settingsWin.show()
