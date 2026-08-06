@@ -45,7 +45,7 @@ QtObject {
                 }
             }
             rule = rule && typeof rule === "object" ? Object.assign({}, rule) : {}
-            const nb = (dockRoot && dockRoot.taskBackend) ? dockRoot.taskBackend.notificationBadges[cmd] : undefined
+            const nb = (typeof taskBackend !== "undefined" && taskBackend) ? taskBackend.notificationBadges[cmd] : undefined
             if (nb !== undefined && Number(nb) > 0) {
                 rule.badgeText = String(nb)
             }

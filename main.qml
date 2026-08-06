@@ -1257,39 +1257,26 @@ Window {
         applyScheduledThemeByClock()
         updateZone()
         let savedData = dockSettings.dockApps
-        if (savedData === "") {
-            // Guard rail: tenta snapshot atômico antes de cair no preset.
+        let success = populatePinnedAppsFromJson(savedData)
+        if (!success || appModel.count === 0) {
             const recovered = taskBackend.loadDockAppsSnapshot()
-            if (recovered !== "") {
-                savedData = recovered
+            if (recovered !== "" && populatePinnedAppsFromJson(recovered) && appModel.count > 0) {
                 dockSettings.dockApps = recovered
                 if (typeof dockSettings.sync === "function") dockSettings.sync()
+                console.warn(qsTr("Configuração recuperada do backup local de segurança."))
             }
         }
 
-        if (savedData === "") {
+        if (appModel.count === 0) {
             appModel.append({name: qsTr("Terminal"), icon: "konsole", cmd: "konsole"})
             appModel.append({name: qsTr("Ficheiros"), icon: "system-file-manager", cmd: "dolphin"})
             appModel.append({name: qsTr("Steam"), icon: "steam", cmd: "steam"})
             saveApps()
         } else {
-            if (!populatePinnedAppsFromJson(savedData)) {
-                const recovered = taskBackend.loadDockAppsSnapshot()
-                if (recovered !== "" && recovered !== savedData && populatePinnedAppsFromJson(recovered)) {
-                    dockSettings.dockApps = recovered
-                    if (typeof dockSettings.sync === "function") dockSettings.sync()
-                        taskBackend.saveDockAppsSnapshot(dockSettings.dockApps)
-                        console.warn(qsTr("Configuração recuperada do backup local de segurança."))
-                } else {
-                    console.warn(qsTr("Configuração de apps inválida; a usar lista vazia."))
-                    dockSettings.dockApps = JSON.stringify({ version: 2, savedAt: Date.now(), apps: [] })
-                    if (typeof dockSettings.sync === "function") dockSettings.sync()
-                }
-            } else {
-                // Garante snapshot seguro mesmo quando a sessão só lê config e não edita ícones.
-                taskBackend.saveDockAppsSnapshot(dockSettings.dockApps)
-            }
+            taskBackend.saveDockAppsSnapshot(dockSettings.dockApps)
         }
+
+        systemModel.clear()
         systemModel.append({name: qsTr("Transferências"), icon: "folder-downloads", cmd: "dolphin ~/Downloads", isSystem: true})
         systemModel.append({name: qsTr("Reciclagem"), icon: "user-trash", cmd: "dolphin trash:/", isSystem: true})
         reloadCustomWidgets()
