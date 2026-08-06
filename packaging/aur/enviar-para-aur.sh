@@ -22,17 +22,15 @@ if [ ! -f "$SRCINFO" ]; then
 fi
 
 # Verificar SSH
-if ! ssh -T aur@aur.archlinux.org &>/dev/null; then
-    echo "⚠️  Testando SSH..."
-    if ssh -T aur@aur.archlinux.org 2>&1 | grep -q "git-receive-pack"; then
-        echo "✅ SSH configurado corretamente"
-    else
-        echo "❌ SSH não configurado. Siga:"
-        echo "   1. Gere chave SSH: ssh-keygen -t ed25519 -f ~/.ssh/aur_arch"
-        echo "   2. Copie a chave pública para My Account → SSH Keys em aur.archlinux.org"
-        echo "   3. Configure ~/.ssh/config conforme descrito em packaging/aur/README.txt"
-        exit 1
-    fi
+echo "⚠️  Testando SSH..."
+if ssh -T aur@aur.archlinux.org 2>&1 | grep -qE "git-receive-pack|Welcome to AUR"; then
+    echo "✅ SSH configurado corretamente (autenticado como juglesbass no AUR)"
+else
+    echo "❌ SSH não configurado. Siga:"
+    echo "   1. Gere chave SSH: ssh-keygen -t ed25519 -f ~/.ssh/aur_arch"
+    echo "   2. Copie a chave pública para My Account → SSH Keys em aur.archlinux.org"
+    echo "   3. Configure ~/.ssh/config conforme descrito em packaging/aur/README.txt"
+    exit 1
 fi
 
 # Criar/clonar repositório AUR
