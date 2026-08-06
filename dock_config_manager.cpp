@@ -3,6 +3,8 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 #include <QSaveFile>
 #include <QStandardPaths>
 #include <QDebug>
@@ -43,7 +45,7 @@ bool DockConfigManager::saveDockAppsSnapshot(const QString &dockAppsJson)
     }
 
     QJsonParseError jerr;
-    QJsonDocument::fromJson(dockAppsJson.toUtf8(), &jerr);
+    QJsonDocument doc = QJsonDocument::fromJson(dockAppsJson.toUtf8(), &jerr);
     if (jerr.error != QJsonParseError::NoError) {
         if (debugLogsEnabled()) {
             qWarning() << "AgildoDock[debug]: snapshot dockApps inválido, ignorando:"
@@ -52,12 +54,15 @@ bool DockConfigManager::saveDockAppsSnapshot(const QString &dockAppsJson)
         return false;
     }
 
+    QJsonObject obj = doc.object();
+    QJsonArray appsArr = obj.value(QStringLiteral("apps")).toArray();
+
     const QString targetPath = dockAppsSnapshotPath();
     const QString backupPath = dockAppsSnapshotBackupPath();
     const QString targetDir = QFileInfo(targetPath).absolutePath();
     QDir().mkpath(targetDir);
 
-    if (QFile::exists(targetPath)) {
+    if (!appsArr.isEmpty() && QFile::exists(targetPath)) {
         QFile::remove(backupPath);
         QFile::copy(targetPath, backupPath);
     }

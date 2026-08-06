@@ -977,12 +977,15 @@ Window {
             } else {
                 return false
             }
+            if (apps.length === 0) {
+                return false
+            }
             for (let i = 0; i < apps.length; i++) {
                 if (apps[i] && apps[i].name && apps[i].cmd) {
                     appModel.append(apps[i])
                 }
             }
-            return true
+            return appModel.count > 0
         } catch (e) {
             return false
         }
