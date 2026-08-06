@@ -80,6 +80,7 @@ target_link_libraries(agildodock PRIVATE agildodock_core)
 target_compile_definitions(agildodock PRIVATE AGILDO_DOCK_VERSION="${PROJECT_VERSION}")
 
 set_source_files_properties(DockConstants.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+set_source_files_properties(DockTheme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
 qt6_add_qml_module(agildodock
     URI AgildoDock
@@ -87,6 +88,7 @@ qt6_add_qml_module(agildodock
     QML_FILES
         main.qml
         DockConstants.qml
+        DockTheme.qml
         DockBlurBackground.qml
         DockSettingsWindow.qml
         LatteSliderRow.qml
