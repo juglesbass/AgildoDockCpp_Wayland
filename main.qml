@@ -155,17 +155,17 @@ Window {
     readonly property alias ghostClearTimer: modelsStore.ghostClearTimer
 
     readonly property alias physicsState: physicsState
-    readonly property alias dockMouseX: physicsState.dockMouseX
-    readonly property alias dockMouseY: physicsState.dockMouseY
-    readonly property alias logicalMouseX: physicsState.logicalMouseX
-    readonly property alias dockHovered: physicsState.dockHovered
-    readonly property alias waveAmplitude: physicsState.waveAmplitude
-    readonly property alias smoothedWaveRowWidth: physicsState.smoothedWaveRowWidth
+    property alias dockMouseX: physicsState.dockMouseX
+    property alias dockMouseY: physicsState.dockMouseY
+    property alias logicalMouseX: physicsState.logicalMouseX
+    property alias dockHovered: physicsState.dockHovered
+    property alias waveAmplitude: physicsState.waveAmplitude
+    property alias smoothedWaveRowWidth: physicsState.smoothedWaveRowWidth
     property alias dockRetracted: physicsState.dockRetracted
     property alias dockAutoHideLatched: physicsState.dockAutoHideLatched
-    readonly property alias waveBlurAnimating: physicsState.waveBlurAnimating
-    readonly property alias waveAmpAnim: physicsState.waveAmpAnim
-    readonly property alias autoHideDockTimer: physicsState.autoHideDockTimer
+    property alias waveBlurAnimating: physicsState.waveBlurAnimating
+    property alias waveAmpAnim: physicsState.waveAmpAnim
+    property alias autoHideDockTimer: physicsState.autoHideDockTimer
     property alias isDraggingOverDock: physicsState.isDraggingOverDock
 
     function _processHoverPoint(px, py) { physicsState._processHoverPoint(px, py) }
