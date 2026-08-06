@@ -168,6 +168,7 @@ Window {
     property alias waveBlurAnimating: physicsState.waveBlurAnimating
     property alias waveAmpAnim: physicsState.waveAmpAnim
     property alias autoHideDockTimer: physicsState.autoHideDockTimer
+    property alias waveCollapseTimer: physicsState.waveCollapseTimer
     property alias isDraggingOverDock: physicsState.isDraggingOverDock
 
     function _processHoverPoint(px, py) { physicsState._processHoverPoint(px, py) }
