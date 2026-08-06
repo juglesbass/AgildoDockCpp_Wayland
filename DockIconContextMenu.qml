@@ -350,7 +350,7 @@ Window {
 
     Timer {
         id: menuOpenGraceTimer
-        interval: 320
+        interval: DockConstants.dockSlideAnimDurationMs
         repeat: false
         onTriggered: menuWin.recentSubmenuAllowed = true
     }
@@ -368,7 +368,7 @@ Window {
 
     Timer {
         id: submenuCloseTimer
-        interval: 320
+        interval: DockConstants.dockSlideAnimDurationMs
         repeat: false
         onTriggered: menuWin.recentSubmenuOpen = false
     }

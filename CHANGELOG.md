@@ -2,6 +2,18 @@
 
 Todas as alterações notáveis deste projeto são documentadas neste ficheiro.
 
+## [1.6.1] — 2026-08-06
+
+### Adicionado / Suíte de Testes Automatizados QML
+- **Suíte de Testes Unitários QML (`QtQuickTest`)**:
+  - Implementada suíte de testes unitários automatizados para a camada QML via `QtQuickTest` (`Qt6::QuickTest`), integrada nativamente ao `CTest`:
+    - `tst_DockModelsStore.qml`: Validação do cálculo de `totalItemsCount`, povoamento de aplicativos (`populatePinnedAppsFromJson`), remoção (*unpinApp*) e checagem de fixação (`isCommandPinned`).
+    - `tst_DockAppRules.qml`: Validação de normalização de executáveis (`normalizeAppCommandKey`) e regras customizadas de cliques por aplicativo (`customCommandsFor`).
+    - `tst_DockTheme.qml`: Validação das paletas de cores de temas (Escuro, Claro, Noite Azul, Ametista) e perfis de duração de animações.
+  - Testes executados em modo headless (`QT_QPA_PLATFORM=offscreen`) com 100% de cobertura nos módulos de dados e temas.
+- **Conectividade Total de Constantes (`DockConstants.qml`)**:
+  - Conexão de todas as constantes numéricas e z-index layers restantes ao singleton `DockConstants` (`zContextMenuOverlay`, `zTooltipLayer`, `zMinimizeSuckOverlay`, `zDropAreaLayer`, intervalos de timers de startup e agendamento de tema, e parâmetros visuais do overlay).
+
 ## [1.6.0] — 2026-08-06
 
 ### Refatoração de Arquitetura & Decomposição Completa do QML

@@ -688,7 +688,7 @@ Window {
 
     Timer {
         id: startupZoneTimer
-        interval: 1000
+        interval: DockConstants.startupZoneDelayMs
         running: true
         repeat: false
         onTriggered: updateZone()
@@ -696,7 +696,7 @@ Window {
 
     Timer {
         id: scheduledThemeTimer
-        interval: 60000
+        interval: DockConstants.themeScheduleCheckIntervalMs
         running: true
         repeat: true
         onTriggered: root.applyScheduledThemeByClock()
