@@ -165,6 +165,7 @@ Window {
     property alias dockAutoHideLatched: physicsState.dockAutoHideLatched
     readonly property alias waveBlurAnimating: physicsState.waveBlurAnimating
     readonly property alias waveAmpAnim: physicsState.waveAmpAnim
+    readonly property alias autoHideDockTimer: physicsState.autoHideDockTimer
     property alias isDraggingOverDock: physicsState.isDraggingOverDock
 
     function _processHoverPoint(px, py) { physicsState._processHoverPoint(px, py) }
