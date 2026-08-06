@@ -437,8 +437,8 @@ Window {
     property int totalItemsCount: modelsStore.totalItemsCount
     property real baseRowWidth: (totalItemsCount * baseItemWidth) + (Math.max(0, totalItemsCount - 1) * baseSpacing) + dividersWidth
 
-    readonly property alias mainRowRef: mainRow
-    readonly property alias mainColumnRef: mainColumn
+    readonly property alias mainRowRef: dockContainer.mainRowRef
+    readonly property alias mainColumnRef: dockContainer.mainColumnRef
 
 
 
