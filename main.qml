@@ -163,6 +163,8 @@ Window {
     readonly property alias smoothedWaveRowWidth: physicsState.smoothedWaveRowWidth
     readonly property alias dockRetracted: physicsState.dockRetracted
     readonly property alias dockAutoHideLatched: physicsState.dockAutoHideLatched
+    readonly property alias waveBlurAnimating: physicsState.waveBlurAnimating
+    readonly property alias waveAmpAnim: physicsState.waveAmpAnim
     property alias isDraggingOverDock: physicsState.isDraggingOverDock
 
     function _processHoverPoint(px, py) { physicsState._processHoverPoint(px, py) }

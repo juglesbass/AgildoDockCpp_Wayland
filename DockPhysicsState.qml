@@ -21,6 +21,7 @@ QtObject {
     property real waveAmplitude: 0.0
     property bool waveCollapseArmed: false
     readonly property bool waveBlurAnimating: waveAmpAnim.running || waveCollapseTimer.running || waveCollapseArmed
+    readonly property alias waveAmpAnim: waveAmpAnim
 
     onWaveBlurAnimatingChanged: {
         if (typeof taskBackend !== "undefined" && taskBackend) {
