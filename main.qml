@@ -86,11 +86,44 @@ Window {
     property int liveDayThemeMode: 1
     property int liveNightThemeMode: 0
     property int liveNightStartHour: 18
+    property int liveDayStartHour: 7
     property string liveProfilesJson: "{}"
     property string liveWidgetsJson: "[]"
     property string livePresetName: "Dark Glass"
     property var customizationUndoStack: []
     property var customizationRedoStack: []
+
+    // ── Propriedades de tema derivadas de DockTheme (singleton) ──
+    readonly property var themeColors: DockTheme.themePalette(liveThemeMode)
+    readonly property var accentColors: DockTheme.accentPalette(liveAccentMode)
+    readonly property color accentFocus: accentColors.focus
+    readonly property color accentIdle: accentColors.idle
+    readonly property color accentGlow: accentFocus
+    readonly property color themeTextPrimary: themeColors.textPrimary
+    readonly property color themeTextSecondary: themeColors.textSecondary
+    readonly property color themeDivider: themeColors.divider
+    readonly property color themeMenuBg: themeColors.menuBg
+    readonly property color themeMenuBorder: themeColors.menuBorder
+    readonly property color themeMenuHover: themeColors.menuHover
+    readonly property color themeTipBg: themeColors.tipBg
+    readonly property color themeTipBorder: themeColors.tipBorder
+    readonly property color themeDockBorder: themeColors.dockBorder
+    readonly property color themeDockTopLine: themeColors.dockTopLine
+
+    function animationDuration(baseMs) {
+        return DockTheme.animationDuration(baseMs, liveAnimationProfile)
+    }
+
+    function applyThemeForCommand(cmd) {
+        if (!liveAutoThemeByActiveApp) return
+        var rule = appRuleForCommand(cmd)
+        if (rule && rule.themeMode !== undefined) {
+            liveThemeMode = rule.themeMode
+        }
+        if (rule && rule.accentMode !== undefined) {
+            liveAccentMode = rule.accentMode
+        }
+    }
 
     DockAppRules {
         id: appRules
