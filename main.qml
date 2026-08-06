@@ -135,6 +135,14 @@ Window {
         dockRoot: root
     }
 
+    DockPhysicsState {
+        id: physicsState
+        dockRoot: root
+        globalHover: globalHover
+        mainRow: mainRow
+        mainColumn: mainColumn
+    }
+
     readonly property alias appRules: appRules
     property alias liveAppRulesJson: appRules.liveAppRulesJson
     property alias liveCustomCommandsJson: appRules.liveCustomCommandsJson
@@ -145,6 +153,22 @@ Window {
     readonly property alias dynamicModel: modelsStore.dynamicModel
     readonly property alias systemModel: modelsStore.systemModel
     readonly property alias ghostClearTimer: modelsStore.ghostClearTimer
+
+    readonly property alias physicsState: physicsState
+    readonly property alias dockMouseX: physicsState.dockMouseX
+    readonly property alias dockMouseY: physicsState.dockMouseY
+    readonly property alias logicalMouseX: physicsState.logicalMouseX
+    readonly property alias dockHovered: physicsState.dockHovered
+    readonly property alias waveAmplitude: physicsState.waveAmplitude
+    readonly property alias smoothedWaveRowWidth: physicsState.smoothedWaveRowWidth
+    readonly property alias dockRetracted: physicsState.dockRetracted
+    readonly property alias dockAutoHideLatched: physicsState.dockAutoHideLatched
+    property alias isDraggingOverDock: physicsState.isDraggingOverDock
+
+    function _processHoverPoint(px, py) { physicsState._processHoverPoint(px, py) }
+    function applyDockRetractedState() { physicsState.applyDockRetractedState() }
+    function restartAutoHideTimer() { physicsState.restartAutoHideTimer() }
+    function dockRevealEdgeHovered() { return physicsState.dockRevealEdgeHovered() }
 
     function unpinApp(indexToRemove) { return modelsStore.unpinApp(indexToRemove) }
     function populatePinnedAppsFromJson(rawJson) { return modelsStore.populatePinnedAppsFromJson(rawJson) }
@@ -320,8 +344,6 @@ Window {
     }
     onLiveBehaviorAutoHideDelayMsChanged: restartAutoHideTimer()
 
-    property bool dockRetracted: false
-    property bool dockAutoHideLatched: false
     property bool dockContextMenuOpen: false
 
     onDockRetractedChanged: {
@@ -413,8 +435,7 @@ Window {
     readonly property alias mainRowRef: mainRow
     readonly property alias mainColumnRef: mainColumn
 
-    property real smoothedWaveRowWidth: baseRowWidth
-    onBaseRowWidthChanged: smoothedWaveRowWidth = baseRowWidth
+
 
     readonly property int maxWinWidth: root.screen ? root.screen.width : DockConstants.fallbackScreenWidthPx
     readonly property int maxWinHeight: root.screen ? root.screen.height : DockConstants.fallbackScreenHeightPx
@@ -518,147 +539,7 @@ Window {
         }
     }
 
-    function _processHoverPoint(px, py) {
-        if (px === undefined || py === undefined) return;
 
-        root.dockMouseX = px
-        root.dockMouseY = py
-
-        var tw = root.dockLayoutVertical ? mainColumn.height : mainRow.width
-        if (tw <= 0) {
-            tw = root.baseRowWidth
-        }
-
-        var waveOn = root.waveAmplitude > DockConstants.waveAmplitudeCutoff
-        var alpha = 1.0
-        if (root.liveWaveInertia === 2) {
-            alpha = waveOn ? DockConstants.waveInertiaButteryActiveAlpha : DockConstants.waveInertiaButteryIdleAlpha
-        } else if (root.liveWaveInertia === 1) {
-            alpha = waveOn ? DockConstants.waveInertiaSmoothActiveAlpha : DockConstants.waveInertiaSmoothIdleAlpha
-        } else {
-            alpha = 1.0
-        }
-
-        root.smoothedWaveRowWidth = Math.max(
-            root.baseRowWidth,
-            (root.smoothedWaveRowWidth * (1.0 - alpha)) + (tw * alpha)
-        )
-
-        var lxRaw = 0
-        if (root.dockLayoutVertical) {
-            var colTop = (root.height * 0.5) - (root.baseRowWidth * 0.5)
-            lxRaw = root.dockMouseY - colTop
-        } else {
-            var rowLeft = (root.width * 0.5) - (root.baseRowWidth * 0.5)
-            lxRaw = root.dockMouseX - rowLeft
-        }
-        lxRaw = Math.max(0, Math.min(root.baseRowWidth, lxRaw))
-
-        var beta = 1.0
-        if (root.liveWaveInertia === 0) {
-            beta = 1.0  // 100% Instantânea 1:1 estilo macOS (0ms de atraso / resposta de hardware perfeita)
-        } else if (root.liveWaveInertia === 2) {
-            beta = waveOn ? DockConstants.waveInertiaButteryActiveAlpha : DockConstants.waveInertiaButteryIdleAlpha // Amanteigada / Fluida
-        } else {
-            beta = waveOn ? DockConstants.waveInertiaSmoothActiveAlpha : DockConstants.waveInertiaSmoothIdleAlpha // Suave (Padrão)
-        }
-        var lxOut = lxRaw
-        if (root.logicalMouseX > DockConstants.mouseInitializedThreshold) {
-            lxOut = root.logicalMouseX + (lxRaw - root.logicalMouseX) * beta
-        }
-        root.logicalMouseX = lxOut
-
-        if (root.dockRetracted && root.dockRevealEdgeHovered()) {
-            root.dockAutoHideLatched = false
-            root.dockRetracted = false
-            root.updateZone()
-        }
-    }
-
-    property real dockMouseX: -1000
-    property real dockMouseY: -1000
-    property bool isDraggingOverDock: false
-    property real logicalMouseX: -1000
-
-    property bool dockHovered: {
-        if (!globalHover.hovered && !isDraggingOverDock) return false
-        if (root.dockRetracted) return false
-
-        var maxIcon = Math.max(root.liveMinIconSize, root.liveMaxIconSize) * root.liveScaleFactor
-        var waveExtra = root.wavePeakDeltaPx * DockConstants.waveHoverSpanFactor * root.liveScaleFactor * root.liveWaveIntensity
-        var hoverSpan = root.baseRowWidth + (DockConstants.dockHoverPaddingPx * root.liveScaleFactor) + waveExtra
-
-        if (root.dockLayoutVertical) {
-            var safeHitX = root.liveDockEdge === 2
-            ? (maxIcon + DockConstants.dockHoverMarginPx)
-            : (root.width - (maxIcon + DockConstants.dockHoverMarginPx))
-            var dockTop = (root.height / 2) - (hoverSpan / 2)
-            var dockBottom = dockTop + hoverSpan
-            if (root.liveDockEdge === 2) {
-                return (dockMouseX < safeHitX) && (dockMouseY >= dockTop) && (dockMouseY <= dockBottom)
-            }
-            return (dockMouseX > safeHitX) && (dockMouseY >= dockTop) && (dockMouseY <= dockBottom)
-        }
-
-        var safeHitY = root.height - (maxIcon + DockConstants.dockHoverMarginPx)
-        if (root.liveDockEdge === 1) {
-            safeHitY = maxIcon + DockConstants.dockHoverMarginPx
-        }
-        var dockLeft = (root.width / 2) - (hoverSpan / 2)
-        var dockRight = dockLeft + hoverSpan
-
-        if (root.liveDockEdge === 1) {
-            return (dockMouseY < safeHitY) && (dockMouseX >= dockLeft) && (dockMouseX <= dockRight)
-        }
-        return (dockMouseY > safeHitY) && (dockMouseX >= dockLeft) && (dockMouseX <= dockRight)
-    }
-
-    property real waveAmplitude: 0.0
-    property bool waveCollapseArmed: false
-    readonly property bool waveBlurAnimating:
-    waveAmpAnim.running || waveCollapseTimer.running || waveCollapseArmed
-
-    onWaveBlurAnimatingChanged: taskBackend.setDockWaveAnimating(waveBlurAnimating)
-
-    Timer {
-        id: waveCollapseTimer
-        interval: DockConstants.waveCollapseIntervalMs
-        repeat: false
-        onTriggered: {
-            if (!root.dockHovered) {
-                root.waveAmplitude = 0.0
-                root.smoothedWaveRowWidth = root.baseRowWidth
-            }
-        }
-    }
-
-    Timer {
-        id: autoHideDockTimer
-        repeat: false
-        onTriggered: {
-            if (!root.liveBehaviorAutoHide) return
-            if (settingsWin.visible || root.isAppMenuOpen || root.isWidgetPickerOpen || taskBackend.isPlasmaEditMode || mainDropArea.containsDrag) return
-            if (root.dockHovered) return
-
-            root.dockAutoHideLatched = true
-            root.applyDockRetractedState()
-        }
-    }
-
-    function restartAutoHideTimer() {
-        if (!root.liveBehaviorAutoHide) {
-            autoHideDockTimer.stop()
-            root.dockAutoHideLatched = false
-            return
-        }
-        if (settingsWin.visible || root.isAppMenuOpen || root.isWidgetPickerOpen || taskBackend.isPlasmaEditMode || mainDropArea.containsDrag) {
-            autoHideDockTimer.stop()
-            root.dockAutoHideLatched = false
-            return
-        }
-        autoHideDockTimer.interval = Math.max(DockConstants.minAutoHideDelayMs, root.liveBehaviorAutoHideDelayMs)
-        autoHideDockTimer.restart()
-    }
 
     onLiveDockEdgeChanged: taskBackend.applyLayerShellEdge(root.liveDockEdge)
     onLiveDownloadProgressDisplayModeChanged: taskBackend.setDownloadProgressDisplayMode(root.liveDownloadProgressDisplayMode)
@@ -670,83 +551,7 @@ Window {
         taskBackend.applyLayerShellEdge(root.liveDockEdge)
     }
 
-    function dockRevealEdgeHovered() {
-        if (!globalHover.hovered)
-            return false
-            var band = root.dockRevealBandPx
-            switch (root.liveDockEdge) {
-                case 1: return root.dockMouseY < band
-                case 2: return root.dockMouseX < band
-                case 3: return root.dockMouseX > root.width - band
-                default: return root.dockMouseY > root.height - band
-            }
-    }
 
-    function applyDockRetractedState() {
-        if (settingsWin.visible || root.isAppMenuOpen || root.isWidgetPickerOpen || taskBackend.isPlasmaEditMode || mainDropArea.containsDrag) {
-            root.dockRetracted = false
-            root.dockAutoHideLatched = false
-            updateZone()
-            return
-        }
-        if (root.dockHovered) {
-            root.dockRetracted = false
-            updateZone()
-            return
-        }
-        var edgePeek = root.dockRevealEdgeHovered()
-        if (edgePeek) {
-            root.dockRetracted = false
-            root.dockAutoHideLatched = false
-            updateZone()
-            return
-        }
-
-        var dodgeHide = root.liveBehaviorDodgeWindows && taskBackend.activeWindowCoversWorkArea
-        var autoHideHide = root.liveBehaviorAutoHide && root.dockAutoHideLatched
-
-        var next = dodgeHide || autoHideHide
-        if (next !== root.dockRetracted) {
-            root.dockRetracted = next
-        }
-        updateZone()
-    }
-
-    Behavior on waveAmplitude {
-        NumberAnimation {
-            id: waveAmpAnim
-            duration: root.liveWaveInertia === 0 ? DockConstants.waveAmpFastDurationMs : (root.liveWaveInertia === 2 ? DockConstants.waveAmpButteryDurationMs : DockConstants.waveAmpSmoothDurationMs)
-            easing.type: Easing.OutCubic
-            onRunningChanged: {
-                if (running)
-                    root.waveCollapseArmed = false
-                    else if (!root.dockHovered && root.waveAmplitude < DockConstants.waveAmplitudeCutoff)
-                        root.waveCollapseArmed = false
-            }
-        }
-    }
-
-    onDockHoveredChanged: {
-        if (dockHovered) {
-            waveCollapseArmed = false
-            waveCollapseTimer.stop()
-            waveAmplitude = 1.0
-            root.smoothedWaveRowWidth = root.baseRowWidth
-            root.logicalMouseX = -1000
-            root.dockAutoHideLatched = false
-            autoHideDockTimer.stop()
-            root.dockRetracted = false
-            updateZone()
-        } else {
-            waveCollapseArmed = true
-            root.hideDockIconTip()
-            waveCollapseTimer.restart()
-            if (root.liveBehaviorAutoHide) {
-                restartAutoHideTimer()
-            }
-        }
-        applyDockRetractedState()
-    }
 
     Settings {
         id: dockSettings
