@@ -87,12 +87,12 @@ Item {
 
     Item {
         id: dockGlobalTip
-        z: 200000
+        z: DockConstants.zTooltipLayer
         visible: overlayRoot.tipVisible && !overlayRoot.contextMenuOpen
         width: windowPreviewCard.visible ? windowPreviewCard.implicitWidth : globalTipBox.width
         height: windowPreviewCard.visible ? windowPreviewCard.implicitHeight : globalTipBox.height
 
-        readonly property real marginGap: Math.round(10 * overlayRoot.scaleFactor)
+        readonly property real marginGap: Math.round(DockConstants.tooltipMarginGapPx * overlayRoot.scaleFactor)
 
         x: {
             var edge = overlayRoot.dockEdge
@@ -102,7 +102,7 @@ Item {
                 return Math.round(overlayRoot.bgX - width - marginGap)
             } else {
                 var targetX = overlayRoot.tipAnchorX - (width * 0.5)
-                return Math.round(Math.max(8, Math.min(targetX, overlayRoot.width - width - 8)))
+                return Math.round(Math.max(DockConstants.tooltipScreenMarginPx, Math.min(targetX, overlayRoot.width - width - DockConstants.tooltipScreenMarginPx)))
             }
         }
 
@@ -112,7 +112,7 @@ Item {
                 return Math.round(overlayRoot.bgY + overlayRoot.bgH + marginGap)
             } else if (edge === 2 || edge === 3) {
                 var targetY = overlayRoot.tipAnchorY - (height * 0.5)
-                return Math.round(Math.max(8, Math.min(targetY, overlayRoot.height - height - 8)))
+                return Math.round(Math.max(DockConstants.tooltipScreenMarginPx, Math.min(targetY, overlayRoot.height - height - DockConstants.tooltipScreenMarginPx)))
             } else {
                 var iconTop = Math.min(overlayRoot.bgY, overlayRoot.tipAnchorY)
                 return Math.round(iconTop - height - marginGap)
@@ -130,17 +130,17 @@ Item {
             id: globalTipBox
             visible: !windowPreviewCard.visible
             property real tipInnerWidth: Math.min(
-                320,
+                DockConstants.maxTooltipWidthPx,
                 Math.max(
                     globalTipName.implicitWidth,
                     globalTipStatus.visible ? globalTipStatus.implicitWidth : 0,
                     globalTipHint.visible ? globalTipHint.implicitWidth : 0,
-                    80
+                    DockConstants.minTooltipWidthPx
                 )
             )
             width: tipInnerWidth + 24
             height: globalTipColumn.implicitHeight + 12
-            radius: 8
+            radius: DockConstants.tooltipCornerRadiusPx
             color: overlayRoot.themeColors.tipBg
             border.color: overlayRoot.themeColors.tipBorder
             border.width: 1
@@ -179,7 +179,7 @@ Item {
                     visible: text.length > 0
                     width: globalTipBox.tipInnerWidth
                     text: overlayRoot.tipHint
-                    font.pixelSize: 12
+                    font.pixelSize: DockConstants.tooltipBodyFontSizePx
                     color: overlayRoot.themeColors.textSecondary
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.WordWrap
@@ -195,7 +195,7 @@ Item {
     Item {
         id: minimizeSuckOverlay
         anchors.fill: parent
-        z: 210000
+        z: DockConstants.zMinimizeSuckOverlay
 
         ListModel {
             id: minimizeSuckModel
@@ -230,8 +230,8 @@ Item {
 
                 Rectangle {
                     anchors.centerIn: parent
-                    width: parent.width * 1.9
-                    height: parent.height * 0.44
+                    width: parent.width * DockConstants.suckStreakWidthRatio
+                    height: parent.height * DockConstants.suckStreakHeightRatio
                     radius: height * 0.5
                     color: overlayRoot.accentIdle
                     opacity: 0.45
@@ -257,7 +257,7 @@ Item {
                     NumberAnimation {
                         target: parent
                         property: "scale"
-                        to: 0.2
+                        to: DockConstants.suckEndScale
                         duration: durationMs
                         easing.type: Easing.InCubic
                     }
@@ -267,14 +267,14 @@ Item {
                             property: "opacity"
                             from: 0.0
                             to: 0.9
-                            duration: Math.max(40, durationMs * 0.30)
+                            duration: Math.max(40, durationMs * DockConstants.suckFadeInRatio)
                             easing.type: Easing.OutQuad
                         }
                         NumberAnimation {
                             target: parent
                             property: "opacity"
                             to: 0.0
-                            duration: Math.max(90, durationMs * 0.70)
+                            duration: Math.max(90, durationMs * DockConstants.suckFadeOutRatio)
                             easing.type: Easing.InQuad
                         }
                     }

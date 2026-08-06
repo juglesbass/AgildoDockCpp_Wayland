@@ -47,7 +47,7 @@ Item {
 
     MouseArea {
         anchors.fill: parent
-        z: 300000
+        z: DockConstants.zContextMenuOverlay
         enabled: dockRoot.dockContextMenuOpen
         hoverEnabled: false
         propagateComposedEvents: false

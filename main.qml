@@ -893,8 +893,8 @@ Window {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        height: Math.max(70, root.dockExpandedHeight)
-        z: 99999
+        height: Math.max(DockConstants.minEdgeDropAreaHeightPx, root.dockExpandedHeight)
+        z: DockConstants.zDropAreaLayer
         enabled: root.dockRetracted && !root.dockContextMenuOpen
         onContainsDragChanged: {
             if (containsDrag) {
@@ -913,7 +913,7 @@ Window {
     DropArea {
         id: mainDropArea
         anchors.fill: dockContainer
-        z: 99999
+        z: DockConstants.zDropAreaLayer
         enabled: !root.dockContextMenuOpen
         keys: ["text/uri-list", "text/plain", "application/x-desktop", "text/x-plasmoidservicename", "text/x-plasma-widget", "appItemDrag"]
 
