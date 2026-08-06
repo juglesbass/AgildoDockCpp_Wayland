@@ -234,10 +234,15 @@ QtObject {
             let item = appModel.get(i)
             if (item) arr.push({ name: item.name, icon: item.icon, cmd: item.cmd })
         }
-        dockSettings.dockApps = JSON.stringify({ version: 2, savedAt: Date.now(), apps: arr })
-        taskBackend.saveDockAppsSnapshot(dockSettings.dockApps)
-        if (typeof dockSettings.sync === "function") {
-            dockSettings.sync()
+        let jsonStr = JSON.stringify({ version: 2, savedAt: Date.now(), apps: arr })
+        if (typeof dockSettings !== "undefined" && dockSettings) {
+            dockSettings.dockApps = jsonStr
+            if (typeof dockSettings.sync === "function") {
+                dockSettings.sync()
+            }
+        }
+        if (typeof taskBackend !== "undefined" && taskBackend) {
+            taskBackend.saveDockAppsSnapshot(jsonStr)
         }
         saveFlushTimer.restart()
         updateDynamicApps()

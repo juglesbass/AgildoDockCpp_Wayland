@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(agildodock VERSION 1.6.0 LANGUAGES CXX C)
+project(agildodock VERSION 1.6.1 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -26,7 +26,7 @@ if(ENABLE_SANITIZERS)
     endif()
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui GuiPrivate Qml Quick WaylandClient Concurrent DBus Sql LinguistTools Test)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui GuiPrivate Qml Quick WaylandClient Concurrent DBus Sql LinguistTools Test QuickTest)
 qt_policy(SET QTP0001 NEW)
 find_package(KF6WindowSystem REQUIRED)
 find_package(KF6GlobalAccel REQUIRED)
@@ -214,6 +214,13 @@ target_include_directories(test_taskbackend PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}
 target_link_libraries(test_taskbackend PRIVATE agildodock_core Qt6::Test)
 add_test(NAME taskbackend COMMAND test_taskbackend)
 
-set_tests_properties(dock_browser_utils taskbackend PROPERTIES
+add_executable(test_qml_components
+    tests/tst_qml_main.cpp
+)
+target_include_directories(test_qml_components PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(test_qml_components PRIVATE agildodock_core Qt6::Test Qt6::QuickTest Qt6::Quick)
+add_test(NAME qml_components COMMAND test_qml_components -input "${CMAKE_CURRENT_SOURCE_DIR}/tests" -import "${CMAKE_CURRENT_SOURCE_DIR}")
+
+set_tests_properties(dock_browser_utils taskbackend qml_components PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
 )
