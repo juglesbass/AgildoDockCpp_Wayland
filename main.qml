@@ -205,9 +205,13 @@ Window {
     function migrateAppRulesJson() { return appRules.migrateAppRulesJson() }
 
     function openSettingsGlobal() {
-        settingsWin.show()
-        settingsWin.raise()
-        settingsWin.requestActivate()
+        if (!settingsWinLoader.active) {
+            settingsWinLoader.active = true
+        } else if (settingsWinLoader.item) {
+            settingsWinLoader.item.show()
+            settingsWinLoader.item.raise()
+            settingsWinLoader.item.requestActivate()
+        }
     }
 
     function toggleDockGlobal() {
@@ -402,7 +406,7 @@ Window {
     }
 
     onLiveScaleFactorChanged: {
-        if (settingsWin.visible || root.isAppMenuOpen) {
+        if ((settingsWin && settingsWin.visible) || root.isAppMenuOpen) {
             root.dockRetracted = false
             root.dockAutoHideLatched = false
             autoHideDockTimer.stop()
@@ -496,7 +500,7 @@ Window {
     }
 
     Behavior on height {
-        enabled: !settingsWin.visible
+        enabled: !(settingsWin && settingsWin.visible)
         NumberAnimation {
             duration: DockConstants.dockHeightAnimDurationMs
             easing.type: Easing.OutCubic
@@ -1055,24 +1059,32 @@ Window {
         systemShortcutPicker.open()
     }
 
-    DockSettingsWindow {
-        id: settingsWin
-        dock: root
-    }
-
-    Connections {
-        target: settingsWin
-        function onVisibleChanged() {
-            if (settingsWin.visible) {
-                root.dockAutoHideLatched = false
-                autoHideDockTimer.stop()
-                root.dockRetracted = false
-                root.updateZone()
-            } else {
-                root.applyDockRetractedState()
+    Loader {
+        id: settingsWinLoader
+        active: false
+        sourceComponent: DockSettingsWindow {
+            dock: root
+            onVisibleChanged: {
+                if (visible) {
+                    root.dockAutoHideLatched = false
+                    autoHideDockTimer.stop()
+                    root.dockRetracted = false
+                    root.updateZone()
+                } else {
+                    root.applyDockRetractedState()
+                }
+            }
+        }
+        onLoaded: {
+            if (item) {
+                item.show()
+                item.raise()
+                item.requestActivate()
             }
         }
     }
+
+    readonly property var settingsWin: settingsWinLoader.item
 
     Connections {
         target: widgetPickerWindow
