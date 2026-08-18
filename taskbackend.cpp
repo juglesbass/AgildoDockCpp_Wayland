@@ -1445,19 +1445,21 @@ void TaskBackend::adjustBrightness(int deltaSteps)
     if (deltaSteps == 0) {
         return;
     }
-    QDBusInterface iface(QStringLiteral("org.kde.Solid.PowerManagement"),
-                         QStringLiteral("/org/kde/Solid/PowerManagement/Actions/BrightnessControl"),
-                         QStringLiteral("org.kde.Solid.PowerManagement.Actions.BrightnessControl"),
-                         QDBusConnection::sessionBus());
-    if (!iface.isValid()) {
-        return;
-    }
-    const int current = iface.property("brightness").toInt();
-    const int step = qMax(1, iface.property("brightnessSteps").toInt() / 20);
-    const int next = qBound(iface.property("brightnessMin").toInt(),
-                            current + (deltaSteps * step),
-                            iface.property("brightnessMax").toInt());
-    iface.call(QStringLiteral("setBrightness"), next);
+    (void)QtConcurrent::run([deltaSteps]() {
+        QDBusInterface iface(QStringLiteral("org.kde.Solid.PowerManagement"),
+                             QStringLiteral("/org/kde/Solid/PowerManagement/Actions/BrightnessControl"),
+                             QStringLiteral("org.kde.Solid.PowerManagement.Actions.BrightnessControl"),
+                             QDBusConnection::sessionBus());
+        if (!iface.isValid()) {
+            return;
+        }
+        const int current = iface.property("brightness").toInt();
+        const int step = qMax(1, iface.property("brightnessSteps").toInt() / 20);
+        const int next = qBound(iface.property("brightnessMin").toInt(),
+                                current + (deltaSteps * step),
+                                iface.property("brightnessMax").toInt());
+        iface.call(QStringLiteral("setBrightness"), next);
+    });
 }
 
 static bool recentMatchesCommand(const QString &command, const QString &href, const QString &title)

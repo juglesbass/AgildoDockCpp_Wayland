@@ -527,8 +527,7 @@ bool activateKWinWindowView(const QStringList &handles)
                                                       QStringLiteral("org.kde.KWin.Effect.WindowView1"),
                                                       QStringLiteral("activate"));
     msg.setArguments({handles});
-    const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, 600);
-    return reply.type() == QDBusMessage::ReplyMessage;
+    return QDBusConnection::sessionBus().send(msg);
 }
 
 bool fillActiveHintsFromNativeStacking(QString &outClassLower,
