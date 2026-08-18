@@ -9,14 +9,41 @@ QtObject {
     property string liveAppRulesJson: "{}"
     property string liveCustomCommandsJson: "{}"
 
-    function customCommandsFor(cmd) {
+    property var _rulesCache: ({})
+    property var _customCommandsCache: ({})
+
+    onLiveAppRulesJsonChanged: _rebuildRulesCache()
+    onLiveCustomCommandsJsonChanged: _rebuildCustomCommandsCache()
+
+    Component.onCompleted: {
+        _rebuildRulesCache()
+        _rebuildCustomCommandsCache()
+    }
+
+    function _rebuildRulesCache() {
         try {
-            let parsed = JSON.parse(liveCustomCommandsJson || "{}")
-            let arr = parsed[cmd]
-            return Array.isArray(arr) ? arr : []
+            _rulesCache = JSON.parse(liveAppRulesJson || "{}") || {}
         } catch (e) {
-            return []
+            _rulesCache = {}
         }
+    }
+
+    function _rebuildCustomCommandsCache() {
+        try {
+            _customCommandsCache = JSON.parse(liveCustomCommandsJson || "{}") || {}
+        } catch (e) {
+            _customCommandsCache = {}
+        }
+    }
+
+    function customCommandsFor(cmd) {
+        if (!cmd) return []
+        let arr = _customCommandsCache[cmd]
+        if (!arr) {
+            const norm = normalizeAppCommandKey(cmd)
+            arr = _customCommandsCache[norm]
+        }
+        return Array.isArray(arr) ? arr : []
     }
 
     function normalizeAppCommandKey(cmd) {
@@ -32,27 +59,26 @@ QtObject {
     }
 
     function appRuleForCommand(cmd) {
-        try {
-            let parsed = JSON.parse(liveAppRulesJson || "{}")
-            const norm = normalizeAppCommandKey(cmd)
-            let rule = parsed[cmd]
-            if (!rule && norm.length > 0) {
-                for (let key in parsed) {
+        if (!cmd) return {}
+        const norm = normalizeAppCommandKey(cmd)
+        let rule = _rulesCache[cmd]
+        if (!rule && norm.length > 0) {
+            rule = _rulesCache[norm]
+            if (!rule) {
+                for (let key in _rulesCache) {
                     if (normalizeAppCommandKey(key) === norm) {
-                        rule = parsed[key]
+                        rule = _rulesCache[key]
                         break
                     }
                 }
             }
-            rule = rule && typeof rule === "object" ? Object.assign({}, rule) : {}
-            const nb = (typeof taskBackend !== "undefined" && taskBackend) ? taskBackend.notificationBadges[cmd] : undefined
-            if (nb !== undefined && Number(nb) > 0) {
-                rule.badgeText = String(nb)
-            }
-            return rule
-        } catch (e) {
-            return {}
         }
+        rule = (rule && typeof rule === "object") ? Object.assign({}, rule) : {}
+        const nb = (typeof taskBackend !== "undefined" && taskBackend) ? taskBackend.notificationBadges[cmd] : undefined
+        if (nb !== undefined && Number(nb) > 0) {
+            rule.badgeText = String(nb)
+        }
+        return rule
     }
 
     function effectiveLeftClickAction(cmd) {
