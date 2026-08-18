@@ -227,7 +227,14 @@ Window {
         }
     }
 
-    onSearchTextChanged: updateFilteredModel()
+    Timer {
+        id: filterDebounceTimer
+        interval: 60
+        repeat: false
+        onTriggered: appMenuWin.updateFilteredModel()
+    }
+
+    onSearchTextChanged: filterDebounceTimer.restart()
     onSelectedCategoryChanged: updateFilteredModel()
     onAllAppsListChanged: updateFilteredModel()
 
