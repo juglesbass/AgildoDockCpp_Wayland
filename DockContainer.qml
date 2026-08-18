@@ -6,8 +6,8 @@ Item {
 
     required property var dockRoot
 
-    readonly property alias mainRowRef: mainRow
-    readonly property alias mainColumnRef: mainColumn
+    readonly property var mainRowRef: mainRowLoader.item
+    readonly property var mainColumnRef: mainColumnLoader.item
     readonly property alias dockBgRef: dockBg
     readonly property alias overlayLayerRef: overlayLayer
 
@@ -129,163 +129,174 @@ Item {
             containerRoot.dockRoot.showDockSurfaceContextMenu(surface, globalX, globalY)
     }
 
-    Row {
-        id: mainRow
-        visible: !containerRoot.dockRoot.dockLayoutVertical
+    Loader {
+        id: mainRowLoader
+        active: !containerRoot.dockRoot.dockLayoutVertical
         anchors.horizontalCenter: dockBg.horizontalCenter
         anchors.bottom: containerRoot.dockRoot.liveDockEdge === 0 ? dockBg.bottom : undefined
         anchors.top: containerRoot.dockRoot.liveDockEdge === 1 ? dockBg.top : undefined
+        sourceComponent: Component {
+            id: horizontalRowComp
+            Row {
+                id: mainRow
+                height: Math.round(containerRoot.dockRoot.dockBarHeightPx * containerRoot.dockRoot.liveScaleFactor)
+                spacing: containerRoot.dockRoot.baseSpacing
 
-        height: Math.round(containerRoot.dockRoot.dockBarHeightPx * containerRoot.dockRoot.liveScaleFactor)
-        spacing: containerRoot.dockRoot.baseSpacing
-
-        add: Transition {
-            NumberAnimation { property: "scale"; from: 0; to: 1; duration: DockConstants.iconAddScaleDurationMs; easing.type: Easing.OutBack }
-            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: DockConstants.iconAddOpacityDurationMs }
-        }
-
-        Repeater {
-            model: containerRoot.dockRoot.launcherModel
-            delegate: DockIconDelegate { dock: containerRoot.dockRoot }
-        }
-        Repeater {
-            model: containerRoot.dockRoot.appModel
-            delegate: DockIconDelegate { dock: containerRoot.dockRoot }
-        }
-
-        Item {
-            width: containerRoot.dockRoot.dividerWidth
-            height: Math.round(containerRoot.dockRoot.dockBarHeightPx * containerRoot.dockRoot.liveScaleFactor)
-            visible: containerRoot.dockRoot.div1Count > 0
-
-            MouseArea {
-                anchors.fill: parent
-                hoverEnabled: true
-
-                anchors.topMargin: -containerRoot.dockRoot.dividerExtraHitArea
-                anchors.bottomMargin: -DockConstants.dividerHitBottomMarginPx
-
-                function updateLogicalMouse(mx) {
-                    if (mx === undefined || isNaN(mx) || width <= 0) return
-                    if (containerRoot.dockRoot.dockHovered || containerRoot.dockRoot.waveAmplitude > 0.02) return
-                    var logicalStart = ((containerRoot.dockRoot.launcherModel.count + containerRoot.dockRoot.appModel.count) * containerRoot.dockRoot.baseStride) - (containerRoot.dockRoot.baseSpacing / 2)
-                    containerRoot.dockRoot.logicalMouseX = logicalStart + ((mx / width) * (containerRoot.dockRoot.dividerWidth + containerRoot.dockRoot.baseSpacing))
+                add: Transition {
+                    NumberAnimation { property: "scale"; from: 0; to: 1; duration: DockConstants.iconAddScaleDurationMs; easing.type: Easing.OutBack }
+                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: DockConstants.iconAddOpacityDurationMs }
                 }
-                onPositionChanged: { updateLogicalMouse(mouseX) }
-                onEntered: { updateLogicalMouse(mouseX) }
-            }
 
-            Rectangle {
-                width: Math.max(2, Math.round(2 * containerRoot.dockRoot.liveScaleFactor))
-                height: Math.round(containerRoot.dockRoot.dockBarHeightPx * containerRoot.dockRoot.liveScaleFactor) * 0.45
-                color: containerRoot.dockRoot.themeColors.divider
-                anchors.centerIn: parent
-                radius: 1
-                antialiasing: true
-            }
-        }
-
-        Repeater {
-            model: containerRoot.dockRoot.dynamicModel
-            delegate: DockIconDelegate { dock: containerRoot.dockRoot }
-        }
-
-        Item {
-            width: containerRoot.dockRoot.dividerWidth
-            height: Math.round(containerRoot.dockRoot.dockBarHeightPx * containerRoot.dockRoot.liveScaleFactor)
-            visible: containerRoot.dockRoot.div2Count > 0
-
-            MouseArea {
-                anchors.fill: parent
-                hoverEnabled: true
-
-                anchors.topMargin: -containerRoot.dockRoot.dividerExtraHitArea
-                anchors.bottomMargin: -40
-
-                function updateLogicalMouse(mx) {
-                    if (mx === undefined || isNaN(mx) || width <= 0) return
-                    if (containerRoot.dockRoot.dockHovered || containerRoot.dockRoot.waveAmplitude > 0.02) return
-                    var prevCount = containerRoot.dockRoot.launcherModel.count + containerRoot.dockRoot.appModel.count + containerRoot.dockRoot.dynamicModel.count
-                    var logicalStart = (prevCount * containerRoot.dockRoot.baseStride) + (containerRoot.dockRoot.div1Count * containerRoot.dockRoot.dividerWidth) - (containerRoot.dockRoot.baseSpacing / 2)
-                    containerRoot.dockRoot.logicalMouseX = logicalStart + ((mx / width) * (containerRoot.dockRoot.dividerWidth + containerRoot.dockRoot.baseSpacing))
+                Repeater {
+                    model: containerRoot.dockRoot.launcherModel
+                    delegate: DockIconDelegate { dock: containerRoot.dockRoot }
                 }
-                onPositionChanged: { updateLogicalMouse(mouseX) }
-                onEntered: { updateLogicalMouse(mouseX) }
-            }
+                Repeater {
+                    model: containerRoot.dockRoot.appModel
+                    delegate: DockIconDelegate { dock: containerRoot.dockRoot }
+                }
 
-            Rectangle {
-                width: Math.max(2, Math.round(2 * containerRoot.dockRoot.liveScaleFactor))
-                height: Math.round(containerRoot.dockRoot.dockBarHeightPx * containerRoot.dockRoot.liveScaleFactor) * 0.45
-                color: containerRoot.dockRoot.themeColors.divider
-                anchors.centerIn: parent
-                radius: 1
-                antialiasing: true
-            }
-        }
+                Item {
+                    width: containerRoot.dockRoot.dividerWidth
+                    height: Math.round(containerRoot.dockRoot.dockBarHeightPx * containerRoot.dockRoot.liveScaleFactor)
+                    visible: containerRoot.dockRoot.div1Count > 0
 
-        Repeater {
-            model: containerRoot.dockRoot.systemModel
-            delegate: DockIconDelegate { dock: containerRoot.dockRoot }
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+
+                        anchors.topMargin: -containerRoot.dockRoot.dividerExtraHitArea
+                        anchors.bottomMargin: -DockConstants.dividerHitBottomMarginPx
+
+                        function updateLogicalMouse(mx) {
+                            if (mx === undefined || isNaN(mx) || width <= 0) return
+                            if (containerRoot.dockRoot.dockHovered || containerRoot.dockRoot.waveAmplitude > 0.02) return
+                            var logicalStart = ((containerRoot.dockRoot.launcherModel.count + containerRoot.dockRoot.appModel.count) * containerRoot.dockRoot.baseStride) - (containerRoot.dockRoot.baseSpacing / 2)
+                            containerRoot.dockRoot.logicalMouseX = logicalStart + ((mx / width) * (containerRoot.dockRoot.dividerWidth + containerRoot.dockRoot.baseSpacing))
+                        }
+                        onPositionChanged: { updateLogicalMouse(mouseX) }
+                        onEntered: { updateLogicalMouse(mouseX) }
+                    }
+
+                    Rectangle {
+                        width: Math.max(2, Math.round(2 * containerRoot.dockRoot.liveScaleFactor))
+                        height: Math.round(containerRoot.dockRoot.dockBarHeightPx * containerRoot.dockRoot.liveScaleFactor) * 0.45
+                        color: containerRoot.dockRoot.themeColors.divider
+                        anchors.centerIn: parent
+                        radius: 1
+                        antialiasing: true
+                    }
+                }
+
+                Repeater {
+                    model: containerRoot.dockRoot.dynamicModel
+                    delegate: DockIconDelegate { dock: containerRoot.dockRoot }
+                }
+
+                Item {
+                    width: containerRoot.dockRoot.dividerWidth
+                    height: Math.round(containerRoot.dockRoot.dockBarHeightPx * containerRoot.dockRoot.liveScaleFactor)
+                    visible: containerRoot.dockRoot.div2Count > 0
+
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+
+                        anchors.topMargin: -containerRoot.dockRoot.dividerExtraHitArea
+                        anchors.bottomMargin: -40
+
+                        function updateLogicalMouse(mx) {
+                            if (mx === undefined || isNaN(mx) || width <= 0) return
+                            if (containerRoot.dockRoot.dockHovered || containerRoot.dockRoot.waveAmplitude > 0.02) return
+                            var prevCount = containerRoot.dockRoot.launcherModel.count + containerRoot.dockRoot.appModel.count + containerRoot.dockRoot.dynamicModel.count
+                            var logicalStart = (prevCount * containerRoot.dockRoot.baseStride) + (containerRoot.dockRoot.div1Count * containerRoot.dockRoot.dividerWidth) - (containerRoot.dockRoot.baseSpacing / 2)
+                            containerRoot.dockRoot.logicalMouseX = logicalStart + ((mx / width) * (containerRoot.dockRoot.dividerWidth + containerRoot.dockRoot.baseSpacing))
+                        }
+                        onPositionChanged: { updateLogicalMouse(mouseX) }
+                        onEntered: { updateLogicalMouse(mouseX) }
+                    }
+
+                    Rectangle {
+                        width: Math.max(2, Math.round(2 * containerRoot.dockRoot.liveScaleFactor))
+                        height: Math.round(containerRoot.dockRoot.dockBarHeightPx * containerRoot.dockRoot.liveScaleFactor) * 0.45
+                        color: containerRoot.dockRoot.themeColors.divider
+                        anchors.centerIn: parent
+                        radius: 1
+                        antialiasing: true
+                    }
+                }
+
+                Repeater {
+                    model: containerRoot.dockRoot.systemModel
+                    delegate: DockIconDelegate { dock: containerRoot.dockRoot }
+                }
+            }
         }
     }
 
-    Column {
-        id: mainColumn
-        visible: containerRoot.dockRoot.dockLayoutVertical
+    Loader {
+        id: mainColumnLoader
+        active: containerRoot.dockRoot.dockLayoutVertical
         anchors.verticalCenter: dockBg.verticalCenter
         anchors.left: containerRoot.dockRoot.liveDockEdge === 2 ? dockBg.left : undefined
         anchors.right: containerRoot.dockRoot.liveDockEdge === 3 ? dockBg.right : undefined
-        width: Math.round(containerRoot.dockRoot.dockBarHeightPx * containerRoot.dockRoot.liveScaleFactor)
-        spacing: containerRoot.dockRoot.baseSpacing
+        sourceComponent: Component {
+            id: verticalColComp
+            Column {
+                id: mainColumn
+                width: Math.round(containerRoot.dockRoot.dockBarHeightPx * containerRoot.dockRoot.liveScaleFactor)
+                spacing: containerRoot.dockRoot.baseSpacing
 
-        add: Transition {
-            NumberAnimation { property: "scale"; from: 0; to: 1; duration: 300; easing.type: Easing.OutBack }
-            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200 }
-        }
+                add: Transition {
+                    NumberAnimation { property: "scale"; from: 0; to: 1; duration: 300; easing.type: Easing.OutBack }
+                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200 }
+                }
 
-        Repeater {
-            model: containerRoot.dockRoot.launcherModel
-            delegate: DockIconDelegate { dock: containerRoot.dockRoot }
-        }
-        Repeater {
-            model: containerRoot.dockRoot.appModel
-            delegate: DockIconDelegate { dock: containerRoot.dockRoot }
-        }
+                Repeater {
+                    model: containerRoot.dockRoot.launcherModel
+                    delegate: DockIconDelegate { dock: containerRoot.dockRoot }
+                }
+                Repeater {
+                    model: containerRoot.dockRoot.appModel
+                    delegate: DockIconDelegate { dock: containerRoot.dockRoot }
+                }
 
-        Item {
-            width: Math.round(containerRoot.dockRoot.dockBarHeightPx * containerRoot.dockRoot.liveScaleFactor)
-            height: containerRoot.dockRoot.dividerWidth
-            visible: containerRoot.dockRoot.div1Count > 0
-            Rectangle {
-                width: Math.round(containerRoot.dockRoot.dockBarHeightPx * containerRoot.dockRoot.liveScaleFactor) * 0.45
-                height: Math.max(2, Math.round(2 * containerRoot.dockRoot.liveScaleFactor))
-                color: containerRoot.dockRoot.themeColors.divider
-                anchors.centerIn: parent
-                radius: 1
+                Item {
+                    width: Math.round(containerRoot.dockRoot.dockBarHeightPx * containerRoot.dockRoot.liveScaleFactor)
+                    height: containerRoot.dockRoot.dividerWidth
+                    visible: containerRoot.dockRoot.div1Count > 0
+                    Rectangle {
+                        width: Math.round(containerRoot.dockRoot.dockBarHeightPx * containerRoot.dockRoot.liveScaleFactor) * 0.45
+                        height: Math.max(2, Math.round(2 * containerRoot.dockRoot.liveScaleFactor))
+                        color: containerRoot.dockRoot.themeColors.divider
+                        anchors.centerIn: parent
+                        radius: 1
+                    }
+                }
+
+                Repeater {
+                    model: containerRoot.dockRoot.dynamicModel
+                    delegate: DockIconDelegate { dock: containerRoot.dockRoot }
+                }
+
+                Item {
+                    width: Math.round(containerRoot.dockRoot.dockBarHeightPx * containerRoot.dockRoot.liveScaleFactor)
+                    height: containerRoot.dockRoot.dividerWidth
+                    visible: containerRoot.dockRoot.div2Count > 0
+                    Rectangle {
+                        width: Math.round(containerRoot.dockRoot.dockBarHeightPx * containerRoot.dockRoot.liveScaleFactor) * 0.45
+                        height: Math.max(2, Math.round(2 * containerRoot.dockRoot.liveScaleFactor))
+                        color: containerRoot.dockRoot.themeColors.divider
+                        anchors.centerIn: parent
+                        radius: 1
+                    }
+                }
+
+                Repeater {
+                    model: containerRoot.dockRoot.systemModel
+                    delegate: DockIconDelegate { dock: containerRoot.dockRoot }
+                }
             }
-        }
-
-        Repeater {
-            model: containerRoot.dockRoot.dynamicModel
-            delegate: DockIconDelegate { dock: containerRoot.dockRoot }
-        }
-
-        Item {
-            width: Math.round(containerRoot.dockRoot.dockBarHeightPx * containerRoot.dockRoot.liveScaleFactor)
-            height: containerRoot.dockRoot.dividerWidth
-            visible: containerRoot.dockRoot.div2Count > 0
-            Rectangle {
-                width: Math.round(containerRoot.dockRoot.dockBarHeightPx * containerRoot.dockRoot.liveScaleFactor) * 0.45
-                height: Math.max(2, Math.round(2 * containerRoot.dockRoot.liveScaleFactor))
-                color: containerRoot.dockRoot.themeColors.divider
-                anchors.centerIn: parent
-                radius: 1
-            }
-        }
-
-        Repeater {
-            model: containerRoot.dockRoot.systemModel
-            delegate: DockIconDelegate { dock: containerRoot.dockRoot }
         }
     }
 

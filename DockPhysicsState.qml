@@ -132,7 +132,7 @@ QtObject {
         dockMouseX = px
         dockMouseY = py
 
-        var tw = dockRoot.dockLayoutVertical ? mainColumn.height : mainRow.width
+        var tw = dockRoot.dockLayoutVertical ? (mainColumn ? mainColumn.height : 0) : (mainRow ? mainRow.width : 0)
         if (tw <= 0) {
             tw = dockRoot.baseRowWidth
         }

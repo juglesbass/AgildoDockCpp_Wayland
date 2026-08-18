@@ -932,9 +932,9 @@ Window {
             root.dockMouseX = drag.x
             root.dockMouseY = drag.y
             if (!root.dockLayoutVertical) {
-                root.logicalMouseX = drag.x - mainRow.x
+                root.logicalMouseX = drag.x - (mainRowRef ? mainRowRef.x : 0)
             } else {
-                root.logicalMouseY = drag.y - mainColumn.y
+                root.logicalMouseY = drag.y - (mainColumnRef ? mainColumnRef.y : 0)
             }
         }
 
@@ -944,9 +944,9 @@ Window {
             root.dockMouseX = drag.x
             root.dockMouseY = drag.y
             if (!root.dockLayoutVertical) {
-                root.logicalMouseX = drag.x - mainRow.x
+                root.logicalMouseX = drag.x - (mainRowRef ? mainRowRef.x : 0)
             } else {
-                root.logicalMouseY = drag.y - mainColumn.y
+                root.logicalMouseY = drag.y - (mainColumnRef ? mainColumnRef.y : 0)
             }
         }
 
