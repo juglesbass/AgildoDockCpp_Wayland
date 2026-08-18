@@ -397,6 +397,18 @@ DockBrowserDownloadWatcher::DockBrowserDownloadWatcher(QObject *parent)
         }
 
         const bool anyActive = !m_activeFilePath.isEmpty();
+
+        // Controle adaptativo do temporizador: desativa polling agressivo quando ocioso
+        if (anyActive) {
+            if (!m_pollTimer->isActive()) {
+                m_pollTimer->start(250);
+            }
+        } else {
+            if (m_pollTimer->isActive()) {
+                m_pollTimer->stop();
+            }
+        }
+
         if (!anyActive && !m_lastEmittedVisible) {
             return;
         }
@@ -415,7 +427,7 @@ DockBrowserDownloadWatcher::DockBrowserDownloadWatcher(QObject *parent)
     m_pollTimer = new QTimer(this);
     m_pollTimer->setInterval(250);
     connect(m_pollTimer, &QTimer::timeout, this, &DockBrowserDownloadWatcher::pollActiveDownloads);
-    m_pollTimer->start();
+    pollActiveDownloads();
 
     m_sourceChangeDebounce = new QTimer(this);
     m_sourceChangeDebounce->setSingleShot(true);
@@ -469,6 +481,9 @@ void DockBrowserDownloadWatcher::setupChromiumHistoryWatcher()
 
 void DockBrowserDownloadWatcher::onDownloadSourcesChanged()
 {
+    if (!m_pollTimer->isActive()) {
+        m_pollTimer->start(250);
+    }
     if (!m_sourceChangeDebounce->isActive()) {
         m_sourceChangeDebounce->start();
     }
