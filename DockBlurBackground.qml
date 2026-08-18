@@ -213,18 +213,8 @@ Rectangle {
 
     onXChanged: requestBlurUpdate()
     onYChanged: requestBlurUpdate()
-    onWidthChanged: {
-        if (waveBlurAnimating)
-            updateBlurNative(true)
-        else
-            requestBlurUpdate()
-    }
-    onHeightChanged: {
-        if (waveBlurAnimating)
-            updateBlurNative(true)
-        else
-            requestBlurUpdate()
-    }
+    onWidthChanged: requestBlurUpdate()
+    onHeightChanged: requestBlurUpdate()
     onRadiusChanged: requestBlurUpdate()
 
     Component.onCompleted: syncBlurAfterStyleChange()
