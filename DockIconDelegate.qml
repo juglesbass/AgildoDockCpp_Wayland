@@ -129,6 +129,7 @@ Item {
     onIsRunningChanged: {
         if (isRunning) {
             refreshWindowCount()
+            Qt.callLater(syncWaylandGeometry)
         } else {
             windowCount = 0
         }
@@ -258,12 +259,8 @@ Item {
         }
     }
 
-    Timer {
-        id: waylandGeometrySyncTimer
-        interval: 1000
-        running: delegateRoot.isRunning && delegateRoot.isValid && !dock.waveBlurAnimating
-        repeat: true
-        onTriggered: {
+    function syncWaylandGeometry() {
+        if (delegateRoot.isRunning && delegateRoot.isValid && !dock.waveBlurAnimating) {
             if (typeof taskBackend.reportIconGeometry === "function") {
                 var pt = delegateRoot.mapToItem(null, 0, 0)
                 taskBackend.reportIconGeometry(model.cmd, Math.round(pt.x), Math.round(pt.y), Math.round(delegateRoot.width), Math.round(delegateRoot.height))

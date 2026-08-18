@@ -735,6 +735,9 @@ void TaskBackend::updateExclusiveZone(int size)
 
     LayerShellQt::Window *layerWindow = LayerShellQt::Window::get(m_mainWindow);
     if (layerWindow) {
+        if (layerWindow->exclusionZone() == size) {
+            return;
+        }
         layerWindow->setExclusiveZone(size);
         m_mainWindow->requestUpdate();
     }
