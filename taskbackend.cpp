@@ -755,19 +755,33 @@ void TaskBackend::setPointerInputExcludeTop(int excludeTopPixels)
 
     const int w = m_mainWindow->width();
     const int h = m_mainWindow->height();
-    if (w <= 10 || h <= 10) {
+    if (w <= 10 || h <= 10 || excludeTopPixels <= 0) {
+        m_mainWindow->setMask(QRegion());
+        m_mainWindow->requestUpdate();
         return;
     }
 
-    int remainingH = h - excludeTopPixels;
-    if (excludeTopPixels <= 0 || remainingH <= 10) {
-        m_mainWindow->setMask(QRegion());
+    LayerShellQt::Window *layerWindow = LayerShellQt::Window::get(m_mainWindow);
+    LayerShellQt::Window::Anchors anchors = layerWindow ? layerWindow->anchors() : LayerShellQt::Window::AnchorBottom;
+
+    QRegion maskRegion;
+    if (anchors.testFlag(LayerShellQt::Window::AnchorBottom)) {
+        const int safeY = qBound(0, excludeTopPixels, h - 10);
+        maskRegion = QRegion(0, safeY, w, h - safeY);
+    } else if (anchors.testFlag(LayerShellQt::Window::AnchorTop)) {
+        const int safeH = qMax(10, h - excludeTopPixels);
+        maskRegion = QRegion(0, 0, w, safeH);
+    } else if (anchors.testFlag(LayerShellQt::Window::AnchorLeft)) {
+        const int safeW = qMax(10, w - excludeTopPixels);
+        maskRegion = QRegion(0, 0, safeW, h);
+    } else if (anchors.testFlag(LayerShellQt::Window::AnchorRight)) {
+        const int safeX = qBound(0, excludeTopPixels, w - 10);
+        maskRegion = QRegion(safeX, 0, w - safeX, h);
     } else {
-        int safeY = qBound(0, excludeTopPixels, h - 10);
-        int safeH = qMax(10, h - safeY);
-        int safeW = qMax(10, w);
-        m_mainWindow->setMask(QRegion(0, safeY, safeW, safeH));
+        maskRegion = QRegion(0, 0, w, h);
     }
+
+    m_mainWindow->setMask(maskRegion);
     m_mainWindow->requestUpdate();
 }
 
