@@ -13,10 +13,27 @@
   <launchable type="desktop-id">org.agildosoft.agildodock.desktop</launchable>
   <url type="homepage">https://agildosoft.com</url>
   <releases>
+    <release version="1.6.1" date="2026-08-17">
+      <description>
+        <p>Suíte de testes automatizados QML (QtQuickTest), otimizações de I/O e thread-safety.</p>
+      </description>
+    </release>
+    <release version="1.6.0" date="2026-08-04">
+      <description>
+        <p>Decomposição arquitetural modular do QML em componentes especializados.</p>
+      </description>
+    </release>
+    <release version="1.5.0" date="2026-08-04">
+      <description>
+        <p>Decomposição C++ em helpers especialistas e centralização de constantes.</p>
+      </description>
+    </release>
+    <release version="1.4.3" date="2026-07-28">
+      <description>
+        <p>Correções de thread-safety, polling assíncrono e suporte LayerShell.</p>
+      </description>
+    </release>
     <release version="1.3.16" date="2026-07-23"/>
-    <release version="1.3.15" date="2026-07-22"/>
-    <release version="1.3.14" date="2026-07-22"/>
-    <release version="1.3.4" date="2026-05-30"/>
   </releases>
   <content_rating type="oars-1.1"/>
 </component>

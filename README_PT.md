@@ -3,7 +3,7 @@
 [![Build & Test](https://github.com/juglesbass/AgildoDockCpp_Wayland/actions/workflows/build.yml/badge.svg)](https://github.com/juglesbass/AgildoDockCpp_Wayland/actions)
 [![Code Quality](https://github.com/juglesbass/AgildoDockCpp_Wayland/actions/workflows/lint.yml/badge.svg)](https://github.com/juglesbass/AgildoDockCpp_Wayland/actions)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL%203.0-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.3.16-green.svg)](#)
+[![Version](https://img.shields.io/badge/Version-1.6.1-green.svg)](#)
 
 Doca de aplicações para **Plasma (KDE) em Wayland**, com Layer Shell, blur KWin, efeito de onda magnética e integração completa com janelas.
 
