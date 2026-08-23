@@ -1731,30 +1731,41 @@ void TaskBackend::updateTrashStatus()
 
 void TaskBackend::emptyTrash()
 {
-    QProcess::startDetached(QStringLiteral("gio"), {QStringLiteral("trash"), QStringLiteral("--empty")});
-    QProcess::startDetached(QStringLiteral("kioclient6"), {QStringLiteral("emptyTrash")});
-    QProcess::startDetached(QStringLiteral("trash-empty"), {});
-
-    const QString filesPath = QDir::homePath() + QStringLiteral("/.local/share/Trash/files");
-    const QString infoPath = QDir::homePath() + QStringLiteral("/.local/share/Trash/info");
-
-    auto clearDir = [](const QString &dirPath) {
-        QDir dir(dirPath);
-        if (!dir.exists()) return;
-        const QFileInfoList entries = dir.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden);
-        for (const QFileInfo &fi : entries) {
-            if (fi.isDir()) {
-                QDir(fi.absoluteFilePath()).removeRecursively();
-            } else {
-                QFile::remove(fi.absoluteFilePath());
-            }
+    QPointer<TaskBackend> guard = this;
+    (void)QtConcurrent::run([guard]() {
+        // Tenta primeiro a ferramenta padrão do ambiente (KDE/GNOME)
+        bool emptied = QProcess::execute(QStringLiteral("kioclient6"), {QStringLiteral("emptyTrash")}) == 0;
+        if (!emptied) {
+            emptied = QProcess::execute(QStringLiteral("gio"), {QStringLiteral("trash"), QStringLiteral("--empty")}) == 0;
         }
-    };
+        if (!emptied) {
+            emptied = QProcess::execute(QStringLiteral("trash-empty"), {}) == 0;
+        }
 
-    clearDir(filesPath);
-    clearDir(infoPath);
+        // Limpa resíduos diretamente no disco se necessário (tudo em background)
+        const QString filesPath = QDir::homePath() + QStringLiteral("/.local/share/Trash/files");
+        const QString infoPath = QDir::homePath() + QStringLiteral("/.local/share/Trash/info");
 
-    updateTrashStatus();
+        auto clearDir = [](const QString &dirPath) {
+            QDir dir(dirPath);
+            if (!dir.exists()) return;
+            const QFileInfoList entries = dir.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden);
+            for (const QFileInfo &fi : entries) {
+                if (fi.isDir()) {
+                    QDir(fi.absoluteFilePath()).removeRecursively();
+                } else {
+                    QFile::remove(fi.absoluteFilePath());
+                }
+            }
+        };
+
+        clearDir(filesPath);
+        clearDir(infoPath);
+
+        if (guard) {
+            QMetaObject::invokeMethod(guard, &TaskBackend::updateTrashStatus, Qt::QueuedConnection);
+        }
+    });
 }
 
 void TaskBackend::moveToTrash(const QVariantList &urlsOrPaths)
