@@ -188,7 +188,7 @@ Item {
 
                     Rectangle {
                         width: Math.max(2, Math.round(2 * containerRoot.dockRoot.liveScaleFactor))
-                        height: Math.round(containerRoot.dockRoot.dockBarHeightPx * containerRoot.dockRoot.liveScaleFactor) * 0.45
+                        height: Math.round(containerRoot.dockRoot.dockBarHeightPx * containerRoot.dockRoot.liveScaleFactor) * DockConstants.dividerLineHeightRatio
                         color: containerRoot.dockRoot.themeColors.divider
                         anchors.centerIn: parent
                         radius: 1
@@ -211,7 +211,7 @@ Item {
                         hoverEnabled: true
 
                         anchors.topMargin: -containerRoot.dockRoot.dividerExtraHitArea
-                        anchors.bottomMargin: -40
+                        anchors.bottomMargin: -DockConstants.dividerHitBottomMarginPx
 
                         function updateLogicalMouse(mx) {
                             if (mx === undefined || isNaN(mx) || width <= 0) return
@@ -226,7 +226,7 @@ Item {
 
                     Rectangle {
                         width: Math.max(2, Math.round(2 * containerRoot.dockRoot.liveScaleFactor))
-                        height: Math.round(containerRoot.dockRoot.dockBarHeightPx * containerRoot.dockRoot.liveScaleFactor) * 0.45
+                        height: Math.round(containerRoot.dockRoot.dockBarHeightPx * containerRoot.dockRoot.liveScaleFactor) * DockConstants.dividerLineHeightRatio
                         color: containerRoot.dockRoot.themeColors.divider
                         anchors.centerIn: parent
                         radius: 1

@@ -158,7 +158,7 @@ Item {
                     width: globalTipBox.tipInnerWidth
                     text: overlayRoot.tipName
                     font.bold: true
-                    font.pixelSize: 13
+                    font.pixelSize: DockConstants.tooltipTitleFontSizePx
                     color: overlayRoot.themeColors.textPrimary
                     horizontalAlignment: Text.AlignHCenter
                     elide: Text.ElideRight
@@ -169,7 +169,7 @@ Item {
                     visible: text.length > 0
                     width: globalTipBox.tipInnerWidth
                     text: overlayRoot.tipStatus
-                    font.pixelSize: 12
+                    font.pixelSize: DockConstants.tooltipBodyFontSizePx
                     color: overlayRoot.tipStatusColor
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.NoWrap

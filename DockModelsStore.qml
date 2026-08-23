@@ -24,14 +24,14 @@ QtObject {
 
     // Timers de manutenção dos modelos
     property var ghostClearTimer: Timer {
-        interval: 40000
+        interval: DockConstants.ghostAppClearTimeoutMs
         repeat: false
         running: false
         onTriggered: storeRoot.clearGhostApps()
     }
 
     property var saveFlushTimer: Timer {
-        interval: 350
+        interval: DockConstants.saveSettingsFlushDelayMs
         repeat: false
         running: false
         onTriggered: {

@@ -239,8 +239,8 @@ Window {
             mono: liveMonochromeIcons, edge: liveDockEdge, offX: liveDockOffsetX, offY: liveDockOffsetY
         })
         customizationUndoStack.push(snap)
-        if (customizationUndoStack.length > 40) customizationUndoStack.shift()
-            customizationRedoStack = []
+        if (customizationUndoStack.length > DockConstants.maxUndoStackDepth) customizationUndoStack.shift()
+        customizationRedoStack = []
     }
 
     function restoreCustomizationSnapshot(snap, fromUndo) {
@@ -729,8 +729,8 @@ Window {
         root.liveThemeMode    = dockSettings.themeMode
         root.liveAccentMode   = dockSettings.accentMode
         root.liveWaveIntensity = Math.max(0.6, Math.min(1.0, dockSettings.waveIntensity))
-        root.liveDockRadius   = Math.max(8, Math.min(40, dockSettings.dockRadius !== undefined ? dockSettings.dockRadius : 22.0))
-        root.liveDockThickness = Math.max(4, Math.min(120, dockSettings.dockThickness !== undefined && !isNaN(dockSettings.dockThickness) ? dockSettings.dockThickness : 68.0))
+        root.liveDockRadius   = Math.max(DockConstants.minDockRadiusPx, Math.min(DockConstants.maxDockRadiusPx, dockSettings.dockRadius !== undefined ? dockSettings.dockRadius : 22.0))
+        root.liveDockThickness = Math.max(DockConstants.minDockThicknessPx, Math.min(DockConstants.maxDockThicknessPx, dockSettings.dockThickness !== undefined && !isNaN(dockSettings.dockThickness) ? dockSettings.dockThickness : 68.0))
         root.liveMonochromeIcons = dockSettings.monochromeIcons
         root.liveIndicatorStyle = dockSettings.indicatorStyle
         root.liveIndicatorScale = dockSettings.indicatorScale
