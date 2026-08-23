@@ -114,21 +114,20 @@ qt_add_resources(agildodock "agildodock_app_icon"
 
 set(AGILDO_DOCK_QML_I18N_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/main.qml"
-        DockWavePhysics.qml
-        DockAutoHideController.qml
-        DockModelController.qml
-    "${CMAKE_CURRENT_SOURCE_DIR}/DockBlurBackground.qml"
-    "${CMAKE_CURRENT_SOURCE_DIR}/DockSettingsWindow.qml"
-    "${CMAKE_CURRENT_SOURCE_DIR}/LatteSliderRow.qml"
-    "${CMAKE_CURRENT_SOURCE_DIR}/DockIconDelegate.qml"
-    "${CMAKE_CURRENT_SOURCE_DIR}/DockIconContextMenu.qml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/DockAppRules.qml"
     "${CMAKE_CURRENT_SOURCE_DIR}/DockAppMenuWindow.qml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/DockBlurBackground.qml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/DockContainer.qml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/DockIconContextMenu.qml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/DockIconDelegate.qml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/DockModelsStore.qml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/DockOverlayLayer.qml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/DockPhysicsState.qml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/DockSettingsWindow.qml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/DockTheme.qml"
     "${CMAKE_CURRENT_SOURCE_DIR}/DockWidgetPickerWindow.qml"
     "${CMAKE_CURRENT_SOURCE_DIR}/DockWindowPreviewTooltip.qml"
-    "${CMAKE_CURRENT_SOURCE_DIR}/DockOverlayLayer.qml"
-    "${CMAKE_CURRENT_SOURCE_DIR}/DockModelsStore.qml"
-    "${CMAKE_CURRENT_SOURCE_DIR}/DockPhysicsState.qml"
-    "${CMAKE_CURRENT_SOURCE_DIR}/DockContainer.qml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/LatteSliderRow.qml"
 )
 
 qt_add_translations(agildodock
