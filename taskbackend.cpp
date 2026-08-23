@@ -69,6 +69,7 @@ namespace {
         qint64 timestampMs = 0;
     };
     static QHash<QString, WindowCountCacheEntry> s_windowCountCache;
+    static QMutex s_windowCountCacheMutex;
 
     static bool isLactCommand(const QString &cmd)
     {
@@ -713,9 +714,10 @@ void TaskBackend::updateSystemState()
                     s_dolphinCache = newDolphinWindowCache;
                 }
                 m_procScanRunning = false;
-                m_runningCmdLines = next;
-                // Indicadores “a correr” baseiam-se em /proc — não esperar pelo kdotool.
-                emitWindowsUpdatedCoalesced();
+                if (m_runningCmdLines != next) {
+                    m_runningCmdLines = next;
+                    emitWindowsUpdatedCoalesced();
+                }
 
                 if (DockWindowManagement::fullForeignWindowCtlAvailable(m_kdotoolAvailable)) {
                     pollActiveForegroundHints();
@@ -1404,26 +1406,50 @@ int TaskBackend::appWindowCount(const QString &command)
         return 0;
     }
     const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-    const auto it = s_windowCountCache.constFind(command);
-    if (it != s_windowCountCache.cend() && (nowMs - it->timestampMs) < kWindowCountCacheTtlMs) {
-        return it->count;
+
+    {
+        QMutexLocker locker(&s_windowCountCacheMutex);
+        const auto it = s_windowCountCache.constFind(command);
+        if (it != s_windowCountCache.cend() && (nowMs - it->timestampMs) < kWindowCountCacheTtlMs) {
+            return it->count;
+        }
     }
-    
-    // Atualiza o TTL temporariamente para evitar múltiplas chamadas simultâneas
-    int lastCount = (it != s_windowCountCache.cend()) ? it->count : 0;
-    s_windowCountCache.insert(command, WindowCountCacheEntry{lastCount, nowMs});
-    
+
+    int lastCount = 0;
+    {
+        QMutexLocker locker(&s_windowCountCacheMutex);
+        const auto it = s_windowCountCache.constFind(command);
+        lastCount = (it != s_windowCountCache.cend()) ? it->count : 0;
+        s_windowCountCache.insert(command, WindowCountCacheEntry{lastCount, nowMs});
+    }
+
     const QHash<QString, QVariantMap> currentKnownApps = knownApps;
-    (void)QtConcurrent::run([this, command, currentKnownApps]() {
-        const QStringList handles = windowHandlesForCommand(command, currentKnownApps);
+    QPointer<TaskBackend> guard = this;
+    (void)QtConcurrent::run([guard, command, currentKnownApps, lastCount]() {
+        if (!guard) {
+            return;
+        }
+        QHash<QString, QVariantMap> apps = currentKnownApps;
+        const QStringList handles = guard->windowHandlesForCommand(command, apps);
         const int count = handles.size();
-        
-        QMetaObject::invokeMethod(this, [this, command, count]() {
-            s_windowCountCache.insert(command, WindowCountCacheEntry{count, QDateTime::currentMSecsSinceEpoch()});
-            emitWindowsUpdatedCoalesced();
+
+        if (!guard) {
+            return;
+        }
+        QMetaObject::invokeMethod(guard, [guard, command, count, lastCount]() {
+            if (!guard) {
+                return;
+            }
+            {
+                QMutexLocker locker(&s_windowCountCacheMutex);
+                s_windowCountCache.insert(command, WindowCountCacheEntry{count, QDateTime::currentMSecsSinceEpoch()});
+            }
+            if (count != lastCount) {
+                guard->emitWindowsUpdatedCoalesced();
+            }
         });
     });
-    
+
     return lastCount;
 }
 
