@@ -163,14 +163,13 @@ Item {
     Connections {
         target: taskBackend
         function onWindowsUpdated() {
-            if (dock.waveBlurAnimating)
-                return
-            if (delegateRoot.isRunning) {
+            if (!isLauncherItem && delegateRoot.isValid) {
+                delegateRoot.isRunning = taskBackend.isAppRunning(model.cmd)
+                delegateRoot.isFocused = delegateRoot.isRunning ? taskBackend.isAppFocused(model.cmd) : false
+            }
+            if (!dock.waveBlurAnimating && delegateRoot.isRunning) {
                 delegateRoot.refreshWindowCount()
             }
-        }
-        function onNotificationBadgesChanged() {
-            // força reavaliação de appRule (badge de notificação)
         }
         function onLauncherProgressForCommandChanged(cmd) {
             if (cmd === model.cmd)
@@ -240,16 +239,6 @@ Item {
     implicitWidth: width
     implicitHeight: height
     z: reorderDragging ? 5000 : 0
-
-    Connections {
-        target: taskBackend
-        function onWindowsUpdated() {
-            if (!isLauncherItem && delegateRoot.isValid) {
-                delegateRoot.isRunning = taskBackend.isAppRunning(model.cmd)
-                delegateRoot.isFocused = delegateRoot.isRunning ? taskBackend.isAppFocused(model.cmd) : false
-            }
-        }
-    }
 
     Component.onCompleted: {
         syncDownloadProgress()
@@ -660,7 +649,7 @@ Item {
             id: ripple
             anchors.horizontalCenter: appIcon.horizontalCenter
             anchors.verticalCenter: appIcon.verticalCenter
-            width: Math.round(delegateRoot.targetIconSize * 1.1)
+            width: Math.round(appIcon.width * 1.1)
             height: width
             radius: width / 2
             color: "transparent"
@@ -668,6 +657,7 @@ Item {
             border.width: Math.max(1, Math.round(1.5 * dock.liveScaleFactor))
             scale: 0.0
             opacity: 0.0
+            visible: opacity > 0.01
             z: 8
 
             function play() {
