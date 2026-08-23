@@ -251,6 +251,25 @@ void setChromiumHistoryFailUntil(const QString &historyPath, qint64 value)
     s_chromiumFailCache[historyPath] = value;
 }
 
+bool queryChromiumHistoryDirect(const QString &historyPath, DownloadScanBest &best)
+{
+    const QString connName = QStringLiteral("agildodock_cr_ro_") + QString::number(reinterpret_cast<quintptr>(QThread::currentThreadId()));
+    bool opened = false;
+    {
+        QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connName);
+        // Open in read-only + immutable mode to avoid locks and WAL copies
+        db.setDatabaseName(QStringLiteral("file:%1?immutable=1&mode=ro").arg(historyPath));
+        db.setConnectOptions(QStringLiteral("QSQLITE_OPEN_READONLY;QSQLITE_OPEN_URI"));
+        if (db.open()) {
+            opened = true;
+            ingestChromiumHistoryQuery(db, best);
+            db.close();
+        }
+    }
+    QSqlDatabase::removeDatabase(connName);
+    return opened;
+}
+
 bool queryChromiumHistorySnapshot(const QString &historyPath, DownloadScanBest &best)
 {
     const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
@@ -258,6 +277,13 @@ bool queryChromiumHistorySnapshot(const QString &historyPath, DownloadScanBest &
         return false;
     }
 
+    // Try direct read-only open first (zero-copy, no disk I/O)
+    if (queryChromiumHistoryDirect(historyPath, best)) {
+        setChromiumHistoryFailUntil(historyPath, 0);
+        return true;
+    }
+
+    // Fallback: snapshot copy (only if direct open fails due to WAL lock)
     QTemporaryFile tempHistory;
     tempHistory.setAutoRemove(true);
     if (!tempHistory.open()) {
