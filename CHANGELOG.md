@@ -2,7 +2,26 @@
 
 Todas as alterações notáveis deste projeto são documentadas neste ficheiro.
 
-## [1.6.1] — 2026-08-06
+## [1.6.2] — 2026-08-23
+
+### Otimizações de Desempenho, Thread-Safety e I/O
+- **Eliminação de Data Race e Ciclo Infinito de Renderização**:
+  - Proteção com `QMutex` no cache de contagem de janelas (`s_windowCountCache`) em `taskbackend.cpp`.
+  - Emissão condicional de `windowsUpdated` apenas quando a contagem real muda, quebrando ciclos infinitos de re-render do QML.
+- **Leitura Direta de Downloads Chromium com Zero Cópia de Disco**:
+  - Consulta do banco SQLite de downloads do Chrome/Chromium via conexão read-only direta com URI `immutable=1&mode=ro` em `dock_browser_downloads.cpp`, eliminando cópias recorrentes de 50-500 MB por ciclo de poll e preservando a vida útil do SSD.
+- **Esvaziamento de Lixeira Assíncrono (`emptyTrash`)**:
+  - Exclusão de arquivos da lixeira movida para thread secundária em segundo plano (`QtConcurrent::run`), eliminando congelamentos na interface e unificando fallback entre `kioclient6`, `gio` e `trash-empty`.
+- **Otimização do Scanner de Processos `/proc`**:
+  - Leitura de `/proc/[pid]/cmdline` reimplementada com POSIX `open()` e buffer de stack estático (`char[1024]`), cortando 900+ alocações de heap por ciclo de varredura.
+  - Substituição da duplicação de vetores `knownApps.values()` por iteradores diretos `constBegin()`/`constEnd()`.
+- **Otimizações no Grafo de Cena QML**:
+  - Unificação de blocos `Connections` redundantes em `DockIconDelegate.qml`.
+  - Dimensionamento estático do efeito `ripple` e ocultação de elementos invisíveis no grafo de cena.
+  - Otimização do sincronismo de blur na animação de ocultação/revelação (`DockContainer.qml` e `DockBlurBackground.qml`).
+- **Conectividade Total de Constantes e Atualização de Metadados**:
+  - Todas as constantes de `DockConstants.qml` agora estão devidamente conectadas aos componentes.
+  - Alinhamento de versão 1.6.2 em `CMakeLists.txt`, `PKGBUILD`, `metainfo.xml`, `README.md` e `README_PT.md`.
 
 ### Adicionado / Suíte de Testes Automatizados QML
 - **Suíte de Testes Unitários QML (`QtQuickTest`)**:

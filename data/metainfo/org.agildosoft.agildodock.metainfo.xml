@@ -13,6 +13,11 @@
   <launchable type="desktop-id">org.agildosoft.agildodock.desktop</launchable>
   <url type="homepage">https://agildosoft.com</url>
   <releases>
+    <release version="1.6.2" date="2026-08-23">
+      <description>
+        <p>Otimizações profundas de I/O, thread-safety, esvaziamento assíncrono de lixeira e performance QML.</p>
+      </description>
+    </release>
     <release version="1.6.1" date="2026-08-17">
       <description>
         <p>Suíte de testes automatizados QML (QtQuickTest), otimizações de I/O e thread-safety.</p>
