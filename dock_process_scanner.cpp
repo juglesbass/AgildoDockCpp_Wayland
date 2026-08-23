@@ -3,19 +3,33 @@
 #include <QFile>
 #include <QByteArray>
 
+#include <fcntl.h>
+#include <unistd.h>
+
 QString DockProcessScanner::readProcCmdlineFile(const QString &path)
 {
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly)) {
+    const QByteArray pathBa = path.toLocal8Bit();
+    const int fd = ::open(pathBa.constData(), O_RDONLY | O_CLOEXEC);
+    if (fd < 0) {
         return {};
     }
-    QByteArray raw = f.readAll();
-    for (int i = 0; i < raw.size(); ++i) {
-        if (raw.at(i) == '\0') {
-            raw[i] = ' ';
+
+    char buffer[1024];
+    const ssize_t bytesRead = ::read(fd, buffer, sizeof(buffer) - 1);
+    ::close(fd);
+
+    if (bytesRead <= 0) {
+        return {};
+    }
+
+    for (ssize_t i = 0; i < bytesRead; ++i) {
+        if (buffer[i] == '\0') {
+            buffer[i] = ' ';
         }
     }
-    return QString::fromUtf8(raw).toLower().trimmed();
+    buffer[bytesRead] = '\0';
+
+    return QString::fromUtf8(buffer, static_cast<qsizetype>(bytesRead)).toLower().trimmed();
 }
 
 bool DockProcessScanner::appMatchesRunningCmdLine(const QString &cmdLineLower, const QVariantMap &app)

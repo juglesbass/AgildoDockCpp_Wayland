@@ -1027,10 +1027,9 @@ QVariantMap TaskBackend::matchRunningLineToApp(const QString &cmdLineLower) cons
         }
     }
 
-    const QList<QVariantMap> allApps = knownApps.values();
-    for (const QVariantMap &app : allApps) {
-        if (appMatchesRunningCmdLine(cmdLineLower, app)) {
-            return app;
+    for (auto it = knownApps.constBegin(), end = knownApps.constEnd(); it != end; ++it) {
+        if (appMatchesRunningCmdLine(cmdLineLower, it.value())) {
+            return it.value();
         }
     }
     return {};
