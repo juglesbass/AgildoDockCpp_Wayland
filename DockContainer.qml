@@ -66,9 +66,14 @@ Item {
     Behavior on dockSlidePixels {
         enabled: typeof settingsWin !== "undefined" && settingsWin ? !settingsWin.visible : true
         NumberAnimation {
+            id: dockSlideAnim
             duration: DockConstants.dockSlideAnimDurationMs
             easing.type: Easing.OutBack
             easing.overshoot: DockConstants.dockSlideEasingOvershoot
+            onRunningChanged: {
+                if (!running)
+                    dockBg.syncBlurAfterStyleChange()
+            }
         }
     }
     transform: Translate {
@@ -76,7 +81,10 @@ Item {
         y: dockRoot.liveDockEdge === 1 ? -containerRoot.dockSlidePixels : (dockRoot.liveDockEdge === 0 ? containerRoot.dockSlidePixels : 0)
     }
 
-    onDockSlidePixelsChanged: dockBg.syncBlurAfterStyleChange()
+    onDockSlidePixelsChanged: {
+        if (!dockSlideAnim.running)
+            dockBg.syncBlurAfterStyleChange()
+    }
 
     property real startupOffsetY: 0
 

@@ -87,7 +87,6 @@ Rectangle {
     function syncBlurAfterStyleChange() {
         resetBlurCache()
         updateBlurNative(true)
-        Qt.callLater(function() { dockBg.updateBlurNative(true) })
     }
 
     function readBlurRectFromScene(bw, bh) {
@@ -148,10 +147,8 @@ Rectangle {
                 }
             }
             updateBlurNative(true)
-            if (dockRoot.dockHovered)
-                Qt.callLater(function() { dockBg.updateBlurNative(true) })
-            else
-                Qt.callLater(function() { dockBg.flushCollapseBlur() })
+            if (!dockRoot.dockHovered)
+                dockBg.flushCollapseBlur()
         }
     }
 
