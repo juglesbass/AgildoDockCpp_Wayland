@@ -114,17 +114,18 @@ void considerCandidate(DownloadScanBest &best, double progress, const QString &f
         return;
     }
 
-    const bool newHasPartial = pathHasActivePartial(normalized);
-    const bool bestHasPartial = pathHasActivePartial(best.filePath);
-    const bool betterProgress = !best.active || progress > best.progress + 0.001;
-    const bool preferNewPartial = newHasPartial && !bestHasPartial;
-    const bool fillsMissingPath = best.active && best.filePath.isEmpty();
+    const double boundedProgress = qBound(0.0, progress, 0.999);
+    const bool hasProgress = boundedProgress > 0.001;
+    const bool bestHasProgress = best.active && best.progress > 0.001;
 
-    if (!best.active || preferNewPartial || fillsMissingPath
-        || (betterProgress && (newHasPartial || !bestHasPartial))) {
-        if (!best.active || preferNewPartial || fillsMissingPath || betterProgress) {
-            best.progress = qBound(0.0, progress, 0.999);
-        }
+    // Se o candidato atual possui progresso real (> 0) e o anterior não tinha, ou se é maior:
+    const bool betterProgress = !best.active
+        || (hasProgress && !bestHasProgress)
+        || (boundedProgress > best.progress + 0.0002)
+        || (best.filePath.isEmpty() && !normalized.isEmpty());
+
+    if (!best.active || betterProgress) {
+        best.progress = boundedProgress;
         best.filePath = normalized;
         best.fileName = QFileInfo(normalized).fileName();
         best.active = true;
@@ -397,21 +398,25 @@ DownloadScanBest scanAllActiveDownloads(qint64 lastChromiumHistoryScanMs)
 {
     DownloadScanBest best;
 
-    for (const QString &dirPath : downloadDirectoriesToScan()) {
-        scanPartialsInDirectory(dirPath, best);
-    }
+    // 1. Gecko / Zen / Firefox (downloads.json com totalBytes e partFilePath em tempo real)
     for (const QString &root : DockBrowserUtils::geckoConfigRoots()) {
         scanGeckoProfiles(root, best);
     }
 
-    // History SQLite quando ainda não há progresso confiável ou ficheiro parcial desconhecido
-    const bool needsHistoryScan = !best.active || best.progress <= 0.001
-        || !pathHasActivePartial(best.filePath);
+    // 2. Chromium History SQLite (se Gecko não encontrou progresso ativo)
+    const bool needsHistoryScan = !best.active || best.progress <= 0.001;
     const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
     if (needsHistoryScan && (nowMs - lastChromiumHistoryScanMs) >= 400) {
         best.newHistoryScanMs = nowMs;
         for (const QString &root : DockBrowserUtils::chromiumConfigRoots()) {
             scanChromiumProfiles(root, best);
+        }
+    }
+
+    // 3. Fallback: varredura de diretório caso nenhum perfil tenha reportado progresso
+    if (!best.active || best.progress <= 0.001) {
+        for (const QString &dirPath : downloadDirectoriesToScan()) {
+            scanPartialsInDirectory(dirPath, best);
         }
     }
 
@@ -464,7 +469,7 @@ DockBrowserDownloadWatcher::DockBrowserDownloadWatcher(QObject *parent)
             return;
         }
         if (anyActive == m_lastEmittedVisible
-            && qAbs(m_activeProgress - m_lastEmittedProgress) < 0.002
+            && qAbs(m_activeProgress - m_lastEmittedProgress) < 0.0002
             && m_activeFilePath == m_lastEmittedFilePath) {
             return;
         }

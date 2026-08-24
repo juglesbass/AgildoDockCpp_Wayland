@@ -306,7 +306,7 @@ bool TaskBackend::publishLauncherProgressForSource(const QString &sourceCommand,
     const QString nextFileName = nextTargetMap.value(QStringLiteral("progressFileName")).toString();
 
     const bool targetChanged = hadTarget != hasTarget || previousVisible != nextVisible
-        || qAbs(previousProgress - nextProgress) >= 0.002
+        || qAbs(previousProgress - nextProgress) >= 0.0002
         || previousIcon != nextIcon
         || previousFileName != nextFileName;
     const bool sourceCleared = targetCmd != sourceCommand && m_launcherProgress.contains(sourceCommand);
