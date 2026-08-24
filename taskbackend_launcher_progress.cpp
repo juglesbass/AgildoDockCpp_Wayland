@@ -209,7 +209,7 @@ void TaskBackend::updateBrowserDownloadCommand()
     }
 
     if (browserCmds.isEmpty()) {
-        m_browserDownloadWatcher->setBrowserCommand(QString());
+        m_browserDownloadWatcher->setBrowserCommand(downloadsDockCommand());
         return;
     }
 

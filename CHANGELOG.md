@@ -2,6 +2,16 @@
 
 Todas as alterações notáveis deste projeto são documentadas neste ficheiro.
 
+## [1.6.3] — 2026-08-24
+
+### Corrigido / Downloads no Zen Browser e Gecko
+- **Suporte Total a Downloads no Zen Browser / Firefox / Gecko**:
+  - Adicionado monitoramento via `QFileSystemWatcher` para arquivos `downloads.json` de todos os perfis do Zen Browser (`~/.config/zen/*`), Firefox, LibreWolf e Waterfox.
+  - Correção na detecção de arquivos parciais com hash aleatório no nome (`arquivo.<hash>.ext.part`), comum no Zen e Firefox modernos.
+  - Varredura de arquivos `.part` em conjunto com `.crdownload` na pasta `~/Downloads`.
+  - Fallback automático para a pasta de Downloads (`dolphin ~/Downloads`) na doca mesmo quando o comando do navegador não estiver pré-indexado.
+  - Aliases para `zen`, `zen-browser` e `zen-bin` adicionados ao índice de executáveis.
+
 ## [1.6.2] — 2026-08-23
 
 ### Otimizações de Desempenho, Thread-Safety e I/O

@@ -45,8 +45,11 @@ const struct wl_registry_listener PlasmaWaylandManager::Private::registry_listen
 
 PlasmaWaylandManager *PlasmaWaylandManager::instance()
 {
-    static PlasmaWaylandManager s_instance;
-    return &s_instance;
+    static PlasmaWaylandManager *s_instance = nullptr;
+    if (!s_instance && QGuiApplication::instance()) {
+        s_instance = new PlasmaWaylandManager(QGuiApplication::instance());
+    }
+    return s_instance;
 }
 
 PlasmaWaylandManager::PlasmaWaylandManager(QObject *parent)
@@ -67,13 +70,10 @@ PlasmaWaylandManager::PlasmaWaylandManager(QObject *parent)
 
 PlasmaWaylandManager::~PlasmaWaylandManager()
 {
-    if (d->manager) {
-        delete d->manager;
+    if (d) {
+        delete d;
+        d = nullptr;
     }
-    if (d->registry) {
-        wl_registry_destroy(d->registry);
-    }
-    delete d;
 }
 
 bool PlasmaWaylandManager::isAvailable() const

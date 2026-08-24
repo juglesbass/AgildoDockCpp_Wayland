@@ -41,7 +41,7 @@ signals:
 private:
     void pollActiveDownloads();
     void setupDownloadDirectoryWatcher();
-    void setupChromiumHistoryWatcher();
+    void setupBrowserWatchers();
     void onDownloadSourcesChanged();
     void applyDownloadSourcesRefresh();
 

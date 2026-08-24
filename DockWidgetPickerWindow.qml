@@ -117,7 +117,7 @@ Window {
         },
         {
             name: qsTr("Menu Iniciar (Kickoff)"),
-            icon: "start-here-kde",
+            icon: "/home/agildo/.local/share/icons/arch-logo.svg",
             desc: qsTr("Lançador de aplicativos e busca rápida do KDE Plasma"),
             isSystemItem: true,
             cmd: "krunner"

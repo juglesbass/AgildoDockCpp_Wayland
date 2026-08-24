@@ -44,7 +44,11 @@ void TestDockBrowserUtils::chromiumBrowsers()
 void TestDockBrowserUtils::geckoBrowsers()
 {
     QVERIFY(DockBrowserUtils::commandLooksLikeGeckoBrowser(QStringLiteral("zen")));
+    QVERIFY(DockBrowserUtils::commandLooksLikeGeckoBrowser(QStringLiteral("zen-browser")));
+    QVERIFY(DockBrowserUtils::commandLooksLikeGeckoBrowser(QStringLiteral("zen-bin")));
     QVERIFY(DockBrowserUtils::commandLooksLikeGeckoBrowser(QStringLiteral("firefox")));
+    QVERIFY(DockBrowserUtils::commandLooksLikeGeckoBrowser(QStringLiteral("librewolf")));
+    QVERIFY(DockBrowserUtils::commandLooksLikeGeckoBrowser(QStringLiteral("waterfox")));
     QVERIFY(!DockBrowserUtils::commandLooksLikeGeckoBrowser(QStringLiteral("brave")));
 }
 
@@ -54,6 +58,10 @@ void TestDockBrowserUtils::chromiumConfigRootsContainsForks()
     QVERIFY(roots.contains(QStringLiteral("brave")));
     QVERIFY(roots.contains(QStringLiteral("opera")));
     QVERIFY(roots.contains(QStringLiteral("vivaldi")));
+
+    const QStringList geckoRoots = DockBrowserUtils::geckoConfigRoots();
+    QVERIFY(geckoRoots.contains(QStringLiteral("zen")));
+    QVERIFY(geckoRoots.contains(QStringLiteral("mozilla/firefox")));
 }
 
 void TestDockBrowserUtils::wmClassMatching()

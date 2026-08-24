@@ -67,11 +67,28 @@ bool pathHasActivePartial(const QString &finalPath)
     if (finalPath.isEmpty()) {
         return false;
     }
-    return QFile::exists(finalPath + QStringLiteral(".crdownload"))
-        || QFile::exists(finalPath + QStringLiteral(".part"));
+    if (QFile::exists(finalPath + QStringLiteral(".crdownload"))
+        || QFile::exists(finalPath + QStringLiteral(".part"))) {
+        return true;
+    }
+
+    const QFileInfo fi(finalPath);
+    const QDir parentDir = fi.dir();
+    if (parentDir.exists()) {
+        const QString baseName = fi.completeBaseName();
+        if (!baseName.isEmpty()) {
+            const QStringList partials = parentDir.entryList(
+                {baseName + QStringLiteral("*.part"), baseName + QStringLiteral("*.crdownload")},
+                QDir::Files);
+            if (!partials.isEmpty()) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
-/// Só metadados de caminho — não inventa progresso (ex.: .crdownload antes do SQL).
+/// Só metadados de caminho — não inventa progresso (ex.: .crdownload/.part antes do SQL/JSON).
 void considerPathOnly(DownloadScanBest &best, const QString &filePath)
 {
     const QString normalized = normalizedFinalPath(filePath);
@@ -141,7 +158,7 @@ void scanGeckoProfiles(const QString &relativeRoot, DownloadScanBest &best)
         const QJsonArray list = doc.object().value(QStringLiteral("list")).toArray();
         for (const QJsonValue &value : list) {
             const QJsonObject item = value.toObject();
-            if (item.contains(QStringLiteral("endTime"))) {
+            if (item.contains(QStringLiteral("endTime")) || item.contains(QStringLiteral("errorObj"))) {
                 continue;
             }
 
@@ -151,16 +168,22 @@ void scanGeckoProfiles(const QString &relativeRoot, DownloadScanBest &best)
             }
 
             const QJsonObject target = item.value(QStringLiteral("target")).toObject();
-            const QString partPath = target.value(QStringLiteral("partFilePath")).toString();
+            const QString partPath = target.value(QStringLiteral("partFilePath")).toString().trimmed();
+            const QString finalTarget = downloadTargetPath(item);
             if (partPath.isEmpty()) {
                 continue;
             }
 
-            const qint64 received = QFileInfo(partPath).size();
-            const double progress = received > 0
+            const QFileInfo partInfo(partPath);
+            if (!partInfo.exists() && !pathHasActivePartial(finalTarget)) {
+                continue;
+            }
+
+            const qint64 received = partInfo.exists() ? partInfo.size() : 0;
+            const double progress = (received > 0 && totalBytes > 0)
                 ? qBound(0.0, static_cast<double>(received) / static_cast<double>(totalBytes), 0.999)
                 : 0.0;
-            considerCandidate(best, progress, downloadTargetPath(item));
+            considerCandidate(best, progress, finalTarget);
         }
     }
 }
@@ -337,14 +360,16 @@ void scanChromiumProfiles(const QString &relativeRoot, DownloadScanBest &best)
     }
 }
 
-void scanCrdownloadInDirectory(const QString &directoryPath, DownloadScanBest &best)
+void scanPartialsInDirectory(const QString &directoryPath, DownloadScanBest &best)
 {
     const QDir dir(directoryPath);
     if (!dir.exists()) {
         return;
     }
 
-    const QStringList partials = dir.entryList({QStringLiteral("*.crdownload")}, QDir::Files);
+    const QStringList partials = dir.entryList(
+        {QStringLiteral("*.crdownload"), QStringLiteral("*.part")},
+        QDir::Files);
     for (const QString &partialName : partials) {
         const QString partialPath = dir.filePath(partialName);
         // Progresso real vem do History SQLite ou downloads.json — aqui só o caminho.
@@ -373,7 +398,7 @@ DownloadScanBest scanAllActiveDownloads(qint64 lastChromiumHistoryScanMs)
     DownloadScanBest best;
 
     for (const QString &dirPath : downloadDirectoriesToScan()) {
-        scanCrdownloadInDirectory(dirPath, best);
+        scanPartialsInDirectory(dirPath, best);
     }
     for (const QString &root : DockBrowserUtils::geckoConfigRoots()) {
         scanGeckoProfiles(root, best);
@@ -397,7 +422,7 @@ DockBrowserDownloadWatcher::DockBrowserDownloadWatcher(QObject *parent)
     : QObject(parent)
 {
     setupDownloadDirectoryWatcher();
-    setupChromiumHistoryWatcher();
+    setupBrowserWatchers();
 
     m_scanWatcher = new QFutureWatcher<DownloadScanBest>(this);
     connect(m_scanWatcher, &QFutureWatcher<DownloadScanBest>::finished, this, [this]() {
@@ -477,30 +502,44 @@ void DockBrowserDownloadWatcher::setupDownloadDirectoryWatcher()
     }
 }
 
-void DockBrowserDownloadWatcher::setupChromiumHistoryWatcher()
+void DockBrowserDownloadWatcher::setupBrowserWatchers()
 {
     if (!m_downloadFsWatcher) {
         return;
     }
 
-    QStringList browserRoots;
+    // 1. Chromium History
     for (const QString &relativeRoot : DockBrowserUtils::chromiumConfigRoots()) {
-        browserRoots << browserConfigDir(relativeRoot);
-    }
-
-    for (const QString &browserRootPath : browserRoots) {
-        const QDir browserRoot(browserRootPath);
+        const QDir browserRoot(browserConfigDir(relativeRoot));
         if (!browserRoot.exists()) {
             continue;
         }
         const QStringList profiles = browserRoot.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
         for (const QString &profileName : profiles) {
             const QString historyPath = browserRoot.filePath(profileName + QStringLiteral("/History"));
-            if (!QFile::exists(historyPath) || m_watchedHistoryFiles.contains(historyPath)) {
+            if (QFile::exists(historyPath) && !m_watchedHistoryFiles.contains(historyPath)) {
+                m_downloadFsWatcher->addPath(historyPath);
+                m_watchedHistoryFiles.append(historyPath);
+            }
+        }
+    }
+
+    // 2. Gecko/Zen/Firefox downloads.json
+    for (const QString &relativeRoot : DockBrowserUtils::geckoConfigRoots()) {
+        const QDir browserRoot(browserConfigDir(relativeRoot));
+        if (!browserRoot.exists()) {
+            continue;
+        }
+        const QStringList profiles = browserRoot.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QString &profileName : profiles) {
+            if (profileName == QLatin1String("NativeMessagingHosts")) {
                 continue;
             }
-            m_downloadFsWatcher->addPath(historyPath);
-            m_watchedHistoryFiles.append(historyPath);
+            const QString downloadsPath = browserRoot.filePath(profileName + QStringLiteral("/downloads.json"));
+            if (QFile::exists(downloadsPath) && !m_watchedHistoryFiles.contains(downloadsPath)) {
+                m_downloadFsWatcher->addPath(downloadsPath);
+                m_watchedHistoryFiles.append(downloadsPath);
+            }
         }
     }
 }

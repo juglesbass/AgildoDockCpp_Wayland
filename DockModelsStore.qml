@@ -10,7 +10,7 @@ QtObject {
     readonly property ListModel launcherModel: ListModel {
         ListElement {
             name: qsTr("Menu de Aplicativos")
-            icon: "start-here-kde"
+            icon: "/home/agildo/.local/share/icons/arch-logo.svg"
             cmd: "qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.activateLauncherMenu"
             isLauncher: true
         }

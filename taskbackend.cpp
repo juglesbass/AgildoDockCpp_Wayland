@@ -988,6 +988,12 @@ void TaskBackend::rebuildExecIndex()
             } else if (appExec == QLatin1String("brave-browser") || appExec == QLatin1String("brave")) {
                 m_appsByExec.insert(QStringLiteral("brave"), app);
                 m_appsByExec.insert(QStringLiteral("brave-browser"), app);
+            } else if (appExec == QLatin1String("zen-browser") || appExec == QLatin1String("zen") || appExec == QLatin1String("zen-bin")) {
+                m_appsByExec.insert(QStringLiteral("zen"), app);
+                m_appsByExec.insert(QStringLiteral("zen-browser"), app);
+                m_appsByExec.insert(QStringLiteral("zen-bin"), app);
+                if (!m_execBasenameToCmd.contains(QStringLiteral("zen"))) m_execBasenameToCmd.insert(QStringLiteral("zen"), cmd);
+                if (!m_execBasenameToCmd.contains(QStringLiteral("zen-browser"))) m_execBasenameToCmd.insert(QStringLiteral("zen-browser"), cmd);
             }
         }
         const QString desktopPath = app.value(QStringLiteral("desktopPath")).toString();

@@ -2,7 +2,7 @@
 
 Doca de aplicações para **Plasma (KDE) em Wayland**, com Layer Shell, blur KWin, efeito de onda e integração com janelas: **preferencialmente «kdotool»** no Plasma/Wayland, ou **KX11Extras/KWindowInfo** quando a sessão Qt corre em **X11**.
 
-Versão actual: **1.6.2** (ver `CHANGELOG.md`).
+Versão actual: **1.6.3** (ver `CHANGELOG.md`).
 
 ## Requisitos
 
