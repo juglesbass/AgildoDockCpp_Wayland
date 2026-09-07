@@ -294,8 +294,8 @@ Rectangle {
         acceptedButtons: Qt.RightButton
         onClicked: (mouse) => {
             if (mouse.button === Qt.RightButton) {
-                const g = dockBg.mapToGlobal(mouse.x, mouse.y)
-                dockBg.surfaceContextMenuRequested(dockBg, g.x, g.y)
+                const rel = dockBg.mapToItem(null, mouse.x, mouse.y)
+                dockBg.surfaceContextMenuRequested(dockBg, rel.x, rel.y)
             }
         }
     }

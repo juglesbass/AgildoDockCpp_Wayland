@@ -6,6 +6,8 @@
 #include <QFile>
 #include <QStandardPaths>
 
+#include "dock_hyprland_helper.h"
+
 class TestTaskBackend : public QObject
 {
     Q_OBJECT
@@ -17,6 +19,8 @@ private slots:
     void parseDropInfoQuoted();
     void shouldHideFromDockSelf();
     void userJsonFileReadWrite();
+    void hyprlandClientMatching();
+    void hyprlandDolphinMatching();
 };
 
 static int initAppDetails() {
@@ -67,6 +71,67 @@ void TestTaskBackend::userJsonFileReadWrite()
     QVERIFY(backend.writeUserJsonFile(testFile, testContent));
     const QString readBack = backend.readUserJsonFile(testFile);
     QCOMPARE(readBack, testContent);
+}
+
+void TestTaskBackend::hyprlandClientMatching()
+{
+    HyprClient zenClient;
+    zenClient.address = QStringLiteral("0x1234");
+    zenClient.cls = QStringLiteral("zen-beta");
+    zenClient.initialClass = QStringLiteral("zen-beta");
+    zenClient.title = QStringLiteral("Google - Zen Browser");
+    zenClient.mapped = true;
+
+    QHash<QString, QVariantMap> knownApps;
+    QVariantMap zenApp;
+    zenApp[QStringLiteral("cmd")] = QStringLiteral("zen-browser");
+    zenApp[QStringLiteral("name")] = QStringLiteral("Zen Browser");
+    zenApp[QStringLiteral("wmclass")] = QStringLiteral("zen-beta");
+    knownApps.insert(QStringLiteral("zen-browser"), zenApp);
+
+    QVERIFY(DockHyprlandHelper::clientMatchesCommand(zenClient, QStringLiteral("zen-browser"), knownApps));
+    QVERIFY(!DockHyprlandHelper::clientMatchesCommand(zenClient, QStringLiteral("dolphin"), knownApps));
+}
+
+void TestTaskBackend::hyprlandDolphinMatching()
+{
+    QHash<QString, QVariantMap> knownApps;
+
+    // 1. Janela de Downloads
+    HyprClient downloadsClient;
+    downloadsClient.address = QStringLiteral("0x5678");
+    downloadsClient.cls = QStringLiteral("org.kde.dolphin");
+    downloadsClient.initialClass = QStringLiteral("org.kde.dolphin");
+    downloadsClient.title = QStringLiteral("Downloads — Dolphin");
+    downloadsClient.mapped = true;
+
+    QVERIFY(DockHyprlandHelper::clientMatchesCommand(downloadsClient, QStringLiteral("dolphin ~/Downloads"), knownApps));
+    QVERIFY(!DockHyprlandHelper::clientMatchesCommand(downloadsClient, QStringLiteral("dolphin"), knownApps));
+    QVERIFY(!DockHyprlandHelper::clientMatchesCommand(downloadsClient, QStringLiteral("dolphin trash:/"), knownApps));
+
+    // 2. Janela de pasta comum (Home / Geral)
+    HyprClient homeClient;
+    homeClient.address = QStringLiteral("0x5679");
+    homeClient.cls = QStringLiteral("org.kde.dolphin");
+    homeClient.initialClass = QStringLiteral("org.kde.dolphin");
+    homeClient.title = QStringLiteral("Pasta pessoal — Dolphin");
+    homeClient.mapped = true;
+
+    QVERIFY(DockHyprlandHelper::clientMatchesCommand(homeClient, QStringLiteral("dolphin"), knownApps));
+    QVERIFY(!DockHyprlandHelper::clientMatchesCommand(homeClient, QStringLiteral("dolphin ~/Downloads"), knownApps));
+    QVERIFY(!DockHyprlandHelper::clientMatchesCommand(homeClient, QStringLiteral("dolphin trash:/"), knownApps));
+
+    // 3. Janela da Lixeira
+    HyprClient trashClient;
+    trashClient.address = QStringLiteral("0x5680");
+    trashClient.cls = QStringLiteral("org.kde.dolphin");
+    trashClient.initialClass = QStringLiteral("org.kde.dolphin");
+    trashClient.title = QStringLiteral("Lixeira — Dolphin");
+    trashClient.mapped = true;
+
+    QVERIFY(DockHyprlandHelper::clientMatchesCommand(trashClient, QStringLiteral("dolphin trash:/"), knownApps));
+    QVERIFY(!DockHyprlandHelper::clientMatchesCommand(trashClient, QStringLiteral("dolphin"), knownApps));
+    QVERIFY(!DockHyprlandHelper::clientMatchesCommand(trashClient, QStringLiteral("dolphin ~/Downloads"), knownApps));
 }
 
 QTEST_MAIN(TestTaskBackend)

@@ -1,4 +1,5 @@
 #include "plasma_wayland_manager.h"
+#include "dock_hyprland_helper.h"
 #include <QGuiApplication>
 #include <QDebug>
 #include <wayland-client.h>
@@ -57,6 +58,14 @@ PlasmaWaylandManager::PlasmaWaylandManager(QObject *parent)
     , d(new Private)
 {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    // O Hyprland não implementa org_kde_plasma_window_management, por isso o
+    // registry bind + roundtrip abaixo nunca encontrariam a interface. Sair
+    // aqui poupa um roundtrip síncrono ao compositor no arranque; isAvailable()
+    // continua a devolver false, que é o que os chamadores esperam.
+    if (DockHyprlandHelper::isHyprlandActive()) {
+        return;
+    }
+
     if (auto *waylandApp = qGuiApp->nativeInterface<QNativeInterface::QWaylandApplication>()) {
         wl_display *display = waylandApp->display();
         if (display) {

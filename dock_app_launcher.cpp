@@ -2,6 +2,7 @@
 #include "taskbackend.h"
 #include "dock_browser_utils.h"
 #include "dock_window_management.h"
+#include "dock_hyprland_helper.h"
 #include <QProcess>
 #include <QtConcurrent/QtConcurrentRun>
 #include <QMetaObject>
@@ -48,6 +49,14 @@ bool DockAppLauncher::tryShowAppWindowOverview(const QString &command)
         return false;
     }
 
+    // O Hyprland não tem o efeito Window View do KWin. Devolver false aqui
+    // impede que activateKWinWindowView seja chamado a partir dos caminhos que
+    // não passam pelo ramo Hyprland de completeLaunchApp (o do Dolphin, por
+    // exemplo) — lá o equivalente é alternar entre as janelas do app.
+    if (DockHyprlandHelper::isHyprlandActive()) {
+        return false;
+    }
+
     QStringList handles = m_backend->windowHandlesForCommand(command, m_backend->knownApps);
 
     if (handles.isEmpty() || handles.size() < 2) {
@@ -64,6 +73,24 @@ void DockAppLauncher::completeLaunchApp(const QString &command, const QString &w
 
     if (!winToken.isEmpty()) {
         const bool dockItemMatchesForeground = m_backend->isAppFocused(command);
+
+        if (DockHyprlandHelper::isHyprlandActive()) {
+            if (!dockItemMatchesForeground) {
+                DockHyprlandHelper::focusWindow(winToken);
+            } else if (m_backend->m_windowOverviewOnRefocus
+                       && DockHyprlandHelper::appWindowCount(command, m_backend->knownApps) >= 2) {
+                // Equivalente ao "Exposé por app" do KWin, que não existe no
+                // Hyprland: reclicar no ícone de uma app já em foco passa para a
+                // janela seguinte da mesma app, em vez de minimizar. Reutiliza o
+                // cycleAppWindows, que já sabe lidar com o Hyprland.
+                cycleAppWindows(command, 1);
+            } else {
+                DockHyprlandHelper::minimizeWindow(winToken);
+            }
+            m_backend->m_activeAppClass = DockBrowserUtils::execBasenameFromCommand(command);
+            m_backend->emitWindowsUpdatedCoalesced();
+            return;
+        }
 
         if (winToken.startsWith(QLatin1String("x11:"))) {
             QString wmGuess;
@@ -114,6 +141,16 @@ void DockAppLauncher::launchApp(const QString &command)
     }
     if (TaskBackend::isDolphinScopedCommand(command.toLower())) {
         const QString scopedLower = command.toLower();
+        if (DockHyprlandHelper::isHyprlandActive()) {
+            const QString existingWin = DockHyprlandHelper::firstScopedDolphinWindowId(scopedLower);
+            if (!existingWin.isEmpty()) {
+                DockHyprlandHelper::focusWindow(existingWin);
+                return;
+            }
+            forceLaunchApp(command);
+            return;
+        }
+
         if (m_backend->isAppFocused(command) && m_backend->m_kdotoolAvailable) {
             if (tryShowAppWindowOverview(command)) {
                 m_backend->emitWindowsUpdatedCoalesced();
@@ -135,6 +172,17 @@ void DockAppLauncher::launchApp(const QString &command)
         forceLaunchApp(command);
         return;
     }
+
+    if (DockHyprlandHelper::isHyprlandActive()) {
+        const QStringList handles = DockHyprlandHelper::windowAddressesForCommand(command, m_backend->knownApps);
+        if (!handles.isEmpty()) {
+            completeLaunchApp(command, handles.first());
+            return;
+        }
+        forceLaunchApp(command);
+        return;
+    }
+
     const QString cmdCopy = command;
     const quint64 seq = ++m_backend->m_launchSeq[cmdCopy];
     const QHash<QString, QVariantMap> currentKnownApps = m_backend->knownApps;
@@ -156,7 +204,12 @@ void DockAppLauncher::launchApp(const QString &command)
 
 void DockAppLauncher::completeCloseApp(const QString &command, const QString &winToken)
 {
+    Q_UNUSED(command);
     if (!winToken.isEmpty()) {
+        if (DockHyprlandHelper::isHyprlandActive()) {
+            DockHyprlandHelper::closeWindow(winToken);
+            return;
+        }
         if (winToken.startsWith(QLatin1String("x11:"))) {
             DockWindowManagement::closePackedWindow(winToken, m_backend->m_kdotoolAvailable);
             return;
@@ -172,6 +225,15 @@ void DockAppLauncher::closeApp(const QString &command)
     if (command.isEmpty()) {
         return;
     }
+
+    if (DockHyprlandHelper::isHyprlandActive()) {
+        const QStringList handles = DockHyprlandHelper::windowAddressesForCommand(command, m_backend->knownApps);
+        if (!handles.isEmpty()) {
+            completeCloseApp(command, handles.first());
+            return;
+        }
+    }
+
     const QString cmdCopy = command;
     const quint64 seq = ++m_backend->m_closeSeq[cmdCopy];
     const QHash<QString, QVariantMap> currentKnownApps = m_backend->knownApps;
@@ -193,7 +255,10 @@ void DockAppLauncher::closeApp(const QString &command)
 
 void DockAppLauncher::cycleAppWindows(const QString &command, int direction)
 {
-    if (command.isEmpty() || direction == 0 || !m_backend->m_kdotoolAvailable) {
+    if (command.isEmpty() || direction == 0) {
+        return;
+    }
+    if (!m_backend->m_kdotoolAvailable && !DockHyprlandHelper::isHyprlandActive()) {
         return;
     }
     
@@ -205,23 +270,37 @@ void DockAppLauncher::cycleAppWindows(const QString &command, int direction)
             return;
         }
         if (handles.size() == 1) {
-            QProcess::startDetached(QStringLiteral("kdotool"), {QStringLiteral("windowactivate"), handles.first()});
+            if (DockHyprlandHelper::isHyprlandActive()) {
+                DockHyprlandHelper::focusWindow(handles.first());
+            } else {
+                QProcess::startDetached(QStringLiteral("kdotool"), {QStringLiteral("windowactivate"), handles.first()});
+            }
             return;
         }
 
         QString activeHandle;
-        QProcess activeP;
-        activeP.start(QStringLiteral("kdotool"), {QStringLiteral("getactivewindow")});
-        if (activeP.waitForFinished(kKdotoolTimeoutMs)) {
-            activeHandle = QString::fromUtf8(activeP.readAllStandardOutput()).trimmed();
+        if (DockHyprlandHelper::isHyprlandActive()) {
+            activeHandle = DockHyprlandHelper::getActiveWindow().address;
+        } else {
+            QProcess activeP;
+            activeP.start(QStringLiteral("kdotool"), {QStringLiteral("getactivewindow")});
+            if (activeP.waitForFinished(kKdotoolTimeoutMs)) {
+                activeHandle = QString::fromUtf8(activeP.readAllStandardOutput()).trimmed();
+            }
         }
 
         int idx = handles.indexOf(activeHandle);
         if (idx < 0) {
             idx = 0;
         } else {
-            idx = (idx + (direction > 0 ? 1 : handles.size() - 1)) % handles.size();
+            idx = (idx + direction + handles.size()) % handles.size();
         }
-        QProcess::startDetached(QStringLiteral("kdotool"), {QStringLiteral("windowactivate"), handles.at(idx)});
+
+        const QString targetWin = handles.at(idx);
+        if (DockHyprlandHelper::isHyprlandActive()) {
+            DockHyprlandHelper::focusWindow(targetWin);
+        } else {
+            QProcess::startDetached(QStringLiteral("kdotool"), {QStringLiteral("windowactivate"), targetWin});
+        }
     });
 }

@@ -13,6 +13,11 @@
   <launchable type="desktop-id">org.agildosoft.agildodock.desktop</launchable>
   <url type="homepage">https://agildosoft.com</url>
   <releases>
+    <release version="1.6.4" date="2026-08-27">
+      <description>
+        <p>Suporte nativo ao Hyprland para detecção de janelas do Dolphin e desfoque no menu de apps.</p>
+      </description>
+    </release>
     <release version="1.6.3" date="2026-08-24">
       <description>
         <p>Correções no monitor de downloads para Zen Browser, Firefox e arquivos parciais .part.</p>

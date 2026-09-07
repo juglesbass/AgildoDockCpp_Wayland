@@ -7,6 +7,7 @@
 #include "dock_config_manager.h"
 #include "dock_app_launcher.h"
 #include "dock_process_scanner.h"
+#include "dock_hyprland_helper.h"
 
 #include <QDateTime>
 #include <QDirIterator>
@@ -220,6 +221,20 @@ namespace {
     {
         DolphinWindowCache cache;
         qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+        if (DockHyprlandHelper::isHyprlandActive()) {
+            const QList<HyprClient> clients = DockHyprlandHelper::getClients();
+            for (const HyprClient &c : clients) {
+                if (c.cls.contains(QStringLiteral("dolphin"), Qt::CaseInsensitive)
+                    || c.initialClass.contains(QStringLiteral("dolphin"), Qt::CaseInsensitive)) {
+                    cache.ids << c.address;
+                    cache.titlesLower << c.title.toLower();
+                }
+            }
+            cache.valid = true;
+            cache.timestampMs = nowMs;
+            return cache;
+        }
+
         if (KWinDBusHelper::instance()->isAvailable()) {
             QStringList rawIds = KWinDBusHelper::instance()->searchWindows(QStringLiteral("dolphin"), false);
             for (const QString &id : rawIds) {
@@ -276,6 +291,10 @@ namespace {
     static bool anyDolphinWindowMatchesScopedTarget(const QString &commandLower,
                                                     bool kdotoolAvailable)
     {
+        if (DockHyprlandHelper::isHyprlandActive()) {
+            return DockHyprlandHelper::anyDolphinWindowMatchesScopedTarget(commandLower);
+        }
+
         if (!kdotoolAvailable) {
             return false;
         }
@@ -295,6 +314,10 @@ namespace {
 
     static bool anyDolphinWindowExists(bool kdotoolAvailable)
     {
+        if (DockHyprlandHelper::isHyprlandActive()) {
+            return DockHyprlandHelper::anyDolphinWindowExists();
+        }
+
         if (!kdotoolAvailable) {
             return false;
         }
@@ -316,6 +339,10 @@ bool TaskBackend::isDolphinScopedCommand(const QString &commandLower)
 QString TaskBackend::firstScopedDolphinWindowId(const QString &commandLower,
                                           bool kdotoolAvailable)
 {
+        if (DockHyprlandHelper::isHyprlandActive()) {
+            return DockHyprlandHelper::firstScopedDolphinWindowId(commandLower);
+        }
+
         if (!kdotoolAvailable) {
             return {};
         }
@@ -337,6 +364,10 @@ QString TaskBackend::firstScopedDolphinWindowId(const QString &commandLower,
 QStringList TaskBackend::allScopedDolphinWindowIds(const QString &commandLower,
                                               bool kdotoolAvailable)
 {
+        if (DockHyprlandHelper::isHyprlandActive()) {
+            return DockHyprlandHelper::allScopedDolphinWindowIds(commandLower);
+        }
+
         if (!kdotoolAvailable) {
             return {};
         }
@@ -368,10 +399,17 @@ TaskBackend::TaskBackend(QObject *parent)
 : QObject(parent)
 {
     m_debugLogsEnabled = debugEnabledFromEnv();
-    m_kdotoolAvailable = !QStandardPaths::findExecutable(QStringLiteral("kdotool")).isEmpty();
+    const bool isHypr = DockHyprlandHelper::isHyprlandActive();
+    m_kdotoolAvailable = !isHypr
+        && !QStandardPaths::findExecutable(QStringLiteral("kdotool")).isEmpty()
+        && (qgetenv("XDG_CURRENT_DESKTOP").toLower().contains("kde") || KWinDBusHelper::instance()->isAvailable());
+
+    if (isHypr && m_debugLogsEnabled) {
+        qInfo() << "AgildoDock[hyprland]: Compositor Hyprland detectado e ativo.";
+    }
+
     if (!windowManagementAvailable()) {
-        qWarning() << "AgildoDock: sem kdotool nem integração X11 (KF6/KX11Extras) disponível nesta sessão Qt — foco, minimizar,"
-                      "fechar e o modo «desviar» dependem dessas vias.";
+        qWarning() << "AgildoDock: sem kdotool, Hyprland nem integração X11 disponível nesta sessão Qt.";
     }
     if (m_debugLogsEnabled) {
         qInfo() << "AgildoDock[debug]: logs de debug ativos (AGILDO_DOCK_DEBUG)";
@@ -387,7 +425,10 @@ TaskBackend::TaskBackend(QObject *parent)
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     m_waylandManager = PlasmaWaylandManager::instance();
-    if (!m_waylandManager->isAvailable()) {
+    // Sob Hyprland a ausencia deste protocolo e' esperada, nao um problema: o
+    // aviso so' assustava. O efeito de minimizar-para-o-icone fica sem efeito,
+    // porque nao ha' equivalente a set_minimized_geometry no Hyprland.
+    if (!m_waylandManager->isAvailable() && !isHypr) {
         qWarning() << "AgildoDock: plasma-window-management interface indisponivel no Wayland!";
     }
 #endif
@@ -409,7 +450,7 @@ TaskBackend::TaskBackend(QObject *parent)
 
 bool TaskBackend::windowManagementAvailable() const
 {
-    return DockWindowManagement::fullForeignWindowCtlAvailable(m_kdotoolAvailable);
+    return DockHyprlandHelper::isHyprlandActive() || DockWindowManagement::fullForeignWindowCtlAvailable(m_kdotoolAvailable);
 }
 
 void TaskBackend::setMainWindow(QWindow *win)
@@ -546,8 +587,69 @@ void TaskBackend::applyLayerShellEdge(int edge)
     m_mainWindow->requestUpdate();
 }
 
+void TaskBackend::initLayerShellPopup(QQuickWindow *win, const QString &scopeName)
+{
+    if (!win) {
+        return;
+    }
+    LayerShellQt::Window *layerWindow = LayerShellQt::Window::get(win);
+    if (layerWindow) {
+        layerWindow->setScope(scopeName);
+        layerWindow->setLayer(LayerShellQt::Window::LayerOverlay);
+        layerWindow->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityOnDemand);
+        layerWindow->setCloseOnDismissed(true);
+        layerWindow->setExclusiveZone(-1);
+        layerWindow->setAnchors(LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorBottom) | LayerShellQt::Window::AnchorLeft);
+    }
+}
+
+void TaskBackend::repositionLayerShellPopup(QQuickWindow *win, int edge, int marginX, int marginY)
+{
+    if (!win) {
+        return;
+    }
+    LayerShellQt::Window *layerWindow = LayerShellQt::Window::get(win);
+    if (!layerWindow) {
+        return;
+    }
+
+    LayerShellQt::Window::Anchors anchors = LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorBottom) | LayerShellQt::Window::AnchorLeft;
+    QMargins margins(0, 0, 0, 0);
+
+    if (edge == 1) { // Top
+        anchors = LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorTop) | LayerShellQt::Window::AnchorLeft;
+        margins = QMargins(marginX, marginY, 0, 0);
+    } else if (edge == 2) { // Left
+        anchors = LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorLeft) | LayerShellQt::Window::AnchorTop;
+        margins = QMargins(marginX, marginY, 0, 0);
+    } else if (edge == 3) { // Right
+        anchors = LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorRight) | LayerShellQt::Window::AnchorTop;
+        margins = QMargins(0, marginY, marginX, 0);
+    } else { // Bottom
+        anchors = LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorBottom) | LayerShellQt::Window::AnchorLeft;
+        margins = QMargins(marginX, 0, 0, marginY);
+    }
+    layerWindow->setAnchors(anchors);
+    layerWindow->setMargins(margins);
+    win->requestUpdate();
+}
+
 void TaskBackend::pollActiveForegroundHints()
 {
+    if (DockHyprlandHelper::isHyprlandActive()) {
+        const HyprClient active = DockHyprlandHelper::getActiveWindow();
+        if (!active.address.isEmpty()) {
+            const QString clsLower = active.cls.toLower();
+            const QString titleLower = active.title.toLower();
+            if (m_activeAppClass != clsLower || m_activeAppTitle != titleLower) {
+                m_activeAppClass = clsLower;
+                m_activeAppTitle = titleLower;
+                emitWindowsUpdatedCoalesced();
+            }
+        }
+        return;
+    }
+
     QString clsNative;
     QString ttlNative;
     QSize innerGeom;
@@ -608,47 +710,58 @@ void TaskBackend::pollActiveForegroundHints()
         return;
     }
 
-    auto *p = new QProcess(this);
-    connect(p, &QProcess::errorOccurred, p, &QProcess::deleteLater);
-    connect(p, static_cast<void (QProcess::*)(int, QProcess::ExitStatus)>(&QProcess::finished), this,
-            [this, p](int exitCode, QProcess::ExitStatus exitStatus) {
-                QString out = QString::fromUtf8(p->readAllStandardOutput()).trimmed();
-                if (exitStatus == QProcess::NormalExit && exitCode == 0 && !out.isEmpty()) {
-                    QStringList lines = out.split(QLatin1Char('\n'));
-                    if (lines.size() >= 2) {
-                        m_activeAppClass = lines[0].toLower();
-                        m_activeAppTitle = lines[1].toLower();
-                    } else {
-                        m_activeAppClass = out.toLower();
-                        m_activeAppTitle.clear();
-                    }
-                    
-                    const QSize windowSize = parseWindowGeometryFromKdotool(out);
-                    if (m_mainWindow && m_mainWindow->screen()) {
-                        const QRect sg = m_mainWindow->screen()->geometry();
-                        const bool covers = DockWindowManagement::activeWindowProbablyCoversWorkArea(
-                            windowSize, QSize(sg.width(), sg.height()));
-                        if (covers != m_activeWindowCoversWorkArea) {
-                            m_activeWindowCoversWorkArea = covers;
-                            emit activeWindowCoversWorkAreaChanged();
-                        }
-                    }
-                }
-                p->deleteLater();
-                emitWindowsUpdatedCoalesced();
-            });
-
-    QTimer::singleShot(kKdotoolActiveWindowKillMs, p, [guard = QPointer<QProcess>(p)]() {
-        if (guard && guard->state() == QProcess::Running) {
-            guard->kill();
+    (void)QtConcurrent::run([this]() {
+        // Chamadas kdotool são síncronas/bloqueantes — agora fora da GUI thread.
+        QProcess proc;
+        proc.start(QStringLiteral("kdotool"), {QStringLiteral("getactivewindow")});
+        if (!proc.waitForFinished(kKdotoolTimeoutMs)) {
+            proc.kill();
+            return;
         }
-    });
 
-    p->start(QStringLiteral("kdotool"),
-             {QStringLiteral("getactivewindow"),
-              QStringLiteral("getwindowclassname"),
-              QStringLiteral("getwindowname"),
-              QStringLiteral("getwindowgeometry")});
+        const QString activeId = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+        if (activeId.isEmpty()) {
+            return;
+        }
+
+        QProcess nameProc;
+        nameProc.start(QStringLiteral("kdotool"), {QStringLiteral("getwindowname"), activeId});
+        if (!nameProc.waitForFinished(kKdotoolTimeoutMs)) {
+            nameProc.kill();
+            return;
+        }
+
+        const QString titleLower = QString::fromUtf8(nameProc.readAllStandardOutput()).trimmed().toLower();
+
+        QProcess classProc;
+        classProc.start(QStringLiteral("kdotool"), {QStringLiteral("getwindowclassname"), activeId});
+        if (!classProc.waitForFinished(kKdotoolTimeoutMs)) {
+            classProc.kill();
+            return;
+        }
+
+        const QString classLower = QString::fromUtf8(classProc.readAllStandardOutput()).trimmed().toLower();
+
+        QProcess geomProc;
+        geomProc.start(QStringLiteral("kdotool"), {QStringLiteral("getwindowgeometry"), activeId});
+        QSize windowSize;
+        if (geomProc.waitForFinished(kKdotoolTimeoutMs)) {
+            const QString geomStr = QString::fromUtf8(geomProc.readAllStandardOutput());
+            static const QRegularExpression geomRe(QStringLiteral("Geometry:\\s*(\\d+)x(\\d+)"));
+            const auto m = geomRe.match(geomStr);
+            if (m.hasMatch()) {
+                windowSize = QSize(m.captured(1).toInt(), m.captured(2).toInt());
+            }
+        }
+
+        QMetaObject::invokeMethod(
+            this,
+            [this, classLower, titleLower, windowSize]() {
+                applyActiveWindowHints(classLower, titleLower, windowSize);
+                emitWindowsUpdatedCoalesced();
+            },
+            Qt::QueuedConnection);
+    });
 }
 
 void TaskBackend::applyActiveWindowHints(const QString &classLower, const QString &titleLower, const QSize &windowSize)
@@ -673,8 +786,6 @@ void TaskBackend::updateSystemState()
         return;
     }
     m_procScanRunning = true;
-    // Invalida o cache Dolphin no início de cada ciclo para que isAppRunning
-    // popule dados frescos na primeira consulta do ciclo.
     
     (void)QtConcurrent::run([this]() {
         QSet<QString> next;
@@ -702,24 +813,32 @@ void TaskBackend::updateSystemState()
         }
         
         DolphinWindowCache newDolphinWindowCache;
-        if (hasDolphinProcess) {
+        if (hasDolphinProcess || DockHyprlandHelper::isHyprlandActive()) {
             newDolphinWindowCache = fetchDolphinWindowCache(m_kdotoolAvailable);
         }
         
         QMetaObject::invokeMethod(
             this,
             [this, next, newDolphinWindowCache]() {
+                bool dolphinChanged = false;
                 {
                     QMutexLocker locker(&s_dolphinCacheMutex);
+                    dolphinChanged = (s_dolphinCache.ids != newDolphinWindowCache.ids);
                     s_dolphinCache = newDolphinWindowCache;
                 }
                 m_procScanRunning = false;
-                if (m_runningCmdLines != next) {
+                if (m_runningCmdLines != next || dolphinChanged || DockHyprlandHelper::isHyprlandActive()) {
                     m_runningCmdLines = next;
                     emitWindowsUpdatedCoalesced();
                 }
 
-                if (DockWindowManagement::fullForeignWindowCtlAvailable(m_kdotoolAvailable)) {
+                // Ordem IMPORTA: isHyprlandActive() vem primeiro para o
+                // curto-circuito do || nos proteger. Com fullForeignWindowCtl-
+                // Available() a' esquerda, sob Hyprland os dois primeiros termos
+                // dela sao falsos e a avaliacao chegava ao KWinDBusHelper -- que
+                // travava esta thread (a da GUI) por varios segundos no primeiro
+                // poll. Ver comentario em KWinDBusHelper::initialize().
+                if (DockHyprlandHelper::isHyprlandActive() || DockWindowManagement::fullForeignWindowCtlAvailable(m_kdotoolAvailable)) {
                     pollActiveForegroundHints();
                 }
             },
@@ -887,6 +1006,7 @@ void TaskBackend::enableWindowBlur(QQuickWindow *win, bool enable, int x, int y,
     if (!win->isVisible() || !win->handle() || win->width() <= 10 || win->height() <= 10) {
         return;
     }
+
     if (!enable) {
         KWindowEffects::enableBlurBehind(win, false);
         return;
@@ -915,17 +1035,16 @@ void TaskBackend::enableWindowBlur(QQuickWindow *win, bool enable, int x, int y,
 
 void TaskBackend::loadKnownApps()
 {
-    QStringList sysPaths = {QStringLiteral("/usr/share/applications"), QStringLiteral("/usr/local/share/applications")};
     const QString homePath = QProcessEnvironment::systemEnvironment().value(QStringLiteral("HOME"))
     + QStringLiteral("/.local/share/applications");
-    sysPaths << homePath;
+    QStringList sysPaths = {homePath, QStringLiteral("/usr/share/applications"), QStringLiteral("/usr/local/share/applications")};
 
     const QStringList blacklist = {
         QStringLiteral("discord"), QStringLiteral("telegram-desktop"),
         QStringLiteral("obsidian"), QStringLiteral("kded5"),     QStringLiteral("kded6"), QStringLiteral("polkit"),
         QStringLiteral("kwallet"),  QStringLiteral("powerdevil"), QStringLiteral("ksmserver"), QStringLiteral("plasmashell"),
         QStringLiteral("kwin_wayland"), QStringLiteral("agent"), QStringLiteral("agildo thermo"), QStringLiteral("agildothermo"),
-        QStringLiteral("agildodock"), QStringLiteral("agildocontrol")};
+        QStringLiteral("agildodock"), QStringLiteral("agildocontrol"), QStringLiteral("noctalia")};
 
     for (const QString &path : std::as_const(sysPaths)) {
         QDirIterator it(path, QStringList() << QStringLiteral("*.desktop"), QDir::Files, QDirIterator::Subdirectories);
@@ -1024,7 +1143,9 @@ QVariantMap TaskBackend::matchRunningLineToApp(const QString &cmdLineLower) cons
 {
     const QString execTok = cmdLineLower.split(' ').first().split('/').last().toLower();
     QString tok = execTok;
-    tok.remove('"').remove('\'');
+    if (tok == QLatin1String("noctalia")) {
+        return {};
+    }
 
     const QList<QVariantMap> candidates = m_appsByExec.values(tok);
     for (const QVariantMap &app : candidates) {
@@ -1053,6 +1174,13 @@ QVariantList TaskBackend::getUnpinnedApps(const QVariantList &pinnedCmdsVar)
     QSet<QString> addedCmds;
 
     for (const QString &cmdLine : std::as_const(m_runningCmdLines)) {
+        // Ignora serviços/daemons conhecidos em segundo plano
+        if (cmdLine.contains(QStringLiteral("lact daemon"), Qt::CaseInsensitive)
+            || cmdLine.contains(QStringLiteral("lact-daemon"), Qt::CaseInsensitive)
+            || cmdLine.contains(QStringLiteral("noctalia"), Qt::CaseInsensitive)) {
+            continue;
+        }
+
         const QVariantMap bestMatch = matchRunningLineToApp(cmdLine);
         if (bestMatch.isEmpty()) {
             continue;
@@ -1062,7 +1190,7 @@ QVariantList TaskBackend::getUnpinnedApps(const QVariantList &pinnedCmdsVar)
         if (pinnedContainsCommand(pinnedCmds, matchCmd) || addedCmds.contains(matchCmd)) {
             continue;
         }
-        if (isLactCommand(matchCmd) && m_kdotoolAvailable && !lactHasVisibleWindow(matchCmd)) {
+        if (isLactCommand(matchCmd) && !lactHasVisibleWindow(matchCmd)) {
             continue;
         }
         unpinned.append(bestMatch);
@@ -1103,9 +1231,6 @@ QVariantList TaskBackend::getAllInstalledApps() const
 
 bool TaskBackend::lactHasVisibleWindow(const QString &command) const
 {
-    if (!m_kdotoolAvailable) {
-        return true;
-    }
     QString lactCmd = command;
     if (!knownApps.contains(lactCmd)) {
         for (auto it = knownApps.constBegin(); it != knownApps.constEnd(); ++it) {
@@ -1117,6 +1242,13 @@ bool TaskBackend::lactHasVisibleWindow(const QString &command) const
     }
     if (lactCmd.isEmpty()) {
         lactCmd = QStringLiteral("lact gui");
+    }
+
+    if (DockHyprlandHelper::isHyprlandActive()) {
+        return DockHyprlandHelper::appWindowCount(lactCmd, knownApps) > 0;
+    }
+    if (!m_kdotoolAvailable) {
+        return false;
     }
     
     // Usa o const_cast para aproveitar a função assíncrona appWindowCount
@@ -1137,6 +1269,9 @@ QStringList TaskBackend::windowHandlesForCommand(const QString &command, const Q
 {
     if (command.isEmpty()) {
         return {};
+    }
+    if (DockHyprlandHelper::isHyprlandActive()) {
+        return DockHyprlandHelper::windowAddressesForCommand(command, apps);
     }
     if (isDolphinScopedCommand(command.toLower())) {
         return allScopedDolphinWindowIds(command.toLower(), m_kdotoolAvailable);
@@ -1173,6 +1308,10 @@ bool TaskBackend::isAppRunning(const QString &command)
         return false;
     }
 
+    if (DockHyprlandHelper::isHyprlandActive()) {
+        return DockHyprlandHelper::isAppRunning(command, knownApps, m_runningCmdLines);
+    }
+
     const QString cmdLower = command.toLower();
     // Downloads/Lixeira não devem acender com "qualquer Dolphin" aberto.
     // Considera ativo quando existe janela do alvo específico (mesmo minimizada).
@@ -1183,11 +1322,17 @@ bool TaskBackend::isAppRunning(const QString &command)
     QString execName = command.split(' ').first().split('/').last().toLower();
     execName.remove('"').remove('\'');
 
-    // Evita falso positivo: o processo do Dolphin pode continuar vivo sem janela aberta.
-    if (execName == QStringLiteral("dolphin")) {
+    // Evita falso positivo: o processo do Dolphin pode continuar vivo sem janela aberta no KDE; no Hyprland verifica execução.
+    if (execName == QStringLiteral("dolphin") || execName.contains(QStringLiteral("dolphin"))) {
         if (m_kdotoolAvailable) {
             return anyDolphinWindowExists(m_kdotoolAvailable);
         }
+        for (const QString &r : std::as_const(m_runningCmdLines)) {
+            if (r.startsWith(QStringLiteral("dolphin")) || r.contains(QStringLiteral("/dolphin")) || r.contains(QStringLiteral("org.kde.dolphin"))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     if (isLactCommand(command)) {
@@ -1276,6 +1421,9 @@ bool TaskBackend::isAppFocused(const QString &command)
 {
     if (command.isEmpty()) {
         return false;
+    }
+    if (DockHyprlandHelper::isHyprlandActive()) {
+        return DockHyprlandHelper::isAppFocused(command, knownApps);
     }
     if (m_activeAppClass.trimmed().isEmpty() && m_activeAppTitle.trimmed().isEmpty()) {
         return false;

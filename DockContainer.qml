@@ -64,15 +64,35 @@ Item {
 
     property real dockSlidePixels: dockRoot.dockRetracted ? dockRoot.dockRetractSlidePixels : 0
     Behavior on dockSlidePixels {
+        id: dockSlideBehavior
         enabled: typeof settingsWin !== "undefined" && settingsWin ? !settingsWin.visible : true
         NumberAnimation {
             id: dockSlideAnim
-            duration: DockConstants.dockSlideAnimDurationMs
-            easing.type: Easing.OutBack
-            easing.overshoot: DockConstants.dockSlideEasingOvershoot
+
+            // A direccao sai do targetValue do proprio Behavior, NAO de
+            // dockRoot.dockRetracted.
+            //
+            // O dockRetracted muda no mesmo instante em que a animacao
+            // arranca, e a ordem entre a reavaliacao do binding do easing e o
+            // arranque nao e' garantida. Na pratica a SUBIDA apanhava a curva
+            // de saida (easeInCubic: arranque lento, depois acelera), o que se
+            // sentia como um atraso seguido de solavanco.
+            //
+            // O targetValue ja' esta' correcto quando a animacao arranca:
+            // > 0 significa que a doca vai para fora de campo (recolher).
+            readonly property bool retracting: dockSlideBehavior.targetValue > 0
+
+            duration: DockTheme.slideDuration(dockRoot.liveAnimationProfile, retracting)
+            easing.type: DockTheme.slideEasingType(dockRoot.liveAnimationProfile)
+            easing.overshoot: DockTheme.slideEasingOvershoot(dockRoot.liveAnimationProfile)
+            easing.bezierCurve: DockTheme.slideBezier(retracting)
             onRunningChanged: {
-                if (!running)
+                if (!running) {
+                    // A doca terminou de deslizar: so' agora a superficie pode
+                    // encolher para a faixa de espreita, sem cortar a animacao.
+                    dockRoot.dockSurfaceRetracted = dockRoot.dockRetracted
                     dockBg.syncBlurAfterStyleChange()
+                }
             }
         }
     }
@@ -82,8 +102,12 @@ Item {
     }
 
     onDockSlidePixelsChanged: {
-        if (!dockSlideAnim.running)
+        if (!dockSlideAnim.running) {
+            // Sem animacao (perfil "sem animacao", ou mudanca instantanea): o
+            // onRunningChanged acima nunca dispara, entao sincronizamos aqui.
+            dockRoot.dockSurfaceRetracted = dockRoot.dockRetracted
             dockBg.syncBlurAfterStyleChange()
+        }
     }
 
     property real startupOffsetY: 0

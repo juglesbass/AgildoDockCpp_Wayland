@@ -9,12 +9,58 @@ QtObject {
     readonly property int minAnimationDurationMs: 60
     readonly property real fastProfileDurationFactor: 0.65
     readonly property real elasticProfileDurationFactor: 1.2
-    readonly property int dockHeightAnimDurationMs: 280
+    // A altura da superficie LayerShell muda de golpe, de proposito -- 0 aqui
+    // desliga a animacao dela.
+    //
+    // Animar esta altura significava redimensionar a superficie Wayland a cada
+    // quadro: buffer novo em 4K e um round-trip de configure com o compositor,
+    // 17 vezes em 280ms. Medido em video a 60fps, o movimento saia com pacing
+    // irregular (passos -0.8 seguido de -10.8, quadros perdidos) e a doca ainda
+    // derivava ~10px de volta depois de chegar. Com a mudanca instantanea os
+    // passos ficam monotonicos (-5.4 -6.2 -4.7 -4.2 -2.6 -1.6 -1.0) e assenta.
+    //
+    // Nao ha' salto visivel porque a parte da janela que cresce e' transparente:
+    // quem se ve' mover e' o conteudo, pelo Translate do DockContainer, e esse
+    // continua animado. E a ordem em main.qml garante que ao ocultar a superficie
+    // so' encolhe DEPOIS de a doca sair -- nunca corta a animacao a meio.
+    readonly property int dockHeightAnimDurationMs: 0
     readonly property int waveAmpFastDurationMs: 120
     readonly property int waveAmpSmoothDurationMs: 220
     readonly property int waveAmpButteryDurationMs: 380
-    readonly property int dockSlideAnimDurationMs: 320
+    // Deslize do auto-ocultar. 280 ms fica proximo do dock do macOS: rapido o
+    // bastante para nao parecer arrastado, longo o bastante para a curva de
+    // desaceleracao ser percebida.
+    readonly property int dockSlideAnimDurationMs: 280
+    // Usado apenas pelo perfil "elastico" (animationProfile 2).
     readonly property real dockSlideEasingOvershoot: 1.15
+    // Curva de desaceleracao no estilo macOS: arranca depressa e assenta sem
+    // ultrapassar o alvo. E' o oposto do OutBack, que ultrapassava e voltava --
+    // origem do "pulo" na entrada e saida da doca.
+    // Formato do Easing.Bezier: pontos de controlo terminando em 1,1.
+    // Curva easeOutQuint: arranca depressa e assenta sem ultrapassar o alvo.
+    //
+    // A versao anterior usava [0.32, 0.72, 0.0, 1.0]: o x do segundo ponto de
+    // controlo (0.0) era MENOR que o do primeiro (0.32), o que torna o
+    // mapeamento nao-monotonico em x -- a curva dobra sobre si mesma. Dava um
+    // ressalto reproduzivel de 2px no fim da subida (207 -> 205 -> 207).
+    // Aqui os x sao crescentes (0.22 -> 0.36), como uma funcao de easing exige.
+    readonly property var dockSlideSmoothBezier: [0.22, 1.0, 0.36, 1.0, 1.0, 1.0]
+
+    // Curva de SAIDA: easeInCubic -- arranca devagar e acelera a sair de campo.
+    //
+    // Antes a saida usava a mesma curva da entrada (easeOutQuint), que comeca
+    // depressa: medido em video a 60fps, a doca percorria 67% do caminho nos
+    // primeiros 56ms e desaparecia em 2-3 quadros. Dava a sensacao de corte
+    // seco em vez de movimento.
+    //
+    // A regra de sempre em animacao de interface: o que ENTRA desacelera (o
+    // olho precisa de o apanhar e ver assentar), o que SAI acelera (basta
+    // perceber a direccao em que se foi).
+    readonly property var dockSlideExitBezier: [0.32, 0.0, 0.67, 0.0, 1.0, 1.0]
+
+    // A saida e' ligeiramente mais longa que a entrada: com arranque suave,
+    // 280ms ainda lia como abrupto.
+    readonly property int dockSlideExitDurationMs: 340
     readonly property int startupFadeDurationMs: 600
     readonly property int startupSlideDurationMs: 900
     readonly property int iconAddScaleDurationMs: 300

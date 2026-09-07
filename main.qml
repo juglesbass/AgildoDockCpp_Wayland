@@ -164,6 +164,20 @@ Window {
     property alias waveAmplitude: physicsState.waveAmplitude
     property alias smoothedWaveRowWidth: physicsState.smoothedWaveRowWidth
     property alias dockRetracted: physicsState.dockRetracted
+
+    // Altura da superficie LayerShell. NAO acompanha o dockRetracted de imediato.
+    //
+    // Antes, a altura da janela era ligada direto ao dockRetracted, e por isso
+    // mudava de 207px para 41px no MESMO instante em que o deslize comecava: a
+    // doca era cortada de golpe e so' depois "deslizava" dentro de uma janela
+    // que ja' nao a continha. Era a saida seca.
+    //
+    // Agora a ordem e' a do macOS:
+    //   revelar  -> a superficie cresce PRIMEIRO, depois a doca desliza para dentro
+    //   ocultar  -> a doca desliza para fora PRIMEIRO, a superficie encolhe no fim
+    // Quem devolve este valor ao fim do deslize e' o Behavior em DockContainer.qml.
+    property bool dockSurfaceRetracted: false
+
     property alias dockAutoHideLatched: physicsState.dockAutoHideLatched
     property alias waveBlurAnimating: physicsState.waveBlurAnimating
     property alias waveAmpAnim: physicsState.waveAmpAnim
@@ -357,6 +371,10 @@ Window {
     property bool dockContextMenuOpen: false
 
     onDockRetractedChanged: {
+        // Ao revelar, a superficie precisa de espaco ANTES de a doca entrar;
+        // ao ocultar, quem encolhe e' o fim do deslize (DockContainer.qml).
+        if (!root.dockRetracted)
+            root.dockSurfaceRetracted = false
     }
 
     onLiveDockEditModeChanged: {
@@ -490,7 +508,7 @@ Window {
 
     height: dockLayoutVertical
     ? Math.min(maxWinHeight, Math.max(DockConstants.minDockWindowDimensionPx, Math.round(rawWinWidth / 2) * 2))
-    : (root.dockRetracted ? root.dockPeekHeight : root.dockExpandedHeight)
+    : (root.dockSurfaceRetracted ? root.dockPeekHeight : root.dockExpandedHeight)
 
     onHeightChanged: {
         pointerMaskDebouncer.restart()
@@ -499,11 +517,25 @@ Window {
         pointerMaskDebouncer.restart()
     }
 
+    // A altura da superficie e o deslize do conteudo animam AO MESMO TEMPO e
+    // desenham, juntos, a mesma coisa aos olhos: a borda superior da doca.
+    // Enquanto cada um usava a sua curva -- aqui OutCubic, ali OutBack -- a
+    // posicao visivel era a soma de duas curvas diferentes, e o movimento saia
+    // tremido. Agora ambos seguem o mesmo easing e a mesma duracao, por perfil.
+    //
+    // O overshoot fica de fora da altura de proposito: no perfil elastico, uma
+    // ultrapassagem para baixo encolheria a janela abaixo da faixa de espreita
+    // e cortaria a doca. O ressalto vive no deslize, que e' onde se ve.
     Behavior on height {
-        enabled: !(settingsWin && settingsWin.visible)
+        // Desligado quando a duracao e' 0: sem isto ficava a maquinaria de
+        // animacao a correr para nada a cada mudanca de altura.
+        enabled: DockConstants.dockHeightAnimDurationMs > 0
+                 && !(settingsWin && settingsWin.visible)
         NumberAnimation {
-            duration: DockConstants.dockHeightAnimDurationMs
-            easing.type: Easing.OutCubic
+            duration: DockTheme.animationDuration(DockConstants.dockHeightAnimDurationMs,
+                                                  root.liveAnimationProfile)
+            easing.type: DockTheme.slideEasingType(root.liveAnimationProfile)
+            easing.bezierCurve: DockConstants.dockSlideSmoothBezier
         }
     }
 
@@ -633,7 +665,19 @@ Window {
         repeat: false
         onTriggered: {
             var espacoTotal = 0
-            if (!root.dockRetracted) {
+            // Com o auto-ocultar LIGADO a doca nunca reserva espaco: fica por
+            // cima das janelas, como no macOS.
+            //
+            // Antes, revelar reclamava ~63px de zona exclusiva e o compositor
+            // reorganizava todas as janelas ladrilhadas para caber. Duas coisas
+            // mas: a janela saltava para cima so' por passares o rato na borda
+            // (media aqui: 1034 -> 971 px de altura), e esse reflow acontecia a
+            // MEIO da animacao de subida, competindo com ela.
+            //
+            // Com o auto-ocultar desligado a doca esta' sempre visivel e ai' sim
+            // faz sentido reservar: as janelas maximizadas param por cima dela,
+            // que e' o que o macOS tambem faz nesse modo.
+            if (!root.dockRetracted && !root.liveBehaviorAutoHide) {
                 var isVertical = (root.liveDockEdge === 2 || root.liveDockEdge === 3)
                 if (isVertical) {
                     // Zona exclusiva lateral = largura da barra + margem
@@ -874,6 +918,9 @@ Window {
             root.dockRetracted = false
             root.updateZone()
         } else {
+            if (root.liveBehaviorAutoHide) {
+                root.restartAutoHideTimer()
+            }
             root.applyDockRetractedState()
         }
     }
@@ -1071,6 +1118,9 @@ Window {
                     root.dockRetracted = false
                     root.updateZone()
                 } else {
+                    if (root.liveBehaviorAutoHide) {
+                        root.restartAutoHideTimer()
+                    }
                     root.applyDockRetractedState()
                 }
             }
@@ -1095,6 +1145,9 @@ Window {
                 root.dockRetracted = false
                 root.updateZone()
             } else {
+                if (root.liveBehaviorAutoHide) {
+                    root.restartAutoHideTimer()
+                }
                 root.applyDockRetractedState()
             }
         }
@@ -1109,6 +1162,9 @@ Window {
                 root.dockRetracted = false
                 root.updateZone()
             } else {
+                if (root.liveBehaviorAutoHide) {
+                    root.restartAutoHideTimer()
+                }
                 root.applyDockRetractedState()
             }
         }
@@ -1119,6 +1175,9 @@ Window {
                 root.dockRetracted = false
                 root.updateZone()
             } else {
+                if (root.liveBehaviorAutoHide) {
+                    root.restartAutoHideTimer()
+                }
                 root.applyDockRetractedState()
             }
         }

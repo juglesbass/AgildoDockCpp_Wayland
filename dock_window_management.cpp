@@ -1,6 +1,7 @@
 #include "dock_window_management.h"
 #include "dock_browser_utils.h"
 #include "kwin_dbus_helper.h"
+#include "dock_hyprland_helper.h"
 
 #include <QCoreApplication>
 #include <QGuiApplication>
@@ -173,6 +174,13 @@ bool nativeX11ClientUsable()
 
 bool fullForeignWindowCtlAvailable(bool kdotoolOnPath)
 {
+    // Sob Hyprland a via completa existe e e' o DockHyprlandHelper (hyprctl
+    // dispatch focuswindow/closewindow/movetoworkspace). Responder cedo aqui
+    // evita cair no KWinDBusHelper, que sob Hyprland tem custo real -- ver
+    // KWinDBusHelper::initialize().
+    if (DockHyprlandHelper::isHyprlandActive()) {
+        return true;
+    }
     return nativeX11ClientUsable() || kdotoolOnPath || KWinDBusHelper::instance()->isAvailable();
 }
 
