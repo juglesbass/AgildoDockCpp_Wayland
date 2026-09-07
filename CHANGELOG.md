@@ -2,6 +2,27 @@
 
 Todas as alterações notáveis deste projeto são documentadas neste ficheiro.
 
+## [1.6.4] — 2026-08-27
+
+### Corrigido / Suporte Nativo ao Hyprland
+- **Suporte Nativo a Detecção de Janelas no Hyprland (`DockHyprlandHelper`)**:
+  - Implementado backend nativo para consulta de janelas e foco via IPC do Hyprland (`hyprctl clients -j` e `hyprctl activewindow -j`).
+  - Corrigido bug em que `m_kdotoolAvailable` era ativado no Hyprland apenas pela presença do binário `kdotool` no sistema, impedindo a detecção de janelas do Dolphin e causando animação infinita de pulo na doca.
+  - Suporte completo a ativação (`focuswindow`), fechamento (`closewindow`) e alternância de janelas (`cycleAppWindows`) sob o Hyprland.
+- **Desfoque (Blur) Nativo no Menu de Aplicativos e Doca no Hyprland**:
+  - Definição do escopo LayerShell explícito `agildodock` para a janela principal e `agildodock-appmenu` para o menu de aplicativos.
+  - Injeção automática das regras de camada `blur` e `ignorezero` para os três escopos LayerShell da doca (`agildodock`, `agildodock-appmenu` e `agildodock-contextmenu`) via `hyprctl keyword layerrule`. Ao contrário do KWin, o Hyprland não desfoca superfícies Layer Shell por omissão e exige uma regra explícita por escopo. Aplicado em tempo de execução: não escreve no `~/.config/hypr/hyprland.conf` e não requer `hyprctl reload`.
+- **Atalhos Globais Funcionais no Hyprland (`--open-settings` / `--toggle-dock`)**:
+  - O `KGlobalAccel` falha com `ServiceUnknown` fora do Plasma, deixando `Meta+D` (Preferências) e `Ctrl+Alt+D` (Mostrar/Ocultar) sem resposta. Sob Hyprland os atalhos passam a ser registados com `hyprctl keyword bind` apontando para o próprio executável da doca (`SUPER, D` e `CTRL ALT, D`).
+  - Novos argumentos de linha de comandos `--open-settings` e `--toggle-dock`, encaminhados para a instância já em execução por um canal de instância única (`QLocalServer`), sem abrir uma segunda doca.
+  - Alterar um atalho nas Preferências remove o bind antigo (`hyprctl keyword unbind`) antes de registar o novo, evitando acumulação de binds no compositor.
+  - Um listener no socket de eventos do Hyprland reaplica as `layerrule` e os binds no evento `configreloaded`, já que `hyprctl keyword` não persiste através de um `hyprctl reload`.
+- **Alternância de Janelas ao Reclicar (substituto do Exposé do KWin)**:
+  - O efeito Window View do KWin (DBus `/org/kde/KWin/Effect/WindowView1`) não existe no Hyprland, o que fazia a opção «mostrar janelas ao reclicar» (`windowOverviewOnRefocus`) ser ignorada em silêncio — reclicar minimizava. Agora, com a app em foco e duas ou mais janelas, reclicar no ícone passa para a janela seguinte da mesma app. Com uma só janela, mantém-se o minimizar.
+- **Fim do Congelamento no Arranque e da Escrita no `kwinrc` sob Hyprland**:
+  - `KWinDBusHelper::initialize()` era alcançado numa sessão sem KWin nenhum e, ao falhar o DBus, instalava um KPackage com duas chamadas `kpackagetool6` bloqueantes (3 s cada) na thread da GUI e gravava `Plugins/org.agildosoft.agildodock.kwinhelperEnabled=true` no `~/.config/kwinrc`. Origem do congelamento de vários segundos após o login e dos erros `Failed to initialize KWin DBus Helper` e `KPackageStructure` no journal. Agora a inicialização é abortada na raiz sob Hyprland.
+  - `PlasmaWaylandManager` deixa de fazer o `wl_display_roundtrip` síncrono no arranque à procura de `org_kde_plasma_window_management`, protocolo que o Hyprland não implementa, e o aviso `plasma-window-management interface indisponivel no Wayland!` deixa de ser emitido.
+
 ## [1.6.3] — 2026-08-24
 
 ### Corrigido / Downloads no Zen Browser e Gecko

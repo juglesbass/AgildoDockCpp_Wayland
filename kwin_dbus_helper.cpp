@@ -1,4 +1,5 @@
 #include "kwin_dbus_helper.h"
+#include "dock_hyprland_helper.h"
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDBusReply>
@@ -95,6 +96,24 @@ KWinDBusHelper::~KWinDBusHelper()
 void KWinDBusHelper::initialize()
 {
     std::call_once(m_initFlag, [this]() {
+        // Sem KWin nao ha' nada a inicializar -- e tentar tem CUSTO REAL.
+        //
+        // O loadScript() abaixo, ao falhar a via DBus, cai no fallback KPackage:
+        // dois `kpackagetool6` com waitForFinished(3000) + `kwriteconfig6/5`
+        // gravando em ~/.config/kwinrc + reconfigure e Introspect de 2000ms cada.
+        // Como isAvailable() e' chamado de um lambda na THREAD DA GUI
+        // (taskbackend.cpp, no primeiro poll depois do arranque), isso travava a
+        // doca por varios segundos sob Hyprland, instalava um script KWin em
+        // ~/.local/share/kwin/scripts/ e sujava o kwinrc de uma sessao que nao
+        // tem KWin nenhum.
+        //
+        // A guarda fica AQUI, na raiz, e nao nos call sites: assim nenhum uso
+        // futuro de KWinDBusHelper pode reintroduzir o problema por descuido.
+        if (DockHyprlandHelper::isHyprlandActive()) {
+            m_available = false;
+            return;
+        }
+
         m_available = loadScript();
 
         if (m_available) {

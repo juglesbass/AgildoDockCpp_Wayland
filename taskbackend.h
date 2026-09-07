@@ -50,6 +50,8 @@ public:
     Q_INVOKABLE void setLayerShellActivateOnShow(bool activate);
     /// Define a borda Layer Shell: 0 baixo, 1 topo, 2 esquerda, 3 direita.
     Q_INVOKABLE void applyLayerShellEdge(int edge);
+    Q_INVOKABLE void initLayerShellPopup(QQuickWindow *win, const QString &scopeName = QStringLiteral("agildodock-appmenu"));
+    Q_INVOKABLE void repositionLayerShellPopup(QQuickWindow *win, int edge, int marginX, int marginY);
     Q_INVOKABLE void setBlurRegion(int x, int y, int w, int h, int radius, bool immediate = false);
     /// Habilita ou desabilita blur KWin em qualquer QQuickWindow (ex.: Menu de Aplicativos).
     Q_INVOKABLE void enableWindowBlur(QQuickWindow *win, bool enable = true, int x = 0, int y = 0, int w = 0, int h = 0, int radius = 24);

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(agildodock VERSION 1.6.3 LANGUAGES CXX C)
+project(agildodock VERSION 1.6.4 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -26,7 +26,7 @@ if(ENABLE_SANITIZERS)
     endif()
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui GuiPrivate Qml Quick WaylandClient Concurrent DBus Sql LinguistTools Test QuickTest)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui GuiPrivate Qml Quick WaylandClient Concurrent DBus Network Sql LinguistTools Test QuickTest)
 qt_policy(SET QTP0001 NEW)
 find_package(KF6WindowSystem REQUIRED)
 find_package(KF6GlobalAccel REQUIRED)
@@ -51,6 +51,8 @@ add_library(agildodock_core STATIC
     dock_browser_integration.cpp
     dock_browser_downloads.cpp
     dock_browser_utils.cpp
+    dock_hyprland_helper.cpp
+    dock_ipc_server.cpp
     kwin_dbus_helper.cpp
     plasma_wayland_manager.cpp
 )
@@ -67,6 +69,9 @@ target_link_libraries(agildodock_core PUBLIC
     Qt6::WaylandClient
     Qt6::Concurrent
     Qt6::DBus
+    # QLocalServer/QLocalSocket: canal de instancia unica (dock_ipc_server) e
+    # socket de eventos do Hyprland (DockHyprlandEventListener).
+    Qt6::Network
     Qt6::Sql
     KF6::WindowSystem
     KF6::GlobalAccel

@@ -84,6 +84,16 @@ Window {
     color: "transparent"
     transientParent: dock
 
+    Component.onCompleted: {
+        taskBackend.initLayerShellPopup(menuWin, "agildodock-contextmenu")
+    }
+
+    onActiveChanged: {
+        if (!active && visible) {
+            closeMenu()
+        }
+    }
+
     function closeMenu() {
         recentSubmenuOpen = false
         recentSubmenuAllowed = false
@@ -246,30 +256,46 @@ Window {
     function repositionForSurface() {
         var menuW = menuWin.width
         var menuH = menuWin.height
-        var targetX = Math.round(ctxSurfaceGlobalX - menuW / 2)
-        var targetY = Math.round(ctxSurfaceGlobalY - menuH / 2)
-        if (_anchorItem) {
-            var edge = menuWin.dock.liveDockEdge
-            var localClick = _anchorItem.mapFromGlobal(ctxSurfaceGlobalX, ctxSurfaceGlobalY)
-            if (edge === 2) {
-                var gR = _anchorItem.mapToGlobal(_anchorItem.width, localClick.y)
-                targetX = Math.round(gR.x + menuSideGap)
-                targetY = Math.round(gR.y - menuH / 2)
-            } else if (edge === 3) {
-                var gL = _anchorItem.mapToGlobal(0, localClick.y)
-                targetX = Math.round(gL.x - menuW - menuSideGap)
-                targetY = Math.round(gL.y - menuH / 2)
-            } else if (edge === 1) {
-                var gB = _anchorItem.mapToGlobal(localClick.x, _anchorItem.height)
-                targetX = Math.round(gB.x - menuW / 2)
-                targetY = Math.round(gB.y + menuFloatGap)
-            } else {
-                var gT = _anchorItem.mapToGlobal(localClick.x, 0)
-                targetX = Math.round(gT.x - menuW / 2)
-                targetY = Math.round(gT.y - menuH - menuFloatGap)
-            }
+        var edge = menuWin.dock.liveDockEdge
+        var sc = menuWin.screen || menuWin.dock.screen
+
+        var screenVirtualX = sc ? sc.virtualX : 0
+        var screenVirtualY = sc ? sc.virtualY : 0
+        var screenWidth = sc ? sc.width : 1920
+        var screenHeight = sc ? sc.height : 1080
+
+        var dockGlobalX = (menuWin.dock.x > 0) ? menuWin.dock.x : (screenVirtualX + Math.max(0, (screenWidth - menuWin.dock.width) / 2))
+        var dockGlobalY = (menuWin.dock.y > 0) ? menuWin.dock.y : (screenVirtualY + Math.max(0, screenHeight - menuWin.dock.height))
+
+        var clickGlobalX = dockGlobalX + ctxSurfaceGlobalX
+        var clickGlobalY = dockGlobalY + ctxSurfaceGlobalY
+
+        var targetX = 0
+        var targetY = 0
+
+        if (edge === 2) {
+            targetX = Math.round(screenVirtualX + menuWin.dock.width + menuSideGap)
+            targetY = Math.round(clickGlobalY - menuH / 2)
+        } else if (edge === 3) {
+            targetX = Math.round(screenVirtualX + screenWidth - menuWin.dock.width - menuW - menuSideGap)
+            targetY = Math.round(clickGlobalY - menuH / 2)
+        } else if (edge === 1) {
+            targetX = Math.round(clickGlobalX - menuW / 2)
+            targetY = Math.round(screenVirtualY + menuWin.dock.height + menuFloatGap)
+        } else {
+            targetX = Math.round(clickGlobalX - menuW / 2)
+            targetY = Math.round(screenVirtualY + screenHeight - menuWin.dock.height - menuH - menuFloatGap)
         }
-        var clamped = clampToScreen(menuWin.screen, targetX, targetY, menuW, menuH)
+
+        var clamped = clampToScreen(sc, targetX, targetY, menuW, menuH)
+        var marginX = clamped.x
+        var marginY = Math.round((menuWin.dock.dockBarHeightPx * menuWin.dock.liveScaleFactor) + menuFloatGap)
+        if (edge === 2 || edge === 3) {
+            marginY = Math.round(clamped.y)
+            marginX = Math.round((menuWin.dock.dockBarHeightPx * menuWin.dock.liveScaleFactor) + menuSideGap)
+        }
+        taskBackend.repositionLayerShellPopup(menuWin, edge, marginX, marginY)
+
         menuWin.x = clamped.x
         menuWin.y = clamped.y
     }
@@ -281,31 +307,47 @@ Window {
         }
         var menuW = menuWin.width
         var menuH = menuWin.height
-        var localClick = _anchorItem.mapFromGlobal(ctxSurfaceGlobalX, ctxSurfaceGlobalY)
         var edge = menuWin.dock.liveDockEdge
+        var sc = menuWin.screen || menuWin.dock.screen
+
+        var screenVirtualX = sc ? sc.virtualX : 0
+        var screenVirtualY = sc ? sc.virtualY : 0
+        var screenWidth = sc ? sc.width : 1920
+        var screenHeight = sc ? sc.height : 1080
+
+        var gRel = _anchorItem.mapToItem(null, _anchorItem.width / 2, _anchorItem.height / 2)
+        var dockGlobalX = (menuWin.dock.x > 0) ? menuWin.dock.x : (screenVirtualX + Math.max(0, (screenWidth - menuWin.dock.width) / 2))
+        var dockGlobalY = (menuWin.dock.y > 0) ? menuWin.dock.y : (screenVirtualY + Math.max(0, screenHeight - menuWin.dock.height))
+
+        var anchorGlobalCenterX = dockGlobalX + gRel.x
+        var anchorGlobalCenterY = dockGlobalY + gRel.y
 
         var targetX = 0
         var targetY = 0
 
         if (edge === 2) {
-            var gR = _anchorItem.mapToGlobal(_anchorItem.width, _anchorItem.height / 2)
-            targetX = Math.round(gR.x + menuSideGap)
-            targetY = Math.round(gR.y - menuH / 2)
+            targetX = Math.round(screenVirtualX + menuWin.dock.width + menuSideGap)
+            targetY = Math.round(anchorGlobalCenterY - menuH / 2)
         } else if (edge === 3) {
-            var gL = _anchorItem.mapToGlobal(0, _anchorItem.height / 2)
-            targetX = Math.round(gL.x - menuW - menuSideGap)
-            targetY = Math.round(gL.y - menuH / 2)
+            targetX = Math.round(screenVirtualX + screenWidth - menuWin.dock.width - menuW - menuSideGap)
+            targetY = Math.round(anchorGlobalCenterY - menuH / 2)
         } else if (edge === 1) {
-            var gB = _anchorItem.mapToGlobal(_anchorItem.width / 2, _anchorItem.height)
-            targetX = Math.round(gB.x - menuW / 2)
-            targetY = Math.round(gB.y + menuFloatGap)
+            targetX = Math.round(anchorGlobalCenterX - menuW / 2)
+            targetY = Math.round(screenVirtualY + menuWin.dock.height + menuFloatGap)
         } else {
-            var gT = _anchorItem.mapToGlobal(_anchorItem.width / 2, 0)
-            targetX = Math.round(gT.x - menuW / 2)
-            targetY = Math.round(gT.y - menuH - menuFloatGap)
+            targetX = Math.round(anchorGlobalCenterX - menuW / 2)
+            targetY = Math.round(screenVirtualY + screenHeight - menuWin.dock.height - menuH - menuFloatGap)
         }
 
-        var clamped = clampToScreen(menuWin.screen, targetX, targetY, menuW, menuH)
+        var clamped = clampToScreen(sc, targetX, targetY, menuW, menuH)
+        var marginX = clamped.x
+        var marginY = Math.round((menuWin.dock.dockBarHeightPx * menuWin.dock.liveScaleFactor) + menuFloatGap)
+        if (edge === 2 || edge === 3) {
+            marginY = Math.round(clamped.y)
+            marginX = Math.round((menuWin.dock.dockBarHeightPx * menuWin.dock.liveScaleFactor) + menuSideGap)
+        }
+        taskBackend.repositionLayerShellPopup(menuWin, edge, marginX, marginY)
+
         menuWin.x = clamped.x
         menuWin.y = clamped.y
     }
@@ -346,8 +388,6 @@ Window {
         qsTr("Todos os ficheiros (*)")
     ]
 
-
-
     Timer {
         id: menuOpenGraceTimer
         interval: DockConstants.dockSlideAnimDurationMs
@@ -387,21 +427,33 @@ Window {
         onActivated: menuWin.closeMenu()
     }
 
+    // Ocultar automaticamente quando o mouse sai de cima do menu de contexto
+    HoverHandler {
+        id: contextMenuHover
+        target: menuWin.contentItem
+        onHoveredChanged: {
+            if (!hovered && menuWin.visible) {
+                contextLeaveDismissTimer.restart()
+            } else {
+                contextLeaveDismissTimer.stop()
+            }
+        }
+    }
+
+    Timer {
+        id: contextLeaveDismissTimer
+        interval: 400
+        repeat: false
+        onTriggered: {
+            if (menuWin.visible && !contextMenuHover.hovered && !menuWin.recentSubmenuOpen) {
+                menuWin.closeMenu()
+            }
+        }
+    }
+
     Item {
         id: menuRoot
         anchors.fill: parent
-
-        // Sombra de elevação elegante
-        Rectangle {
-            width: menuPanel.width
-            height: menuPanel.height
-            x: menuPanel.x
-            y: menuPanel.y + Math.round(6 * menuWin.dock.liveScaleFactor)
-            radius: menuPanel.radius
-            color: Qt.rgba(0, 0, 0, 0.40)
-            opacity: 0.70
-            z: 0
-        }
 
         // Painel Principal do Menu (Estilo Vidro/Latte)
         Rectangle {
@@ -778,16 +830,6 @@ Window {
 
         Item {
             anchors.fill: parent
-
-            Rectangle {
-                width: subPanel.width
-                height: subPanel.height
-                x: subPanel.x
-                y: subPanel.y + Math.round(4 * menuWin.dock.liveScaleFactor)
-                radius: subPanel.radius
-                color: Qt.rgba(0, 0, 0, 0.35)
-                opacity: 0.6
-            }
 
             Rectangle {
                 id: subPanel

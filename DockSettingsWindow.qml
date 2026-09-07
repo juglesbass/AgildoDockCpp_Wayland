@@ -31,6 +31,10 @@ Window {
     color: uiBgColor
     flags: Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint
 
+    onClosing: {
+        aplicarValores()
+    }
+
     property int activeTab: 0 // 0: Behavior, 1: Appearance, 2: Tweaks
     property bool advancedMode: false
 
