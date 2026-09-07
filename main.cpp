@@ -14,6 +14,8 @@
 #include <LayerShellQt/Window>
 #include "taskbackend.h"
 #include "dock_global_shortcuts.h"
+#include "dock_hyprland_helper.h"
+#include "dock_ipc_server.h"
 
 namespace {
 
@@ -86,12 +88,51 @@ int main(int argc, char *argv[]) {
     QCoreApplication::setApplicationName("AgildoDock");
     QCoreApplication::setApplicationVersion(QStringLiteral(AGILDO_DOCK_VERSION));
 
+    // Comando pedido na linha de comandos (--toggle-dock / --open-settings).
+    // Vazio quando a doca foi arrancada normalmente.
+    QString pendingCommand;
+
     for (int i = 1; i < argc; ++i) {
         if (qstrcmp(argv[i], "--version") == 0 || qstrcmp(argv[i], "-v") == 0) {
             QCoreApplication core(argc, argv);
             QTextStream out(stdout);
             out << QCoreApplication::applicationName() << QLatin1Char(' ')
                 << QCoreApplication::applicationVersion() << Qt::endl;
+            return 0;
+        }
+        if (qstrcmp(argv[i], "--open-settings") == 0) {
+            pendingCommand = QStringLiteral("open-settings");
+        } else if (qstrcmp(argv[i], "--toggle-dock") == 0) {
+            pendingCommand = QStringLiteral("toggle-dock");
+        }
+    }
+
+    // Estes dois argumentos existem para os atalhos globais do Hyprland: o
+    // compositor executa `agildodock --toggle-dock`, e este processo efémero
+    // limita-se a passar o pedido à doca que já está a correr e a sair.
+    //
+    // O QCoreApplication vive só neste bloco: se não houver doca do outro lado
+    // seguimos para o arranque normal, e aí é o QGuiApplication que manda —
+    // não pode haver duas instâncias de QCoreApplication ao mesmo tempo.
+    // A verificacao corre SEMPRE, tenha havido argumento ou nao.
+    //
+    // Antes estava dentro do `if (!pendingCommand.isEmpty())`: arrancar a doca
+    // sem argumentos -- que e' o arranque normal -- nao verificava nada e subia
+    // uma segunda doca por cima da que ja' corria. Duas superficies LayerShell
+    // sobrepostas, cada uma com a sua animacao, davam a impressao de movimento
+    // aos solavancos ao revelar e ocultar.
+    {
+        QCoreApplication probe(argc, argv);
+        if (!pendingCommand.isEmpty()) {
+            if (DockIpcServer::sendToRunningInstance(pendingCommand)) {
+                return 0;
+            }
+            // Nao houve resposta: nao ha' doca a correr, seguimos para o
+            // arranque normal e o comando perde-se -- e' o comportamento antigo.
+        } else if (DockIpcServer::isAnotherInstanceRunning()) {
+            QTextStream(stderr)
+                << QCoreApplication::applicationName()
+                << ": ja' existe uma doca em execucao nesta sessao." << Qt::endl;
             return 0;
         }
     }
@@ -141,15 +182,46 @@ int main(int argc, char *argv[]) {
 
     auto layerWindow = LayerShellQt::Window::get(window);
     if (layerWindow) {
+        layerWindow->setScope(QStringLiteral("agildodock"));
         layerWindow->setLayer(LayerShellQt::Window::LayerTop);
         // Âncora default segura: o protocolo Layer Shell exige âncora antes de mapear a superfície.
         // applyLayerShellFromSettings (abaixo) sobrescreve com a borda correta salva pelo utilizador.
         layerWindow->setAnchors(LayerShellQt::Window::AnchorBottom);
     }
 
+    // Blur sob Hyprland. Ao contrário do KWin, que aplica blur às superfícies
+    // Layer Shell por omissão, o Hyprland exige uma `layerrule` explícita por
+    // escopo — sem isto a doca fica sem blur nenhum. Aplicado em runtime com
+    // `hyprctl keyword`: não escreve no ~/.config/hypr/hyprland.conf.
+    // No-op fora do Hyprland.
+    DockHyprlandHelper::applyDockLayerRules();
+
     QObject *rootObject = engine.rootObjects().first();
     auto *globalShortcuts = new DockGlobalShortcuts(rootObject, &app);
     engine.rootContext()->setContextProperty("globalShortcuts", globalShortcuts);
+
+    // Canal de instância única: é por aqui que os atalhos globais do Hyprland
+    // chegam à doca (ver DockGlobalShortcuts e DockIpcServer).
+    auto *ipcServer = new DockIpcServer(&app);
+    QObject::connect(ipcServer, &DockIpcServer::openSettingsRequested, rootObject, [rootObject]() {
+        QMetaObject::invokeMethod(rootObject, "openSettingsGlobal");
+    });
+    QObject::connect(ipcServer, &DockIpcServer::toggleDockRequested, rootObject, [rootObject]() {
+        QMetaObject::invokeMethod(rootObject, "toggleDockGlobal");
+    });
+    ipcServer->listen();
+
+    // `hyprctl keyword` aplica na hora mas não persiste: um `hyprctl reload`
+    // limpa as layerrule e os binds acima. Este listener ouve só o evento
+    // `configreloaded` e volta a aplicá-los.
+    auto *hyprEvents = new DockHyprlandEventListener(&app);
+    QObject::connect(hyprEvents, &DockHyprlandEventListener::configReloaded,
+                     globalShortcuts, [globalShortcuts]() {
+        DockHyprlandHelper::applyDockLayerRules();
+        globalShortcuts->reapplyHyprlandBinds();
+    });
+    hyprEvents->start();
+
     QMetaObject::invokeMethod(rootObject, "applyLayerShellFromSettings", Qt::DirectConnection);
     QMetaObject::invokeMethod(rootObject, "updateZone", Qt::DirectConnection);
     QMetaObject::invokeMethod(rootObject, "applyDockRetractedState", Qt::DirectConnection);
@@ -158,6 +230,15 @@ int main(int argc, char *argv[]) {
     window->show();
     QMetaObject::invokeMethod(rootObject, "refreshPointerInputMask", Qt::QueuedConnection);
     QMetaObject::invokeMethod(rootObject, "refreshDockBlur", Qt::QueuedConnection);
+
+    // Arrancámos por causa de um atalho e não havia doca a correr: honrar o
+    // pedido agora que o QML existe.
+    if (!pendingCommand.isEmpty()) {
+        const char *slot = pendingCommand == QLatin1String("open-settings")
+            ? "openSettingsGlobal"
+            : "toggleDockGlobal";
+        QMetaObject::invokeMethod(rootObject, slot, Qt::QueuedConnection);
+    }
 
     return app.exec();
 }
