@@ -74,6 +74,38 @@ QtObject {
         return { idle: "#00E5FF", focus: "#00FFCC" } // Ciano
     }
 
+    // Easing do deslize de auto-ocultar, por perfil de animacao.
+    //
+    // Antes, o Behavior em DockContainer.qml fixava Easing.OutBack com overshoot
+    // e ignorava por completo o animationProfile escolhido nas definicoes: quem
+    // pedia "suave" recebia a mesma animacao elastica de quem pedia "elastico".
+    //   0 suave / 1 rapido -> curva macOS, sem ultrapassagem
+    //   2 elastico         -> mantem o OutBack de sempre
+    //   3 sem animacao     -> duracao 0, o easing e' irrelevante
+    function slideEasingType(profile) {
+        if (profile === 2) return Easing.OutBack
+        if (profile === 3) return Easing.Linear
+        return Easing.Bezier
+    }
+
+    // A entrada e a saida usam curvas diferentes de proposito -- ver o
+    // comentario de dockSlideExitBezier. `retracting` = true quando a doca
+    // esta' a recolher.
+    function slideBezier(retracting) {
+        return retracting ? DockConstants.dockSlideExitBezier
+                          : DockConstants.dockSlideSmoothBezier
+    }
+
+    function slideDuration(profile, retracting) {
+        return animationDuration(retracting ? DockConstants.dockSlideExitDurationMs
+                                            : DockConstants.dockSlideAnimDurationMs,
+                                 profile)
+    }
+
+    function slideEasingOvershoot(profile) {
+        return profile === 2 ? DockConstants.dockSlideEasingOvershoot : 0
+    }
+
     function animationDuration(baseMs, profile) {
         if (profile === 3) return 0
         if (profile === 1) return Math.max(DockConstants.minAnimationDurationMs, Math.round(baseMs * DockConstants.fastProfileDurationFactor))
