@@ -20,14 +20,33 @@ Window {
     title: qsTr("Configurações — AgildoDock")
 
     readonly property bool settingsDark: dock.liveThemeMode === 0 || dock.liveThemeMode === 2 || dock.liveThemeMode === 3
-    readonly property color uiBgColor: settingsDark ? "#1A1D24" : "#F0F2F5"
-    readonly property color uiHeaderBg: settingsDark ? "#13151A" : "#E4E7EC"
-    readonly property color uiCardBg: settingsDark ? "#212631" : "#FFFFFF"
-    readonly property color uiCardBorder: settingsDark ? "#2D3444" : "#D0D5DD"
+    readonly property color uiBgColor: settingsDark ? "#16181F" : "#F0F2F5"
+    readonly property color uiHeaderBg: settingsDark ? "#101218" : "#E4E7EC"
+    readonly property color uiCardBg: settingsDark ? "#1E2129" : "#FFFFFF"
+    // Borda quase invisivel: o card passa a separar-se do fundo pelo contraste
+    // e pela sombra, nao por um risco duro de 1px. Ver uiCardRadius.
+    readonly property color uiCardBorder: settingsDark ? "#282C36" : "#D0D5DD"
     readonly property color uiTextPrimary: settingsDark ? "#F3F4F6" : "#111827"
-    readonly property color uiTextSecondary: settingsDark ? "#9CA3AF" : "#6B7280"
-    readonly property color uiAccent: "#3B82F6"
-    readonly property color uiAccentActiveText: "#FFFFFF"
+    readonly property color uiTextSecondary: settingsDark ? "#9AA1AE" : "#6B7280"
+
+    // O destaque vem da MESMA paleta que a doca usa, em vez de um azul cravado.
+    // Antes o utilizador escolhia "Destaque: Roxo" e a propria janela onde fez a
+    // escolha continuava azul -- a unica peca do sistema que ignorava a opcao.
+    readonly property color uiAccent: DockTheme.accentPalette(dock.liveAccentMode).idle
+    readonly property color uiAccentSoft: DockTheme.accentPalette(dock.liveAccentMode).focus
+    // Texto sobre o destaque: as cinco cores da paleta sao claras, por isso o
+    // contraste vem de escurecer, nao de branco por cima.
+    readonly property color uiAccentActiveText: "#14161B"
+
+    // ---- Escala tipografica -------------------------------------------------
+    // Havia 32 usos de 12px e 11 de 14px: praticamente dois niveis para titulo,
+    // rotulo, valor e descricao, todos a competir. Tres degraus claros bastam.
+    readonly property int fsTitle: 15    // titulo de seccao
+    readonly property int fsBody: 13     // rotulo de controlo
+    readonly property int fsHint: 12     // descricao, valores, auxiliar
+
+    // Cantos mais macios e sombra em vez de borda dura.
+    readonly property int uiCardRadius: 14
 
     color: uiBgColor
     flags: Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint
@@ -60,6 +79,18 @@ Window {
     // So' havia o campo hex. Numa aba chamada "Aparencia", escolher cor
     // escrevendo #14161A e' o oposto de pratico: nao se ve' o que se esta' a
     // escolher ate' confirmar. O hex fica, para quem quer colar um valor exacto.
+    // Uma linha de contexto sob o titulo da seccao. As opcoes eram rotulos
+    // nus: "Desviar da Janela Ativa" nao diz o que faz nem em que difere de
+    // "Desviar de Maximizadas". Alem de esclarecer, preenche com algo util o
+    // espaco que sobrava nas abas.
+    component SectionHint: Label {
+        Layout.fillWidth: true
+        wrapMode: Text.WordWrap
+        font.pixelSize: settingsWin.fsHint
+        color: settingsWin.uiTextSecondary
+        Layout.bottomMargin: 2
+    }
+
     component ColorField: ColumnLayout {
         id: cf
         property string label: ""
@@ -68,7 +99,7 @@ Window {
 
         spacing: 4
 
-        Label { text: cf.label; color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+        Label { text: cf.label; color: settingsWin.uiTextSecondary; font.pixelSize: settingsWin.fsHint }
 
         RowLayout {
             Layout.fillWidth: true
@@ -122,7 +153,7 @@ Window {
             anchors.centerIn: parent
             text: btnRoot.text
             color: highlighted ? "#FFFFFF" : (btnMouse.containsMouse ? settingsWin.uiAccent : settingsWin.uiTextPrimary)
-            font.pixelSize: 12
+            font.pixelSize: settingsWin.fsHint
             font.bold: highlighted || btnMouse.containsMouse
         }
 
@@ -157,7 +188,7 @@ Window {
             Text {
                 text: segBtn.labelText
                 color: segBtn.selected ? settingsWin.uiAccentActiveText : settingsWin.uiTextPrimary
-                font.pixelSize: 12
+                font.pixelSize: settingsWin.fsHint
                 font.bold: segBtn.selected
             }
         }
@@ -185,7 +216,7 @@ Window {
         Label {
             text: delayCtrl.labelText
             color: settingsWin.uiTextSecondary
-            font.pixelSize: 12
+            font.pixelSize: settingsWin.fsHint
         }
 
         Rectangle {
@@ -205,7 +236,7 @@ Window {
                 Text {
                     text: delayCtrl.delayValue + " ms"
                     color: settingsWin.uiTextPrimary
-                    font.pixelSize: 12
+                    font.pixelSize: settingsWin.fsHint
                     font.bold: true
                     Layout.fillWidth: true
                 }
@@ -250,7 +281,7 @@ Window {
                 width: flick.width
                 color: settingsWin.uiTextPrimary
                 wrapMode: TextEdit.WrapAnywhere
-                font.pixelSize: 12
+                font.pixelSize: settingsWin.fsHint
                 selectByMouse: true
             }
         }
@@ -554,7 +585,7 @@ Window {
                         width: 26; height: 26; radius: 13
                         color: "#C59B27"
                         border.color: "#E2B845"; border.width: 1
-                        Text { anchors.centerIn: parent; text: "A"; font.bold: true; font.pixelSize: 14; color: "#FFFFFF" }
+                        Text { anchors.centerIn: parent; text: "A"; font.weight: Font.DemiBold; font.pixelSize: settingsWin.fsTitle; color: "#FFFFFF" }
                     }
                     Text {
                         text: "AgildoDock"
@@ -567,36 +598,11 @@ Window {
 
                 Item { Layout.fillWidth: true }
 
-                // Seletor de Abas estilo Latte com linha indicadora azul
-                RowLayout {
-                    spacing: 12
-
-                    Item {
-                        implicitWidth: tab0Text.implicitWidth + 16; implicitHeight: 44
-                        Text { id: tab0Text; anchors.centerIn: parent; text: qsTr("Comportamento"); font.pixelSize: 13; font.bold: settingsWin.activeTab === 0; color: settingsWin.activeTab === 0 ? settingsWin.uiAccent : settingsWin.uiTextPrimary }
-                        Rectangle { height: 2; color: settingsWin.uiAccent; visible: settingsWin.activeTab === 0; anchors.bottom: parent.bottom; anchors.left: parent.left; anchors.right: parent.right }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: settingsWin.activeTab = 0 }
-                    }
-                    Item {
-                        implicitWidth: tab1Text.implicitWidth + 16; implicitHeight: 44
-                        Text { id: tab1Text; anchors.centerIn: parent; text: qsTr("Aparência"); font.pixelSize: 13; font.bold: settingsWin.activeTab === 1; color: settingsWin.activeTab === 1 ? settingsWin.uiAccent : settingsWin.uiTextPrimary }
-                        Rectangle { height: 2; color: settingsWin.uiAccent; visible: settingsWin.activeTab === 1; anchors.bottom: parent.bottom; anchors.left: parent.left; anchors.right: parent.right }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: settingsWin.activeTab = 1 }
-                    }
-                    Item {
-                        implicitWidth: tab2Text.implicitWidth + 16; implicitHeight: 44
-                        Text { id: tab2Text; anchors.centerIn: parent; text: qsTr("Ajustes & Efeitos"); font.pixelSize: 13; font.bold: settingsWin.activeTab === 2; color: settingsWin.activeTab === 2 ? settingsWin.uiAccent : settingsWin.uiTextPrimary }
-                        Rectangle { height: 2; color: settingsWin.uiAccent; visible: settingsWin.activeTab === 2; anchors.bottom: parent.bottom; anchors.left: parent.left; anchors.right: parent.right }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: settingsWin.activeTab = 2 }
-                    }
-                }
-
-                Item { Layout.fillWidth: true }
 
                 // Toggle Modo Avançado (Advanced)
                 RowLayout {
                     spacing: 6
-                    Label { text: qsTr("Avançado"); color: settingsWin.advancedMode ? settingsWin.uiAccent : settingsWin.uiTextSecondary; font.pixelSize: 12; font.bold: settingsWin.advancedMode }
+                    Label { text: qsTr("Avançado"); color: settingsWin.advancedMode ? settingsWin.uiAccent : settingsWin.uiTextSecondary; font.pixelSize: settingsWin.fsHint; font.bold: settingsWin.advancedMode }
                     Switch {
                         checked: settingsWin.advancedMode
                         onToggled: settingsWin.advancedMode = checked
@@ -612,59 +618,124 @@ Window {
             }
         }
 
-        // ================= BUSCA =================
-        Rectangle {
+        // ================= CORPO: BARRA LATERAL + CONTEÚDO =================
+        RowLayout {
             Layout.fillWidth: true
-            implicitHeight: 46
-            color: settingsWin.uiHeaderBg
+            Layout.fillHeight: true
+            spacing: 0
 
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 16
-                anchors.rightMargin: 16
-                spacing: 8
-
-                Label {
-                    text: "⌕"
-                    font.pixelSize: 18
-                    color: settingsWin.uiTextSecondary
-                }
-
-                TextField {
-                    id: buscaField
-                    Layout.fillWidth: true
-                    placeholderText: qsTr("Procurar uma opção…")
-                    text: settingsWin.searchText
-                    onTextChanged: settingsWin.searchText = text
-                    background: Item {}
-                    color: settingsWin.uiTextPrimary
-                }
-
-                // So' aparece quando ha' algo escrito: um "x" permanente num
-                // campo vazio e' ruido.
-                ActionBtn {
-                    visible: settingsWin.searching
-                    text: qsTr("Limpar")
-                    onClicked: { settingsWin.searchText = ""; buscaField.text = "" }
-                }
-
-                Label {
-                    visible: settingsWin.searching
-                    text: qsTr("mostrando todas as abas")
-                    font.pixelSize: 11
-                    color: settingsWin.uiTextSecondary
-                }
-            }
-
+            // Barra lateral no lugar das abas no topo. As abas horizontais nao
+            // escalam: cada categoria nova rouba largura das outras. Numa
+            // coluna cabem quantas forem precisas, e a busca fica logo acima,
+            // que e' onde se procura por ela.
             Rectangle {
-                anchors.bottom: parent.bottom
-                width: parent.width
-                height: 1
-                color: settingsWin.uiCardBorder
-            }
-        }
+                Layout.preferredWidth: 208
+                Layout.fillHeight: true
+                color: settingsWin.uiHeaderBg
 
-        // ================= CONTEÚDO PRINCIPAL (ABAS) =================
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 12
+                    spacing: 6
+
+                    // ---- Busca ----
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: 34
+                        radius: 8
+                        color: settingsWin.uiCardBg
+                        border.width: 1
+                        border.color: buscaField.activeFocus ? settingsWin.uiAccent
+                                                             : settingsWin.uiCardBorder
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 6
+                            spacing: 4
+
+                            Label {
+                                text: "⌕"
+                                font.pixelSize: 15
+                                color: settingsWin.uiTextSecondary
+                            }
+                            TextField {
+                                id: buscaField
+                                Layout.fillWidth: true
+                                placeholderText: qsTr("Procurar…")
+                                text: settingsWin.searchText
+                                onTextChanged: settingsWin.searchText = text
+                                background: Item {}
+                                color: settingsWin.uiTextPrimary
+                                font.pixelSize: settingsWin.fsHint
+                            }
+                            Label {
+                                visible: settingsWin.searching
+                                text: "✕"
+                                color: settingsWin.uiTextSecondary
+                                font.pixelSize: settingsWin.fsHint
+                                MouseArea {
+                                    anchors.fill: parent
+                                    anchors.margins: -4
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: { settingsWin.searchText = ""; buscaField.text = "" }
+                                }
+                            }
+                        }
+                    }
+
+                    Item { implicitHeight: 6 }
+
+                    // ---- Categorias ----
+                    Repeater {
+                        model: [qsTr("Comportamento"), qsTr("Aparência"), qsTr("Ajustes & Efeitos")]
+
+                        Rectangle {
+                            required property int index
+                            required property string modelData
+                            Layout.fillWidth: true
+                            implicitHeight: 36
+                            radius: 8
+                            // Enquanto se procura, nenhuma categoria fica marcada:
+                            // o resultado vem de todas, e destacar uma seria mentira.
+                            color: (!settingsWin.searching && settingsWin.activeTab === index)
+                                   ? settingsWin.uiAccent : "transparent"
+
+                            Label {
+                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.left: parent.left
+                                anchors.leftMargin: 12
+                                text: parent.modelData
+                                font.pixelSize: settingsWin.fsBody
+                                font.weight: (!settingsWin.searching && settingsWin.activeTab === parent.index)
+                                             ? Font.DemiBold : Font.Normal
+                                color: (!settingsWin.searching && settingsWin.activeTab === parent.index)
+                                       ? settingsWin.uiAccentActiveText : settingsWin.uiTextPrimary
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    settingsWin.activeTab = parent.index
+                                    settingsWin.searchText = ""
+                                    buscaField.text = ""
+                                }
+                            }
+                        }
+                    }
+
+                    Item { Layout.fillHeight: true }
+                }
+
+                Rectangle {
+                    anchors.right: parent.right
+                    height: parent.height
+                    width: 1
+                    color: settingsWin.uiCardBorder
+                }
+            }
+
         ScrollView {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -684,7 +755,7 @@ Window {
                     visible: !taskBackend.windowManagementAvailable
                     text: qsTr("⚠️ Gestão de janelas indisponível: instala «kdotool» no Plasma/Wayland para suporte total.")
                     wrapMode: Text.WordWrap
-                    font.pixelSize: 12
+                    font.pixelSize: settingsWin.fsHint
                     color: "#F59E0B"
                     Layout.fillWidth: true
                 }
@@ -705,7 +776,7 @@ Window {
                         color: settingsWin.uiCardBg
                         // Filtro da busca: o card some quando o texto procurado nao bate.
                         visible: settingsWin.cardMatch("posicao doca lado inferior superior esquerda direita orientacao")
-                        radius: 8
+                        radius: settingsWin.uiCardRadius
                         border.color: settingsWin.uiCardBorder
 
                         ColumnLayout {
@@ -714,7 +785,8 @@ Window {
                             anchors.margins: 12
                             spacing: 10
 
-                            Label { text: qsTr("Posição da Doca"); font.bold: true; font.pixelSize: 14; color: settingsWin.uiTextPrimary }
+                            Label { text: qsTr("Posição da Doca"); font.weight: Font.DemiBold; font.pixelSize: settingsWin.fsTitle; color: settingsWin.uiTextPrimary }
+                            SectionHint { text: qsTr("Em que borda do ecrã a doca fica ancorada.") }
 
                             GridLayout {
                                 Layout.fillWidth: true
@@ -753,7 +825,7 @@ Window {
                         color: settingsWin.uiCardBg
                         // Filtro da busca: o card some quando o texto procurado nao bate.
                         visible: settingsWin.cardMatch("visibilidade ocultar auto-ocultar esconder desviar janela maximizada mostrar")
-                        radius: 8
+                        radius: settingsWin.uiCardRadius
                         border.color: settingsWin.uiCardBorder
 
                         ColumnLayout {
@@ -762,7 +834,8 @@ Window {
                             anchors.margins: 12
                             spacing: 10
 
-                            Label { text: qsTr("Visibilidade"); font.bold: true; font.pixelSize: 14; color: settingsWin.uiTextPrimary }
+                            Label { text: qsTr("Visibilidade"); font.weight: Font.DemiBold; font.pixelSize: settingsWin.fsTitle; color: settingsWin.uiTextPrimary }
+                            SectionHint { text: qsTr("Quando a doca aparece e se cede espaço às janelas.") }
 
                             // Uma linha, igual a "Posicao da Doca" logo acima.
                             // Eram dois grupos da mesma natureza -- escolha
@@ -793,6 +866,25 @@ Window {
                                     onClicked: { dock.liveBehaviorAutoHide = true; dock.liveBehaviorDodgeWindows = true }
                                 }
                             }
+
+                            // Sao quatro botoes lado a lado, sem espaco para uma
+                            // descricao debaixo de cada um. Uma linha so', que
+                            // acompanha a escolha, explica sem ocupar quatro vezes.
+                            Label {
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                                font.pixelSize: settingsWin.fsHint
+                                color: settingsWin.uiTextSecondary
+                                text: {
+                                    if (dock.liveBehaviorAutoHide && dock.liveBehaviorDodgeWindows)
+                                        return qsTr("Recolhe apenas quando existe uma janela maximizada. Nos restantes casos fica visível.")
+                                    if (dock.liveBehaviorDodgeWindows)
+                                        return qsTr("Recolhe quando a janela em foco se aproxima da doca, mesmo sem estar maximizada.")
+                                    if (dock.liveBehaviorAutoHide)
+                                        return qsTr("Fica recolhida e volta ao aproximar o rato da borda. Não reserva espaço às janelas.")
+                                    return qsTr("Sempre à vista. Reserva espaço no ecrã: as janelas param antes de a alcançar.")
+                                }
+                            }
                         }
                     }
 
@@ -803,7 +895,7 @@ Window {
                         color: settingsWin.uiCardBg
                         // Filtro da busca: o card some quando o texto procurado nao bate.
                         visible: settingsWin.cardMatch("tarefas apps execucao nao fixados macos exibicao")
-                        radius: 8
+                        radius: settingsWin.uiCardRadius
                         border.color: settingsWin.uiCardBorder
 
                         ColumnLayout {
@@ -812,7 +904,8 @@ Window {
                             anchors.margins: 12
                             spacing: 8
 
-                            Label { text: qsTr("Exibição de Tarefas"); font.bold: true; font.pixelSize: 14; color: settingsWin.uiTextPrimary }
+                            Label { text: qsTr("Exibição de Tarefas"); font.weight: Font.DemiBold; font.pixelSize: settingsWin.fsTitle; color: settingsWin.uiTextPrimary }
+                            SectionHint { text: qsTr("O que mostrar além dos ícones que fixaste.") }
 
                             CheckBox {
                                 text: qsTr("Mostrar apps em execução não fixados (estilo macOS)")
@@ -830,7 +923,7 @@ Window {
                         Layout.fillWidth: true
                         implicitHeight: actCol.implicitHeight + 24
                         color: settingsWin.uiCardBg
-                        radius: 8
+                        radius: settingsWin.uiCardRadius
                         border.color: settingsWin.uiAccent
 
                         ColumnLayout {
@@ -840,7 +933,8 @@ Window {
                             spacing: 10
 
                             RowLayout {
-                                Label { text: qsTr("Ações e Ocultamento Avançado"); font.bold: true; font.pixelSize: 14; color: settingsWin.uiTextPrimary }
+                                Label { text: qsTr("Ações e Ocultamento Avançado"); font.weight: Font.DemiBold; font.pixelSize: settingsWin.fsTitle; color: settingsWin.uiTextPrimary }
+                                SectionHint { text: qsTr("Cliques do rato e tempos de resposta ao ocultar.") }
                                 Rectangle { radius: 4; color: settingsWin.uiAccent; implicitWidth: 70; implicitHeight: 18; Text { anchors.centerIn: parent; text: "Avançado"; font.pixelSize: 10; color: "#FFF"; font.bold: true } }
                             }
 
@@ -893,7 +987,7 @@ Window {
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 4
-                                    Label { text: qsTr("Ação clique esquerdo"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                    Label { text: qsTr("Ação clique esquerdo"); color: settingsWin.uiTextSecondary; font.pixelSize: settingsWin.fsHint }
                                     ComboBox {
                                         Layout.fillWidth: true
                                         model: [qsTr("Padrão"), qsTr("Abrir menu"), qsTr("Sempre nova janela")]
@@ -905,7 +999,7 @@ Window {
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 4
-                                    Label { text: qsTr("Ação clique do meio"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                    Label { text: qsTr("Ação clique do meio"); color: settingsWin.uiTextSecondary; font.pixelSize: settingsWin.fsHint }
                                     ComboBox {
                                         Layout.fillWidth: true
                                         model: [qsTr("Padrão"), qsTr("Fechar app"), qsTr("Nova janela"), qsTr("Minimizar/Restaurar")]
@@ -922,7 +1016,7 @@ Window {
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 4
-                                    Label { text: qsTr("Scroll no ícone"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                    Label { text: qsTr("Scroll no ícone"); color: settingsWin.uiTextSecondary; font.pixelSize: settingsWin.fsHint }
                                     ComboBox {
                                         Layout.fillWidth: true
                                         model: [qsTr("Alternar janelas"), qsTr("Volume"), qsTr("Brilho")]
@@ -934,7 +1028,7 @@ Window {
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 4
-                                    Label { text: qsTr("Progresso de download"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                    Label { text: qsTr("Progresso de download"); color: settingsWin.uiTextSecondary; font.pixelSize: settingsWin.fsHint }
                                     ComboBox {
                                         Layout.fillWidth: true
                                         model: [
@@ -957,6 +1051,98 @@ Window {
                     // caso contrario ficava um bloco vazio a ocupar o ecra.
                     visible: settingsWin.searching ? settingsWin.cardMatch("aparencia presets temas vidro escuro claro liquido neon minimalista tema destaque cor itens tamanho absoluto zoom mouse comprimento maximo plano fundo contorno opacidade gradiente indicadores geometria margem espacamento raio")
                                                    : settingsWin.activeTab === 1
+
+                    // ---- Prévia ao vivo -------------------------------------
+                    // Os controlos ja' aplicavam ao vivo na doca de verdade, mas
+                    // a doca fica atras desta janela: para ver o efeito era
+                    // preciso arrastar a janela para o lado ou fecha-la. Aqui a
+                    // mudanca ve-se sem sair de onde se esta' a mexer.
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: 132
+                        radius: settingsWin.uiCardRadius
+                        color: settingsWin.uiHeaderBg
+                        border.width: 1
+                        border.color: settingsWin.uiCardBorder
+                        clip: true
+
+                        // Xadrez discreto por tras: sem ele, uma doca muito
+                        // transparente ficaria indistinguivel do fundo do card
+                        // e a opacidade nao se perceberia.
+                        Canvas {
+                            anchors.fill: parent
+                            opacity: 0.5
+                            onPaint: {
+                                const ctx = getContext("2d")
+                                const t = 10
+                                ctx.clearRect(0, 0, width, height)
+                                for (let y = 0; y < height; y += t)
+                                    for (let x = 0; x < width; x += t) {
+                                        ctx.fillStyle = ((x / t + y / t) % 2 === 0)
+                                            ? "#20242C" : "#191C22"
+                                        ctx.fillRect(x, y, t, t)
+                                    }
+                            }
+                        }
+
+                        // A barra da doca
+                        Rectangle {
+                            id: previewBar
+                            anchors.centerIn: parent
+                            width: Math.min(parent.width - 32, previewRow.width + 28)
+                            height: previewRow.height + 16
+                            radius: Math.min(height / 2, dock.liveDockRadius)
+                            opacity: dock.liveBgOpacity
+                            border.width: dock.liveBorderWidth
+                            border.color: Qt.rgba(1, 1, 1, dock.liveBorderGlow)
+
+                            gradient: Gradient {
+                                orientation: Gradient.Horizontal
+                                GradientStop { position: 0.0; color: dock.liveGradientColorA }
+                                GradientStop { position: dock.liveGradientMix; color: dock.liveGradientColorB }
+                                GradientStop { position: 1.0; color: dock.liveGradientColorC }
+                            }
+
+                            Behavior on radius { NumberAnimation { duration: 120 } }
+                            Behavior on opacity { NumberAnimation { duration: 120 } }
+                        }
+
+                        // Os icones. O do meio aparece ampliado, para o zoom
+                        // maximo ser visivel sem precisar de passar o rato.
+                        Row {
+                            id: previewRow
+                            anchors.centerIn: previewBar
+                            spacing: dock.liveIconSpacing
+
+                            Repeater {
+                                model: 7
+                                Rectangle {
+                                    required property int index
+                                    readonly property bool destaque: index === 3
+                                    readonly property real base: dock.liveMinIconSize
+                                    width: destaque
+                                        ? Math.min(dock.liveMaxIconSize,
+                                                   base * (1 + dock.liveMaxIconZoomPercent / 100))
+                                        : base
+                                    height: width
+                                    radius: width * 0.28
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    color: destaque ? settingsWin.uiAccent : settingsWin.uiAccentSoft
+                                    opacity: destaque ? 1.0 : 0.55
+                                    Behavior on width { NumberAnimation { duration: 120 } }
+                                }
+                            }
+                        }
+
+                        Label {
+                            anchors.left: parent.left
+                            anchors.top: parent.top
+                            anchors.margins: 10
+                            text: qsTr("Prévia")
+                            font.pixelSize: settingsWin.fsHint
+                            color: settingsWin.uiTextSecondary
+                        }
+                    }
                     Layout.fillWidth: true
                     spacing: 20
 
@@ -1014,7 +1200,7 @@ Window {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 4
-                                Label { text: qsTr("Tema"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                Label { text: qsTr("Tema"); color: settingsWin.uiTextSecondary; font.pixelSize: settingsWin.fsHint }
                                 ComboBox {
                                     Layout.fillWidth: true
                                     model: [qsTr("Escuro"), qsTr("Claro"), qsTr("Escuro Translúcido"), qsTr("Neon")]
@@ -1026,7 +1212,7 @@ Window {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 4
-                                Label { text: qsTr("Destaque"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                Label { text: qsTr("Destaque"); color: settingsWin.uiTextSecondary; font.pixelSize: settingsWin.fsHint }
                                 ComboBox {
                                     Layout.fillWidth: true
                                     model: [qsTr("Ciano"), qsTr("Roxo"), qsTr("Verde"), qsTr("Laranja"), qsTr("Rosa")]
@@ -1053,7 +1239,7 @@ Window {
 
                         Label {
                             text: qsTr("Tamanho")
-                            font.pixelSize: 12
+                            font.pixelSize: settingsWin.fsHint
                             color: settingsWin.uiTextSecondary
                             Layout.alignment: Qt.AlignHCenter
                         }
@@ -1073,7 +1259,7 @@ Window {
 
                         Label {
                             text: qsTr("Efeitos")
-                            font.pixelSize: 12
+                            font.pixelSize: settingsWin.fsHint
                             color: settingsWin.uiTextSecondary
                             Layout.alignment: Qt.AlignHCenter
                         }
@@ -1183,7 +1369,7 @@ Window {
 
                         Label {
                             text: qsTr("Cores do Gradiente (Estilo Vidro)")
-                            font.pixelSize: 13
+                            font.pixelSize: settingsWin.fsBody
                             font.bold: true
                             color: settingsWin.uiTextPrimary
                             Layout.topMargin: 4
@@ -1225,7 +1411,7 @@ Window {
                         color: settingsWin.uiCardBg
                         // Filtro da busca: o card some quando o texto procurado nao bate.
                         visible: settingsWin.cardMatch("indicadores pontos luz tarefas abertas estilo")
-                        radius: 8
+                        radius: settingsWin.uiCardRadius
                         border.color: settingsWin.uiCardBorder
 
                         ColumnLayout {
@@ -1234,7 +1420,8 @@ Window {
                             anchors.margins: 12
                             spacing: 10
 
-                            Label { text: qsTr("Indicadores de Tarefas"); font.bold: true; font.pixelSize: 14; color: settingsWin.uiTextPrimary }
+                            Label { text: qsTr("Indicadores de Tarefas"); font.weight: Font.DemiBold; font.pixelSize: settingsWin.fsTitle; color: settingsWin.uiTextPrimary }
+                            SectionHint { text: qsTr("A marca que assinala uma aplicação aberta.") }
 
                             RowLayout {
                                 Layout.fillWidth: true
@@ -1268,7 +1455,7 @@ Window {
                         color: settingsWin.uiCardBg
                         // Filtro da busca: o card some quando o texto procurado nao bate.
                         visible: settingsWin.cardMatch("efeito magnetico onda animacao inercia zoom ampliacao perfil suave")
-                        radius: 8
+                        radius: settingsWin.uiCardRadius
                         border.color: settingsWin.uiCardBorder
 
                         ColumnLayout {
@@ -1277,12 +1464,13 @@ Window {
                             anchors.margins: 12
                             spacing: 12
 
-                            Label { text: qsTr("Efeito Magnético e Animações"); font.bold: true; font.pixelSize: 14; color: settingsWin.uiTextPrimary }
+                            Label { text: qsTr("Efeito Magnético e Animações"); font.weight: Font.DemiBold; font.pixelSize: settingsWin.fsTitle; color: settingsWin.uiTextPrimary }
+                            SectionHint { text: qsTr("Como os ícones reagem ao rato e a que velocidade.") }
 
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 4
-                                Label { text: qsTr("Intensidade da Onda: %1%").arg(Math.round(dock.liveWaveIntensity * 100)); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                Label { text: qsTr("Intensidade da Onda: %1%").arg(Math.round(dock.liveWaveIntensity * 100)); color: settingsWin.uiTextSecondary; font.pixelSize: settingsWin.fsHint }
                                 Slider { Layout.fillWidth: true; from: 0.6; to: 1.0; stepSize: 0.02; value: dock.liveWaveIntensity; onMoved: dock.liveWaveIntensity = value }
                             }
 
@@ -1293,7 +1481,7 @@ Window {
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 4
-                                    Label { text: qsTr("Inércia da Onda (Resposta)"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                    Label { text: qsTr("Inércia da Onda (Resposta)"); color: settingsWin.uiTextSecondary; font.pixelSize: settingsWin.fsHint }
                                     ComboBox {
                                         Layout.fillWidth: true
                                         model: [qsTr("Rápida / Instantânea (Estilo macOS)"), qsTr("Suave (Padrão)"), qsTr("Amanteigada / Fluida")]
@@ -1305,7 +1493,7 @@ Window {
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 4
-                                    Label { text: qsTr("Perfil de Animação"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                    Label { text: qsTr("Perfil de Animação"); color: settingsWin.uiTextSecondary; font.pixelSize: settingsWin.fsHint }
                                     ComboBox {
                                         Layout.fillWidth: true
                                         model: [qsTr("Suave"), qsTr("Rápido"), qsTr("Elástico"), qsTr("Sem animação")]
@@ -1327,7 +1515,7 @@ Window {
                         Layout.fillWidth: true
                         implicitHeight: advCol.implicitHeight + 24
                         color: settingsWin.uiCardBg
-                        radius: 8
+                        radius: settingsWin.uiCardRadius
                         border.color: settingsWin.uiAccent
 
                         ColumnLayout {
@@ -1337,7 +1525,8 @@ Window {
                             spacing: 12
 
                             RowLayout {
-                                Label { text: qsTr("Ajustes Finos de Aparência e Geometria"); font.bold: true; font.pixelSize: 14; color: settingsWin.uiTextPrimary }
+                                Label { text: qsTr("Ajustes Finos de Aparência e Geometria"); font.weight: Font.DemiBold; font.pixelSize: settingsWin.fsTitle; color: settingsWin.uiTextPrimary }
+                                SectionHint { text: qsTr("Detalhes de fundo, margem e deslocamento da doca.") }
                                 Rectangle { radius: 4; color: settingsWin.uiAccent; implicitWidth: 70; implicitHeight: 18; Text { anchors.centerIn: parent; text: "Avançado"; font.pixelSize: 10; color: "#FFF"; font.bold: true } }
                             }
 
@@ -1348,7 +1537,7 @@ Window {
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 4
-                                    Label { text: qsTr("Estilo Fundo"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                    Label { text: qsTr("Estilo Fundo"); color: settingsWin.uiTextSecondary; font.pixelSize: settingsWin.fsHint }
                                     ComboBox {
                                         Layout.fillWidth: true
                                         model: [qsTr("Padrão"), qsTr("Vidro")]
@@ -1368,14 +1557,14 @@ Window {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 4
-                                Label { text: dockMarginLabelText() + ": " + Math.round(dock.liveDockMargin) + " px"; color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                Label { text: dockMarginLabelText() + ": " + Math.round(dock.liveDockMargin) + " px"; color: settingsWin.uiTextSecondary; font.pixelSize: settingsWin.fsHint }
                                 Slider { Layout.fillWidth: true; from: 0; to: 50; stepSize: 1; value: dock.liveDockMargin; onMoved: dock.liveDockMargin = value }
                             }
 
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 4
-                                Label { text: qsTr("Brilho da Borda: %1%").arg(Math.round(dock.liveBorderGlow * 100)); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                Label { text: qsTr("Brilho da Borda: %1%").arg(Math.round(dock.liveBorderGlow * 100)); color: settingsWin.uiTextSecondary; font.pixelSize: settingsWin.fsHint }
                                 Slider { Layout.fillWidth: true; from: 0.05; to: 0.60; stepSize: 0.01; value: dock.liveBorderGlow; onMoved: dock.liveBorderGlow = value }
                             }
 
@@ -1386,14 +1575,14 @@ Window {
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 4
-                                    Label { text: qsTr("Offset X: %1 px").arg(Math.round(dock.liveDockOffsetX)); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                    Label { text: qsTr("Offset X: %1 px").arg(Math.round(dock.liveDockOffsetX)); color: settingsWin.uiTextSecondary; font.pixelSize: settingsWin.fsHint }
                                     Slider { Layout.fillWidth: true; from: -300; to: 300; stepSize: 1; value: dock.liveDockOffsetX; onMoved: dock.liveDockOffsetX = value }
                                 }
 
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 4
-                                    Label { text: qsTr("Offset Y: %1 px").arg(Math.round(dock.liveDockOffsetY)); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                    Label { text: qsTr("Offset Y: %1 px").arg(Math.round(dock.liveDockOffsetY)); color: settingsWin.uiTextSecondary; font.pixelSize: settingsWin.fsHint }
                                     Slider { Layout.fillWidth: true; from: -300; to: 300; stepSize: 1; value: dock.liveDockOffsetY; onMoved: dock.liveDockOffsetY = value }
                                 }
                             }
@@ -1407,7 +1596,7 @@ Window {
                         color: settingsWin.uiCardBg
                         // Filtro da busca: o card some quando o texto procurado nao bate.
                         visible: settingsWin.cardMatch("perfis rapidos trabalho gaming streaming salvar aplicar preset")
-                        radius: 8
+                        radius: settingsWin.uiCardRadius
                         border.color: settingsWin.uiCardBorder
 
                         ColumnLayout {
@@ -1416,7 +1605,8 @@ Window {
                             anchors.margins: 12
                             spacing: 10
 
-                            Label { text: qsTr("Perfis Rápidos de Configuração"); font.bold: true; font.pixelSize: 14; color: settingsWin.uiTextPrimary }
+                            Label { text: qsTr("Perfis Rápidos de Configuração"); font.weight: Font.DemiBold; font.pixelSize: settingsWin.fsTitle; color: settingsWin.uiTextPrimary }
+                            SectionHint { text: qsTr("Guarda a configuração atual e volta a ela num clique.") }
 
                             // Uma linha por perfil, em vez de duas grelhas de
                             // tres botoes ("Salvar X" numa, "Aplicar X" noutra).
@@ -1433,7 +1623,7 @@ Window {
                                     Label {
                                         text: parent.modelData
                                         color: settingsWin.uiTextPrimary
-                                        font.pixelSize: 13
+                                        font.pixelSize: settingsWin.fsBody
                                         Layout.preferredWidth: 110
                                     }
 
@@ -1459,7 +1649,7 @@ Window {
                         Layout.fillWidth: true
                         implicitHeight: quitCol.implicitHeight + 24
                         color: settingsWin.uiCardBg
-                        radius: 8
+                        radius: settingsWin.uiCardRadius
                         border.color: settingsWin.uiCardBorder
 
                         ColumnLayout {
@@ -1470,12 +1660,12 @@ Window {
 
                             Label {
                                 text: qsTr("Encerrar a doca")
-                                font.bold: true; font.pixelSize: 14
+                                font.weight: Font.DemiBold; font.pixelSize: settingsWin.fsTitle
                                 color: settingsWin.uiTextPrimary
                             }
                             Label {
                                 text: qsTr("Fecha a doca por completo. Para a trazer de volta, reinicie o serviço ou volte a executá-la.")
-                                font.pixelSize: 12
+                                font.pixelSize: settingsWin.fsHint
                                 color: settingsWin.uiTextSecondary
                                 wrapMode: Text.WordWrap
                                 Layout.fillWidth: true
@@ -1518,7 +1708,7 @@ Window {
                         Layout.fillWidth: true
                         implicitHeight: advTweaksCol.implicitHeight + 24
                         color: settingsWin.uiCardBg
-                        radius: 8
+                        radius: settingsWin.uiCardRadius
                         border.color: settingsWin.uiAccent
 
                         ColumnLayout {
@@ -1528,7 +1718,7 @@ Window {
                             spacing: 12
 
                             RowLayout {
-                                Label { text: qsTr("Atalhos, Automações e JSON Avançado"); font.bold: true; font.pixelSize: 14; color: settingsWin.uiTextPrimary }
+                                Label { text: qsTr("Atalhos, Automações e JSON Avançado"); font.weight: Font.DemiBold; font.pixelSize: settingsWin.fsTitle; color: settingsWin.uiTextPrimary }
                                 Rectangle { radius: 4; color: settingsWin.uiAccent; implicitWidth: 70; implicitHeight: 18; Text { anchors.centerIn: parent; text: "Avançado"; font.pixelSize: 10; color: "#FFF"; font.bold: true } }
                             }
 
@@ -1539,14 +1729,14 @@ Window {
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 4
-                                    Label { text: qsTr("Atalho alternar dock"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                    Label { text: qsTr("Atalho alternar dock"); color: settingsWin.uiTextSecondary; font.pixelSize: settingsWin.fsHint }
                                     TextField { Layout.fillWidth: true; text: dock.liveToggleDockShortcut; onTextChanged: dock.liveToggleDockShortcut = text }
                                 }
 
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 4
-                                    Label { text: qsTr("Atalho abrir ajustes"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                    Label { text: qsTr("Atalho abrir ajustes"); color: settingsWin.uiTextSecondary; font.pixelSize: settingsWin.fsHint }
                                     TextField { Layout.fillWidth: true; text: dock.liveOpenSettingsShortcut; onTextChanged: dock.liveOpenSettingsShortcut = text }
                                 }
                             }
@@ -1573,14 +1763,14 @@ Window {
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 4
-                                    Label { text: qsTr("Início do dia: %1h").arg(dock.liveDayStartHour); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                    Label { text: qsTr("Início do dia: %1h").arg(dock.liveDayStartHour); color: settingsWin.uiTextSecondary; font.pixelSize: settingsWin.fsHint }
                                     Slider { Layout.fillWidth: true; from: 0; to: 23; stepSize: 1; value: dock.liveDayStartHour; onMoved: dock.liveDayStartHour = Math.round(value) }
                                 }
 
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 4
-                                    Label { text: qsTr("Início da noite: %1h").arg(dock.liveNightStartHour); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                    Label { text: qsTr("Início da noite: %1h").arg(dock.liveNightStartHour); color: settingsWin.uiTextSecondary; font.pixelSize: settingsWin.fsHint }
                                     Slider { Layout.fillWidth: true; from: 0; to: 23; stepSize: 1; value: dock.liveNightStartHour; onMoved: dock.liveNightStartHour = Math.round(value) }
                                 }
                             }
@@ -1600,7 +1790,7 @@ Window {
                                 ActionBtn { text: qsTr("Refazer"); onClicked: dock.redoCustomization() }
                             }
 
-                            Label { text: qsTr("Widgets/Plugins leves (JSON array)"); font.bold: true; font.pixelSize: 12; color: settingsWin.uiTextPrimary }
+                            Label { text: qsTr("Widgets/Plugins leves (JSON array)"); font.bold: true; font.pixelSize: settingsWin.fsHint; color: settingsWin.uiTextPrimary }
 
                             RowLayout {
                                 Layout.fillWidth: true
@@ -1638,7 +1828,7 @@ Window {
                                 placeholderText: "[{\"name\":\"CPU\",\"icon\":\"utilities-system-monitor\",\"cmd\":\"plasma-systemmonitor\"}]"
                             }
 
-                            Label { text: qsTr("Regras por app (JSON)"); font.bold: true; font.pixelSize: 12; color: settingsWin.uiTextPrimary }
+                            Label { text: qsTr("Regras por app (JSON)"); font.bold: true; font.pixelSize: settingsWin.fsHint; color: settingsWin.uiTextPrimary }
                             JsonEditor {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 64
@@ -1647,7 +1837,7 @@ Window {
                                 placeholderText: "{\"firefox\":{\"badgeText\":\"3\"}}"
                             }
 
-                            Label { text: qsTr("Comandos custom por app (JSON)"); font.bold: true; font.pixelSize: 12; color: settingsWin.uiTextPrimary }
+                            Label { text: qsTr("Comandos custom por app (JSON)"); font.bold: true; font.pixelSize: settingsWin.fsHint; color: settingsWin.uiTextPrimary }
                             JsonEditor {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 64
@@ -1660,6 +1850,8 @@ Window {
                 }
             }
         }
+        }
+
 
         // ================= RODAPÉ / FOOTER (AÇÕES GLOBAIS) =================
         Rectangle {
