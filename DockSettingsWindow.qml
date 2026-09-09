@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Window
 
 // Janela de configurações completa — estilo moderno inspirado no Latte Dock.
@@ -36,9 +37,70 @@ Window {
     }
 
     property int activeTab: 0 // 0: Behavior, 1: Appearance, 2: Tweaks
+
+    // ---- Busca -------------------------------------------------------------
+    // Sao 54 controlos espalhados por tres abas, mais os que o modo avancado
+    // revela. Sem busca, encontrar uma opcao concreta obrigava a percorrer tudo.
+    property string searchText: ""
+    readonly property bool searching: searchText.trim().length > 0
+
+    // Enquanto se procura, as tres abas ficam visiveis ao mesmo tempo: a opcao
+    // pode estar em qualquer uma, e obrigar a adivinhar qual derrotava o efeito.
+    function cardMatch(terms) {
+        if (!searching)
+            return true
+        const q = searchText.trim().toLowerCase()
+        return terms.toLowerCase().indexOf(q) !== -1
+    }
     property bool advancedMode: false
 
     // Componente de botão segmentado reutilizável
+    // Amostra de cor clicavel + campo hex.
+    //
+    // So' havia o campo hex. Numa aba chamada "Aparencia", escolher cor
+    // escrevendo #14161A e' o oposto de pratico: nao se ve' o que se esta' a
+    // escolher ate' confirmar. O hex fica, para quem quer colar um valor exacto.
+    component ColorField: ColumnLayout {
+        id: cf
+        property string label: ""
+        property string value: "#000000"
+        signal edited(string novaCor)
+
+        spacing: 4
+
+        Label { text: cf.label; color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 6
+
+            Rectangle {
+                width: 30; height: 30; radius: 6
+                color: cf.value
+                border.width: 1
+                border.color: settingsWin.uiCardBorder
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: corDlg.open()
+                }
+            }
+
+            TextField {
+                Layout.fillWidth: true
+                text: cf.value
+                onTextChanged: if (text !== cf.value) cf.edited(text)
+            }
+        }
+
+        ColorDialog {
+            id: corDlg
+            selectedColor: cf.value
+            // toString() de uma cor Qt devolve #AARRGGBB; a doca guarda #RRGGBB.
+            onAccepted: cf.edited("#" + selectedColor.toString().slice(3))
+        }
+    }
+
     component ActionBtn: Rectangle {
         id: btnRoot
         property string text: ""
@@ -277,7 +339,9 @@ Window {
         dock.syncGlobalShortcuts()
     }
 
-    function aplicarValores() {
+    // Separado do aplicarValores() para existir um "Aplicar" que nao fecha.
+    // O corpo e' o mesmo; a diferenca e' so' o fecho no fim daquele.
+    function gravarValores() {
         try {
             var minSz = dock.liveMinIconSize
             var maxSz = Math.max(minSz, Math.min(dock.liveMaxIconSize, minSz * 2.0))
@@ -358,10 +422,13 @@ Window {
             dock.applyDockRetractedState()
         } catch (e) {
             taskBackend.debugLog("settings", "Aviso em aplicarValores: " + e)
-        } finally {
-            settingsWin.visible = false
-            settingsWin.close()
         }
+    }
+
+    function aplicarValores() {
+        gravarValores()
+        settingsWin.visible = false
+        settingsWin.close()
     }
 
     function adicionarWidgetPreset(preset) {
@@ -545,6 +612,58 @@ Window {
             }
         }
 
+        // ================= BUSCA =================
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: 46
+            color: settingsWin.uiHeaderBg
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 16
+                anchors.rightMargin: 16
+                spacing: 8
+
+                Label {
+                    text: "⌕"
+                    font.pixelSize: 18
+                    color: settingsWin.uiTextSecondary
+                }
+
+                TextField {
+                    id: buscaField
+                    Layout.fillWidth: true
+                    placeholderText: qsTr("Procurar uma opção…")
+                    text: settingsWin.searchText
+                    onTextChanged: settingsWin.searchText = text
+                    background: Item {}
+                    color: settingsWin.uiTextPrimary
+                }
+
+                // So' aparece quando ha' algo escrito: um "x" permanente num
+                // campo vazio e' ruido.
+                ActionBtn {
+                    visible: settingsWin.searching
+                    text: qsTr("Limpar")
+                    onClicked: { settingsWin.searchText = ""; buscaField.text = "" }
+                }
+
+                Label {
+                    visible: settingsWin.searching
+                    text: qsTr("mostrando todas as abas")
+                    font.pixelSize: 11
+                    color: settingsWin.uiTextSecondary
+                }
+            }
+
+            Rectangle {
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: 1
+                color: settingsWin.uiCardBorder
+            }
+        }
+
         // ================= CONTEÚDO PRINCIPAL (ABAS) =================
         ScrollView {
             Layout.fillWidth: true
@@ -572,7 +691,10 @@ Window {
 
                 // ================= TAB 0: BEHAVIOR (COMPORTAMENTO) =================
                 ColumnLayout {
-                    visible: settingsWin.activeTab === 0
+                    // Durante a busca a aba so' aparece se algo nela bater;
+                    // caso contrario ficava um bloco vazio a ocupar o ecra.
+                    visible: settingsWin.searching ? settingsWin.cardMatch("posicao doca inferior superior esquerda direita visibilidade ocultar auto-ocultar desviar janela maximizada tarefas apps execucao fixados macos acoes clique atraso")
+                                                   : settingsWin.activeTab === 0
                     Layout.fillWidth: true
                     spacing: 16
 
@@ -581,6 +703,8 @@ Window {
                         Layout.fillWidth: true
                         implicitHeight: posCol.implicitHeight + 24
                         color: settingsWin.uiCardBg
+                        // Filtro da busca: o card some quando o texto procurado nao bate.
+                        visible: settingsWin.cardMatch("posicao doca lado inferior superior esquerda direita orientacao")
                         radius: 8
                         border.color: settingsWin.uiCardBorder
 
@@ -627,6 +751,8 @@ Window {
                         Layout.fillWidth: true
                         implicitHeight: visCol.implicitHeight + 24
                         color: settingsWin.uiCardBg
+                        // Filtro da busca: o card some quando o texto procurado nao bate.
+                        visible: settingsWin.cardMatch("visibilidade ocultar auto-ocultar esconder desviar janela maximizada mostrar")
                         radius: 8
                         border.color: settingsWin.uiCardBorder
 
@@ -638,11 +764,13 @@ Window {
 
                             Label { text: qsTr("Visibilidade"); font.bold: true; font.pixelSize: 14; color: settingsWin.uiTextPrimary }
 
-                            GridLayout {
+                            // Uma linha, igual a "Posicao da Doca" logo acima.
+                            // Eram dois grupos da mesma natureza -- escolha
+                            // unica entre quatro -- desenhados de formas
+                            // diferentes: um em linha, outro em grelha 2x2.
+                            RowLayout {
                                 Layout.fillWidth: true
-                                columns: 2
-                                rowSpacing: 8
-                                columnSpacing: 8
+                                spacing: 8
 
                                 SegmentedButton {
                                     labelText: qsTr("Sempre Visível")
@@ -673,6 +801,8 @@ Window {
                         Layout.fillWidth: true
                         implicitHeight: appCol.implicitHeight + 24
                         color: settingsWin.uiCardBg
+                        // Filtro da busca: o card some quando o texto procurado nao bate.
+                        visible: settingsWin.cardMatch("tarefas apps execucao nao fixados macos exibicao")
                         radius: 8
                         border.color: settingsWin.uiCardBorder
 
@@ -695,7 +825,8 @@ Window {
 
                     // ATRASOS E OPÇÕES AVANÇADAS DE JANELAS (REVELADAS PELO MODO AVANÇADO)
                     Rectangle {
-                        visible: settingsWin.advancedMode
+                        // So' no modo avancado, e ainda assim so' se a busca bater.
+                        visible: settingsWin.advancedMode && settingsWin.cardMatch("acoes clique ocultamento avancado atraso delay botao")
                         Layout.fillWidth: true
                         implicitHeight: actCol.implicitHeight + 24
                         color: settingsWin.uiCardBg
@@ -822,7 +953,10 @@ Window {
 
                 // ================= TAB 1: APPEARANCE (APARÊNCIA ESTILO LATTE) =================
                 ColumnLayout {
-                    visible: settingsWin.activeTab === 1
+                    // Durante a busca a aba so' aparece se algo nela bater;
+                    // caso contrario ficava um bloco vazio a ocupar o ecra.
+                    visible: settingsWin.searching ? settingsWin.cardMatch("aparencia presets temas vidro escuro claro liquido neon minimalista tema destaque cor itens tamanho absoluto zoom mouse comprimento maximo plano fundo contorno opacidade gradiente indicadores geometria margem espacamento raio")
+                                                   : settingsWin.activeTab === 1
                     Layout.fillWidth: true
                     spacing: 20
 
@@ -1059,25 +1193,25 @@ Window {
                             Layout.fillWidth: true
                             spacing: 10
 
-                            ColumnLayout {
+                            ColorField {
                                 Layout.fillWidth: true
-                                spacing: 4
-                                Label { text: qsTr("Cor A"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
-                                TextField { Layout.fillWidth: true; text: dock.liveGradientColorA; onTextChanged: dock.liveGradientColorA = text }
+                                label: qsTr("Cor A")
+                                value: dock.liveGradientColorA
+                                onEdited: (c) => dock.liveGradientColorA = c
                             }
 
-                            ColumnLayout {
+                            ColorField {
                                 Layout.fillWidth: true
-                                spacing: 4
-                                Label { text: qsTr("Cor B"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
-                                TextField { Layout.fillWidth: true; text: dock.liveGradientColorB; onTextChanged: dock.liveGradientColorB = text }
+                                label: qsTr("Cor B")
+                                value: dock.liveGradientColorB
+                                onEdited: (c) => dock.liveGradientColorB = c
                             }
 
-                            ColumnLayout {
+                            ColorField {
                                 Layout.fillWidth: true
-                                spacing: 4
-                                Label { text: qsTr("Cor C"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
-                                TextField { Layout.fillWidth: true; text: dock.liveGradientColorC; onTextChanged: dock.liveGradientColorC = text }
+                                label: qsTr("Cor C")
+                                value: dock.liveGradientColorC
+                                onEdited: (c) => dock.liveGradientColorC = c
                             }
                         }
                     }
@@ -1089,6 +1223,8 @@ Window {
                         Layout.fillWidth: true
                         implicitHeight: indCol.implicitHeight + 24
                         color: settingsWin.uiCardBg
+                        // Filtro da busca: o card some quando o texto procurado nao bate.
+                        visible: settingsWin.cardMatch("indicadores pontos luz tarefas abertas estilo")
                         radius: 8
                         border.color: settingsWin.uiCardBorder
 
@@ -1114,8 +1250,80 @@ Window {
                     }
 
                     // AJUSTES FINOS DE APARÊNCIA (REVELADOS PELO MODO AVANÇADO)
+                }
+
+                // ================= TAB 2: TWEAKS & ADVANCED (EFEITOS E REGRAS) =================
+                ColumnLayout {
+                    // Durante a busca a aba so' aparece se algo nela bater;
+                    // caso contrario ficava um bloco vazio a ocupar o ecra.
+                    visible: settingsWin.searching ? settingsWin.cardMatch("ajustes efeitos magnetico onda animacao inercia perfil suave perfis rapidos trabalho gaming streaming salvar aplicar atalhos automacoes json encerrar doca")
+                                                   : settingsWin.activeTab === 2
+                    Layout.fillWidth: true
+                    spacing: 16
+
+                    // ONDA E ANIMAÇÃO (BÁSICO)
                     Rectangle {
-                        visible: settingsWin.advancedMode
+                        Layout.fillWidth: true
+                        implicitHeight: waveCol.implicitHeight + 24
+                        color: settingsWin.uiCardBg
+                        // Filtro da busca: o card some quando o texto procurado nao bate.
+                        visible: settingsWin.cardMatch("efeito magnetico onda animacao inercia zoom ampliacao perfil suave")
+                        radius: 8
+                        border.color: settingsWin.uiCardBorder
+
+                        ColumnLayout {
+                            id: waveCol
+                            anchors.fill: parent
+                            anchors.margins: 12
+                            spacing: 12
+
+                            Label { text: qsTr("Efeito Magnético e Animações"); font.bold: true; font.pixelSize: 14; color: settingsWin.uiTextPrimary }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 4
+                                Label { text: qsTr("Intensidade da Onda: %1%").arg(Math.round(dock.liveWaveIntensity * 100)); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                Slider { Layout.fillWidth: true; from: 0.6; to: 1.0; stepSize: 0.02; value: dock.liveWaveIntensity; onMoved: dock.liveWaveIntensity = value }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 10
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+                                    Label { text: qsTr("Inércia da Onda (Resposta)"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                    ComboBox {
+                                        Layout.fillWidth: true
+                                        model: [qsTr("Rápida / Instantânea (Estilo macOS)"), qsTr("Suave (Padrão)"), qsTr("Amanteigada / Fluida")]
+                                        currentIndex: dock.liveWaveInertia
+                                        onActivated: dock.liveWaveInertia = currentIndex
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+                                    Label { text: qsTr("Perfil de Animação"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
+                                    ComboBox {
+                                        Layout.fillWidth: true
+                                        model: [qsTr("Suave"), qsTr("Rápido"), qsTr("Elástico"), qsTr("Sem animação")]
+                                        currentIndex: dock.liveAnimationProfile
+                                        onActivated: dock.liveAnimationProfile = currentIndex
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Card vindo da aba "Aparencia". Aquela transbordava e
+                    // precisava de rolagem, enquanto esta e a "Comportamento"
+                    // ficavam com metade da janela vazia. Alem do equilibrio,
+                    // "Ajustes Finos" pertence por nome a "Ajustes & Efeitos".
+                    Rectangle {
+                        // So' no modo avancado, e ainda assim so' se a busca bater.
+                        visible: settingsWin.advancedMode && settingsWin.cardMatch("ajustes finos aparencia geometria margem espacamento raio borda")
                         Layout.fillWidth: true
                         implicitHeight: advCol.implicitHeight + 24
                         color: settingsWin.uiCardBg
@@ -1191,73 +1399,14 @@ Window {
                             }
                         }
                     }
-                }
-
-                // ================= TAB 2: TWEAKS & ADVANCED (EFEITOS E REGRAS) =================
-                ColumnLayout {
-                    visible: settingsWin.activeTab === 2
-                    Layout.fillWidth: true
-                    spacing: 16
-
-                    // ONDA E ANIMAÇÃO (BÁSICO)
-                    Rectangle {
-                        Layout.fillWidth: true
-                        implicitHeight: waveCol.implicitHeight + 24
-                        color: settingsWin.uiCardBg
-                        radius: 8
-                        border.color: settingsWin.uiCardBorder
-
-                        ColumnLayout {
-                            id: waveCol
-                            anchors.fill: parent
-                            anchors.margins: 12
-                            spacing: 12
-
-                            Label { text: qsTr("Efeito Magnético e Animações"); font.bold: true; font.pixelSize: 14; color: settingsWin.uiTextPrimary }
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 4
-                                Label { text: qsTr("Intensidade da Onda: %1%").arg(Math.round(dock.liveWaveIntensity * 100)); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
-                                Slider { Layout.fillWidth: true; from: 0.6; to: 1.0; stepSize: 0.02; value: dock.liveWaveIntensity; onMoved: dock.liveWaveIntensity = value }
-                            }
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 10
-
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 4
-                                    Label { text: qsTr("Inércia da Onda (Resposta)"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
-                                    ComboBox {
-                                        Layout.fillWidth: true
-                                        model: [qsTr("Rápida / Instantânea (Estilo macOS)"), qsTr("Suave (Padrão)"), qsTr("Amanteigada / Fluida")]
-                                        currentIndex: dock.liveWaveInertia
-                                        onActivated: dock.liveWaveInertia = currentIndex
-                                    }
-                                }
-
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 4
-                                    Label { text: qsTr("Perfil de Animação"); color: settingsWin.uiTextSecondary; font.pixelSize: 12 }
-                                    ComboBox {
-                                        Layout.fillWidth: true
-                                        model: [qsTr("Suave"), qsTr("Rápido"), qsTr("Elástico"), qsTr("Sem animação")]
-                                        currentIndex: dock.liveAnimationProfile
-                                        onActivated: dock.liveAnimationProfile = currentIndex
-                                    }
-                                }
-                            }
-                        }
-                    }
 
                     // PERFIS RÁPIDOS (BÁSICO)
                     Rectangle {
                         Layout.fillWidth: true
                         implicitHeight: profCol.implicitHeight + 24
                         color: settingsWin.uiCardBg
+                        // Filtro da busca: o card some quando o texto procurado nao bate.
+                        visible: settingsWin.cardMatch("perfis rapidos trabalho gaming streaming salvar aplicar preset")
                         radius: 8
                         border.color: settingsWin.uiCardBorder
 
@@ -1269,19 +1418,96 @@ Window {
 
                             Label { text: qsTr("Perfis Rápidos de Configuração"); font.bold: true; font.pixelSize: 14; color: settingsWin.uiTextPrimary }
 
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 6
-                                ActionBtn { text: qsTr("Salvar Trabalho"); onClicked: salvarPerfil("Trabalho") }
-                                ActionBtn { text: qsTr("Salvar Gaming"); onClicked: salvarPerfil("Gaming") }
-                                ActionBtn { text: qsTr("Salvar Streaming"); onClicked: salvarPerfil("Streaming") }
+                            // Uma linha por perfil, em vez de duas grelhas de
+                            // tres botoes ("Salvar X" numa, "Aplicar X" noutra).
+                            // Eram seis botoes para tres perfis, e obrigava a
+                            // ler o nome duas vezes para encontrar o certo.
+                            Repeater {
+                                model: [qsTr("Trabalho"), qsTr("Gaming"), qsTr("Streaming")]
+
+                                RowLayout {
+                                    required property string modelData
+                                    Layout.fillWidth: true
+                                    spacing: 8
+
+                                    Label {
+                                        text: parent.modelData
+                                        color: settingsWin.uiTextPrimary
+                                        font.pixelSize: 13
+                                        Layout.preferredWidth: 110
+                                    }
+
+                                    Item { Layout.fillWidth: true }
+
+                                    ActionBtn {
+                                        text: qsTr("Aplicar")
+                                        onClicked: aplicarPerfil(parent.modelData)
+                                    }
+                                    ActionBtn {
+                                        text: qsTr("Salvar")
+                                        onClicked: salvarPerfil(parent.modelData)
+                                    }
+                                }
                             }
+                        }
+                    }
+
+                    // ENCERRAR A DOCA — accao destrutiva, longe dos botoes normais
+                    Rectangle {
+                        // So' no modo avancado, e ainda assim so' se a busca bater.
+                        visible: settingsWin.advancedMode && settingsWin.cardMatch("atalhos automacoes json avancado teclas")
+                        Layout.fillWidth: true
+                        implicitHeight: quitCol.implicitHeight + 24
+                        color: settingsWin.uiCardBg
+                        radius: 8
+                        border.color: settingsWin.uiCardBorder
+
+                        ColumnLayout {
+                            id: quitCol
+                            anchors.fill: parent
+                            anchors.margins: 12
+                            spacing: 8
+
+                            Label {
+                                text: qsTr("Encerrar a doca")
+                                font.bold: true; font.pixelSize: 14
+                                color: settingsWin.uiTextPrimary
+                            }
+                            Label {
+                                text: qsTr("Fecha a doca por completo. Para a trazer de volta, reinicie o serviço ou volte a executá-la.")
+                                font.pixelSize: 12
+                                color: settingsWin.uiTextSecondary
+                                wrapMode: Text.WordWrap
+                                Layout.fillWidth: true
+                            }
+
                             RowLayout {
                                 Layout.fillWidth: true
-                                spacing: 6
-                                ActionBtn { text: qsTr("Aplicar Trabalho"); onClicked: aplicarPerfil("Trabalho") }
-                                ActionBtn { text: qsTr("Aplicar Gaming"); onClicked: aplicarPerfil("Gaming") }
-                                ActionBtn { text: qsTr("Aplicar Streaming"); onClicked: aplicarPerfil("Streaming") }
+                                Item { Layout.fillWidth: true }
+
+                                // Confirmacao em dois passos. Antes este botao
+                                // vivia no rodape, encostado ao "Restaurar
+                                // Padroes" e a dois do "Cancelar": um clique ao
+                                // lado fechava a doca sem aviso nenhum.
+                                ActionBtn {
+                                    id: quitBtn
+                                    property bool armed: false
+                                    text: armed ? qsTr("Confirmar encerramento") : qsTr("Encerrar doca")
+                                    highlighted: armed
+                                    onClicked: {
+                                        if (armed) {
+                                            Qt.quit()
+                                        } else {
+                                            armed = true
+                                            quitDisarm.restart()
+                                        }
+                                    }
+                                    Timer {
+                                        id: quitDisarm
+                                        interval: 4000
+                                        onTriggered: quitBtn.armed = false
+                                    }
+                                }
                             }
                         }
                     }
@@ -1454,11 +1680,10 @@ Window {
                 anchors.rightMargin: 16
                 spacing: 12
 
-                ActionBtn {
-                    text: qsTr("Encerrar doca")
-                    onClicked: Qt.quit()
-                }
-
+                // "Encerrar doca" saiu daqui de proposito. Fechava a doca
+                // inteira e estava encostado ao "Restaurar Padroes", a dois
+                // botoes do "Cancelar" -- um clique ao lado e a doca desaparecia.
+                // Passou para a seccao avancada, com confirmacao.
                 ActionBtn {
                     text: qsTr("Restaurar Padrões")
                     onClicked: settingsWin.carregarValores()
@@ -1472,6 +1697,14 @@ Window {
                         settingsWin.visible = false
                         settingsWin.close()
                     }
+                }
+
+                // Os controlos ja' aplicam ao vivo, mas so' havia como confirmar
+                // saindo. Para acertar o visual era preciso fechar, olhar e
+                // reabrir a cada ajuste.
+                ActionBtn {
+                    text: qsTr("Aplicar")
+                    onClicked: settingsWin.gravarValores()
                 }
 
                 ActionBtn {
