@@ -50,6 +50,14 @@ Window {
                 allAppsList = taskBackend.getAllInstalledApps()
             }
         })
+
+        // Recarrega quando algo e' instalado ou removido enquanto a doca corre.
+        // Sem isto, as duas chamadas a getAllInstalledApps() estavam guardadas
+        // por "length === 0" e so' perguntavam UMA vez: um programa instalado
+        // depois so' aparecia ao reiniciar o processo.
+        taskBackend.installedAppsChanged.connect(function() {
+            allAppsList = taskBackend.getAllInstalledApps()
+        })
     }
 
     function getAppKey(app) {

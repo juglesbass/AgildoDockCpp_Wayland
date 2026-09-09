@@ -422,6 +422,7 @@ TaskBackend::TaskBackend(QObject *parent)
     setupUnityLauncherProgressWatcher();
     setupBrowserDownloadWatcher();
     setupTrashWatcher();
+    setupApplicationsWatcher();
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     m_waylandManager = PlasmaWaylandManager::instance();
@@ -1839,6 +1840,57 @@ void TaskBackend::reportIconGeometry(const QString &command, int x, int y, int w
     Q_UNUSED(w);
     Q_UNUSED(h);
 #endif
+}
+
+void TaskBackend::setupApplicationsWatcher()
+{
+    // O loadKnownApps() so' corria uma vez, no arranque. Instalar um programa
+    // punha o .desktop em /usr/share/applications, mas o menu da doca continuava
+    // a servir o cache antigo -- so' um reinicio do processo (e por isso um
+    // reboot) o mostrava.
+    m_appsWatcher = new QFileSystemWatcher(this);
+
+    // As mesmas tres pastas que o loadKnownApps() percorre.
+    const QStringList dirs = {
+        QDir::homePath() + QStringLiteral("/.local/share/applications"),
+        QStringLiteral("/usr/share/applications"),
+        QStringLiteral("/usr/local/share/applications"),
+    };
+    for (const QString &d : dirs) {
+        if (QDir(d).exists()) {
+            m_appsWatcher->addPath(d);
+        }
+    }
+
+    // Debounce. Instalar um pacote escreve varios ficheiros de seguida, e cada
+    // um dispara o watcher; sem isto, a varredura das tres pastas correria uma
+    // dezena de vezes por instalacao. 1500 ms chega para o pacman terminar.
+    m_appsReloadTimer = new QTimer(this);
+    m_appsReloadTimer->setSingleShot(true);
+    m_appsReloadTimer->setInterval(1500);
+    connect(m_appsReloadTimer, &QTimer::timeout, this, [this]() {
+        loadKnownApps();
+
+        // O QFileSystemWatcher larga um caminho quando o diretorio e'
+        // substituido em vez de alterado -- coisa que gestores de pacotes
+        // fazem. Sem voltar a adicionar, o watcher ia-se calando com o tempo.
+        const QStringList dirs = {
+            QDir::homePath() + QStringLiteral("/.local/share/applications"),
+            QStringLiteral("/usr/share/applications"),
+            QStringLiteral("/usr/local/share/applications"),
+        };
+        const QStringList watched = m_appsWatcher->directories();
+        for (const QString &d : dirs) {
+            if (!watched.contains(d) && QDir(d).exists()) {
+                m_appsWatcher->addPath(d);
+            }
+        }
+
+        Q_EMIT installedAppsChanged();
+    });
+
+    connect(m_appsWatcher, &QFileSystemWatcher::directoryChanged,
+            this, [this]() { m_appsReloadTimer->start(); });
 }
 
 void TaskBackend::setupTrashWatcher()

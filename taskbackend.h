@@ -110,6 +110,8 @@ signals:
     /// Só o ícone com cmd correspondente deve reagir (evita repaint global na doca).
     void launcherProgressForCommandChanged(const QString &command);
     void trashStateChanged();
+    // Emitido quando a lista de aplicacoes instaladas muda em disco.
+    void installedAppsChanged();
 
 private slots:
     void updateTrashStatus();
@@ -130,6 +132,9 @@ private:
     void pollActiveForegroundHints();
     void applyActiveWindowHints(const QString &classLower, const QString &titleLower, const QSize &windowSize);
     void loadKnownApps();
+
+    // Vigia as pastas de .desktop e recarrega a lista quando algo la' muda.
+    void setupApplicationsWatcher();
     void rebuildExecIndex();
 
 
@@ -210,6 +215,8 @@ private:
     QSet<QString> m_pendingProgressNotifyCmds;
     void setupTrashWatcher();
     QFileSystemWatcher *m_trashWatcher = nullptr;
+    QFileSystemWatcher *m_appsWatcher = nullptr;
+    QTimer *m_appsReloadTimer = nullptr;
     int m_trashCount = 0;
     bool m_trashIsEmpty = true;
     bool m_dockWaveAnimating = false;
