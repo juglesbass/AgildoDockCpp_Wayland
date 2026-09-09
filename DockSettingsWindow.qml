@@ -174,6 +174,10 @@ Window {
         signal clicked()
 
         implicitHeight: 32
+        // implicitWidth existe para o botao tambem funcionar fora de um Layout.
+        // Com apenas Layout.fillWidth, dentro de um Flow -- que nao e' Layout --
+        // a largura ficava em zero e os botoes desapareciam da janela.
+        implicitWidth: Math.max(92, segLabel.implicitWidth + 28)
         Layout.fillWidth: true
         radius: 6
         color: selected ? settingsWin.uiAccent : (mouseArea.containsMouse ? (settingsWin.settingsDark ? "#2E3646" : "#E5E7EB") : "transparent")
@@ -186,6 +190,7 @@ Window {
             anchors.centerIn: parent
             spacing: 4
             Text {
+                id: segLabel
                 text: segBtn.labelText
                 color: segBtn.selected ? settingsWin.uiAccentActiveText : settingsWin.uiTextPrimary
                 font.pixelSize: settingsWin.fsHint
@@ -1158,38 +1163,21 @@ Window {
                             color: settingsWin.uiTextPrimary
                         }
 
-                        RowLayout {
+                        // Flow em vez de RowLayout: com treze temas uma unica linha nao cabe,
+                        // e o Flow quebra sozinho conforme a largura da janela.
+                        Flow {
                             Layout.fillWidth: true
-                            spacing: 8
+                            spacing: 6
 
-                            SegmentedButton {
-                                labelText: qsTr("Vidro Escuro")
-                                selected: dock.livePresetName === "Dark Glass"
-                                onClicked: dock.applyAppearancePreset("Dark Glass")
-                            }
+                            Repeater {
+                                model: DockTheme.appearancePresets()
 
-                            SegmentedButton {
-                                labelText: qsTr("Vidro Claro")
-                                selected: dock.livePresetName === "Light Glass"
-                                onClicked: dock.applyAppearancePreset("Light Glass")
-                            }
-
-                            SegmentedButton {
-                                labelText: qsTr("Vidro Líquido")
-                                selected: dock.livePresetName === "Liquid Glass"
-                                onClicked: dock.applyAppearancePreset("Liquid Glass")
-                            }
-
-                            SegmentedButton {
-                                labelText: qsTr("Neon")
-                                selected: dock.livePresetName === "Neon"
-                                onClicked: dock.applyAppearancePreset("Neon")
-                            }
-
-                            SegmentedButton {
-                                labelText: qsTr("Minimalista")
-                                selected: dock.livePresetName === "Minimal"
-                                onClicked: dock.applyAppearancePreset("Minimal")
+                                SegmentedButton {
+                                    required property var modelData
+                                    labelText: modelData.nome
+                                    selected: dock.livePresetName === modelData.id
+                                    onClicked: dock.applyAppearancePreset(modelData.id)
+                                }
                             }
                         }
 

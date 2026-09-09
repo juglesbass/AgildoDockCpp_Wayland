@@ -66,6 +66,102 @@ QtObject {
         }
     }
 
+    // Temas da doca, em tabela.
+    //
+    // Antes eram cinco ramos de um if/else no applyAppearancePreset() e cinco
+    // botoes escritos a mao na janela de configuracoes -- acrescentar um tema
+    // obrigava a mexer nos dois sitios e a linha de botoes ja' nao cabia. Aqui
+    // um tema e' uma entrada; a interface desenha-se a partir desta lista.
+    //
+    // Campos: themeMode 0 Escuro 1 Claro 2 Noite Azul 3 Ametista
+    //         accent    0 Ciano 1 Roxo 2 Verde 3 Laranja 4 Rosa
+    //         bg3d      0 padrao 3 vidro
+    //         indicator 0 ponto 1 linha 2 barra 3 sublinhado 4 pulso
+    function appearancePresets() {
+        return [
+            { id: "Dark Glass",   nome: qsTr("Vidro Escuro"),
+              themeMode: 0, accent: 0, bg3d: 3, indicator: 0, mono: false,
+              opacity: 0.42, mix: 0.35, glow: 0.24, shadow: 0.34,
+              a: "#14161A", b: "#1A1D22", c: "#121418" },
+
+            { id: "Light Glass",  nome: qsTr("Vidro Claro"),
+              themeMode: 1, accent: 2, bg3d: 3, indicator: 1, mono: false,
+              opacity: 0.36, mix: 0.30, glow: 0.28, shadow: 0.18,
+              a: "#EEF1F6", b: "#E4E9F0", c: "#F8FAFC" },
+
+            // Os canais alfa no hex sao propositais: e' o unico preset em que o
+            // proprio gradiente e' translucido, e nao so' a opacidade global.
+            // Opacidade baixa e brilho de borda alto: no Tahoe o material quase
+            // nao tem cor propria -- o que se ve' e' o fundo atenuado e a luz a
+            // acumular-se na aresta. Um vidro mais opaco le'-se como plastico.
+            { id: "Liquid Glass", nome: qsTr("Vidro Líquido"),
+              themeMode: 0, accent: 0, bg3d: 3, indicator: 4, mono: false,
+              opacity: 0.14, mix: 0.10, glow: 0.42, shadow: 0.30,
+              a: "#24FFFFFF", b: "#0AFFFFFF", c: "#18000000" },
+
+            { id: "Neon",         nome: qsTr("Neon"),
+              themeMode: 2, accent: 0, bg3d: 3, indicator: 4, mono: true,
+              opacity: 0.40, mix: 0.38, glow: 0.30, shadow: 0.45,
+              a: "#0A1424", b: "#101C32", c: "#081018" },
+
+            { id: "Minimal",      nome: qsTr("Minimalista"),
+              themeMode: 0, accent: 1, bg3d: 0, indicator: 3, mono: true,
+              opacity: 0.42, mix: 0.35, glow: 0.07, shadow: 0.18,
+              a: "#171717", b: "#171717", c: "#171717" },
+
+            // ---- Paletas conhecidas -------------------------------------
+            { id: "Catppuccin",   nome: qsTr("Catppuccin"),
+              themeMode: 0, accent: 1, bg3d: 3, indicator: 0, mono: false,
+              opacity: 0.46, mix: 0.40, glow: 0.22, shadow: 0.32,
+              a: "#1E1E2E", b: "#181825", c: "#11111B" },
+
+            { id: "Nord",         nome: qsTr("Nord"),
+              themeMode: 0, accent: 0, bg3d: 3, indicator: 1, mono: false,
+              opacity: 0.44, mix: 0.36, glow: 0.20, shadow: 0.30,
+              a: "#2E3440", b: "#3B4252", c: "#242933" },
+
+            { id: "Gruvbox",      nome: qsTr("Gruvbox"),
+              themeMode: 0, accent: 3, bg3d: 3, indicator: 2, mono: false,
+              opacity: 0.48, mix: 0.42, glow: 0.18, shadow: 0.36,
+              a: "#282828", b: "#32302F", c: "#1D2021" },
+
+            { id: "Dracula",      nome: qsTr("Drácula"),
+              themeMode: 3, accent: 1, bg3d: 3, indicator: 4, mono: false,
+              opacity: 0.45, mix: 0.38, glow: 0.26, shadow: 0.34,
+              a: "#282A36", b: "#343746", c: "#21222C" },
+
+            { id: "Tokyo Night",  nome: qsTr("Tokyo Night"),
+              themeMode: 2, accent: 1, bg3d: 3, indicator: 0, mono: false,
+              opacity: 0.46, mix: 0.34, glow: 0.28, shadow: 0.38,
+              a: "#1A1B26", b: "#24283B", c: "#16161E" },
+
+            { id: "Solarized",    nome: qsTr("Solarizado"),
+              themeMode: 0, accent: 2, bg3d: 3, indicator: 1, mono: false,
+              opacity: 0.44, mix: 0.36, glow: 0.20, shadow: 0.30,
+              a: "#002B36", b: "#073642", c: "#001F27" },
+
+            { id: "Rose",         nome: qsTr("Rosé"),
+              themeMode: 3, accent: 4, bg3d: 3, indicator: 4, mono: false,
+              opacity: 0.42, mix: 0.35, glow: 0.30, shadow: 0.28,
+              a: "#2B2028", b: "#3A2A34", c: "#221A20" },
+
+            // Sem gradiente e sem brilho: para quem quer a doca a desaparecer
+            // no fundo em vez de se afirmar.
+            { id: "Graphite",     nome: qsTr("Grafite"),
+              themeMode: 0, accent: 0, bg3d: 0, indicator: 3, mono: true,
+              opacity: 0.55, mix: 0.50, glow: 0.05, shadow: 0.22,
+              a: "#202020", b: "#242424", c: "#181818" },
+        ]
+    }
+
+    function presetById(id) {
+        const lista = appearancePresets()
+        for (let i = 0; i < lista.length; i++)
+            if (lista[i].id === id)
+                return lista[i]
+        return null
+    }
+
     function accentPalette(mode) {
         if (mode === 1) return { idle: "#B77BFF", focus: "#D4ACFF" } // Roxo
         if (mode === 2) return { idle: "#39D98A", focus: "#7CF0B5" } // Verde

@@ -307,39 +307,28 @@ Window {
     }
 
     function applyAppearancePreset(presetName) {
+        // Os valores vivem em DockTheme.appearancePresets(). Antes eram cinco
+        // ramos de if/else aqui e cinco botoes escritos a mao na janela de
+        // configuracoes: acrescentar um tema obrigava a editar os dois.
+        const t = DockTheme.presetById(presetName)
+        if (!t)
+            return
+
         pushCustomizationHistory()
         livePresetName = presetName
-        if (presetName === "Dark Glass") {
-            liveThemeMode = 0; liveAccentMode = 0; liveBg3dStyle = 3
-            liveBgOpacity = 0.42
-            liveGradientColorA = "#14161A"; liveGradientColorB = "#1A1D22"; liveGradientColorC = "#121418"
-            liveGradientMix = 0.35; liveBorderGlow = 0.24; liveShadowStrength = 0.34
-            liveMonochromeIcons = false; liveIndicatorStyle = 0
-        } else if (presetName === "Light Glass") {
-            liveThemeMode = 1; liveAccentMode = 2; liveBg3dStyle = 3
-            liveBgOpacity = 0.36
-            liveGradientColorA = "#EEF1F6"; liveGradientColorB = "#E4E9F0"; liveGradientColorC = "#F8FAFC"
-            liveGradientMix = 0.30; liveBorderGlow = 0.28; liveShadowStrength = 0.18
-            liveMonochromeIcons = false; liveIndicatorStyle = 1
-        } else if (presetName === "Liquid Glass") {
-            liveThemeMode = 0; liveAccentMode = 0; liveBg3dStyle = 3
-            liveBgOpacity = 0.20
-            liveGradientColorA = "#20FFFFFF"
-            liveGradientColorB = "#08FFFFFF"
-            liveGradientColorC = "#12000000"
-            liveGradientMix = 0.10; liveBorderGlow = 0.20; liveShadowStrength = 0.25
-            liveMonochromeIcons = false; liveIndicatorStyle = 4
-        } else if (presetName === "Neon") {
-            liveThemeMode = 2; liveAccentMode = 0; liveBg3dStyle = 3
-            liveBgOpacity = 0.40
-            liveGradientColorA = "#0A1424"; liveGradientColorB = "#101C32"; liveGradientColorC = "#081018"
-            liveGradientMix = 0.38; liveBorderGlow = 0.30; liveShadowStrength = 0.45
-            liveMonochromeIcons = true; liveIndicatorStyle = 4
-        } else if (presetName === "Minimal") {
-            liveThemeMode = 0; liveAccentMode = 1; liveBg3dStyle = 0
-            liveGradientColorA = "#171717"; liveGradientColorB = "#171717"; liveGradientColorC = "#171717"
-            liveBorderGlow = 0.07; liveShadowStrength = 0.18; liveMonochromeIcons = true; liveIndicatorStyle = 3
-        }
+
+        liveThemeMode = t.themeMode
+        liveAccentMode = t.accent
+        liveBg3dStyle = t.bg3d
+        liveIndicatorStyle = t.indicator
+        liveMonochromeIcons = t.mono
+        liveBgOpacity = t.opacity
+        liveGradientMix = t.mix
+        liveBorderGlow = t.glow
+        liveShadowStrength = t.shadow
+        liveGradientColorA = t.a
+        liveGradientColorB = t.b
+        liveGradientColorC = t.c
         updateZone()
         dockBg.syncBlurAfterStyleChange()
     }

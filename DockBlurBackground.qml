@@ -286,7 +286,76 @@ Rectangle {
         }
     }
 
+    // ---- Vidro Liquido: realce especular que acompanha o cursor -------------
+    //
+    // O que distingue o Liquid Glass do Tahoe de um simples fosco nao e' a
+    // transparencia -- e' o vidro REAGIR. A luz desloca-se com o olhar, a borda
+    // acende onde a atencao esta'. A camada estatica acima ja' dava o brilho
+    // superior; faltava o movimento, que e' o que o olho le' como vidro grosso.
+    //
+    // Nota honesta sobre o limite: refractar o WALLPAPER por tras e' impossivel
+    // daqui. A doca e' uma superficie LayerShell e nunca recebe os pixels que o
+    // compositor desenha atras dela -- o blur que se ve' e' o Hyprland, nao o
+    // app. Isto simula a resposta do material, nao a refraccao do fundo.
+    Rectangle {
+        id: specular
+        anchors.fill: parent
+        anchors.margins: 1
+        radius: Math.max(0, dockBg.radius - 1)
+        visible: dockBg.bgIsGlass && dockRoot.livePresetName === "Liquid Glass"
+        antialiasing: true
 
+        // Posicao do cursor ao longo da barra, em 0..1.
+        readonly property real px: {
+            const w = dockRoot.baseRowWidth
+            if (w <= 0) return 0.5
+            return Math.max(0.0, Math.min(1.0, dockRoot.logicalMouseX / w))
+        }
+        // Metade da largura do realce. Segue o raio da onda para o brilho e a
+        // ampliacao dos icones crescerem juntos, em vez de parecerem dois
+        // efeitos independentes sobrepostos.
+        readonly property real halo: Math.max(0.10, Math.min(0.32,
+                                     0.16 * dockRoot.liveWaveRadiusFactor / 3.0))
+
+        // So' acende quando o rato esta' sobre a doca; a waveAmplitude ja' faz
+        // essa transicao suavemente, por isso reaproveita-se em vez de criar
+        // outra animacao com tempo proprio.
+        opacity: dockRoot.waveAmplitude
+
+        gradient: Gradient {
+            orientation: Gradient.Horizontal
+            GradientStop {
+                position: Math.max(0.0, specular.px - specular.halo)
+                color: Qt.rgba(1, 1, 1, 0.0)
+            }
+            GradientStop {
+                position: specular.px
+                color: Qt.rgba(1, 1, 1, 0.14)
+            }
+            GradientStop {
+                position: Math.min(1.0, specular.px + specular.halo)
+                color: Qt.rgba(1, 1, 1, 0.0)
+            }
+        }
+    }
+
+    // Sombra interna no rodape: da' espessura ao material. Sem ela o vidro
+    // parece uma folha pintada em vez de um bloco com profundidade.
+    Rectangle {
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.margins: 1
+        height: Math.max(1, Math.round(parent.height * 0.30))
+        radius: Math.max(0, dockBg.radius - 1)
+        visible: dockBg.bgIsGlass && dockRoot.livePresetName === "Liquid Glass"
+        antialiasing: true
+        gradient: Gradient {
+            orientation: Gradient.Vertical
+            GradientStop { position: 0.0; color: Qt.rgba(0, 0, 0, 0.0) }
+            GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.18) }
+        }
+    }
 
     MouseArea {
         anchors.fill: parent
