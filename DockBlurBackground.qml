@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 
 // Fundo da dock: blur KWin, estilos Padrão/Vidro e menu de contexto.
 Rectangle {
@@ -152,6 +153,35 @@ Rectangle {
         }
     }
 
+    // Canto superior esquerdo da barra em coordenadas da janela.
+    //
+    // O mapToItem nao cria ligacoes sozinho, por isso as dependencias sao lidas
+    // de proposito antes da chamada: a barra cresce a partir do centro durante a
+    // onda, e uma origem desactualizada faria a lente deslizar sobre o fundo.
+    readonly property real sceneOriginX: {
+        dockBg.x; dockBg.width; dockRoot.liveDockOffsetX; dockRoot.liveDockEdge
+        dockContainer.startupOffsetY
+        return dockBg.mapToItem(null, 0, 0).x
+    }
+    readonly property real sceneOriginY: {
+        dockBg.y; dockBg.height; dockRoot.liveDockOffsetY; dockRoot.liveDockEdge
+        dockContainer.startupOffsetY
+        return dockBg.mapToItem(null, 0, 0).y
+    }
+
+    // A leitura do wallpaper so' arranca quando ha' lente para alimentar.
+    Binding {
+        target: wallpaperSource
+        property: "active"
+        value: dockBg.bgIsGlass && dockRoot.liveGlassLens
+               && dockRoot.livePresetName === "Liquid Glass"
+    }
+    Binding {
+        target: wallpaperSource
+        property: "outputName"
+        value: Screen.name
+    }
+
     readonly property bool bgIsFlat: dockRoot.liveBg3dStyle === 0
     readonly property bool bgIsGlass: dockRoot.liveBg3dStyle !== 0
 
@@ -236,6 +266,29 @@ Rectangle {
         antialiasing: true
     }
 
+    // Substrato do vidro: piso de alfa da superficie.
+    //
+    // O compositor descarta do desfoque os pixels cuja alfa fica abaixo do
+    // ignore_alpha. O gradiente abaixo multiplica a alfa da COR pela opacidade
+    // do utilizador, e nos presets muito transparentes as duas atenuacoes
+    // somam-se: o Liquid Glass usa #0AFFFFFF (alfa 0.039) a 14% de opacidade,
+    // o que da' 0.0055 no meio da barra -- abaixo do limiar. O resultado era
+    // uma faixa horizontal a meio da doca onde o wallpaper aparecia nitido,
+    // com as extremidades desfocadas: os tais "buracos sem blur".
+    //
+    // Este substrato garante um minimo uniforme e constante (nao segue o
+    // slider de opacidade, senao voltaria o mesmo problema). A 3% de branco e'
+    // impercetivel sobre o desfoque, mas chega para o compositor tratar a
+    // superficie inteira como pintada.
+    Rectangle {
+        anchors.fill: parent
+        anchors.margins: 1
+        radius: Math.max(0, dockBg.radius - 1)
+        visible: dockBg.bgIsGlass
+        antialiasing: true
+        color: Qt.rgba(1, 1, 1, 0.03)
+    }
+
     Rectangle {
         anchors.fill: parent
         anchors.margins: 1
@@ -268,20 +321,42 @@ Rectangle {
         opacity: dockRoot.liveBgOpacity
     }
 
-    // Camada de Brilho Especular Superior (Efeito Vidro Líquido macOS Tahoe)
+    // Vidro refractado: o wallpaper visto atraves da doca.
+    //
+    // So' no Liquid Glass, como as outras camadas deste preset. Ficou um tempo
+    // ligada em qualquer estilo de vidro e estava errado: o Vidro Escuro, o
+    // Catppuccin e os outros sao foscos por definicao -- a graca deles e' o
+    // fundo desaparecer atras do desfoque, nao atravessar a barra.
+    DockGlassLens {
+        anchors.fill: parent
+        anchors.margins: 1
+        visible: dockBg.bgIsGlass && dockRoot.liveGlassLens
+                 && dockRoot.livePresetName === "Liquid Glass"
+        dockRoot: dockBg.dockRoot
+        dockBg: dockBg
+        intensity: dockRoot.liveGlassLensIntensity
+    }
+
+    // Brilho da face superior.
+    //
+    // Era uma faixa larga -- 42% da altura a 12% de branco -- e fazia sentido
+    // antes da lente, quando o vidro nao tinha outro relevo. Com o fundo a
+    // atravessar a barra passou a atrapalhar: branco chapado por cima de vidro
+    // le'-se como embaciado, nao como brilho. Encurtada e enfraquecida, fica
+    // perto da quina, que e' onde o vidro realmente apanha a luz.
     Rectangle {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        height: Math.max(1, Math.round(parent.height * 0.42))
+        height: Math.max(1, Math.round(parent.height * 0.24))
         anchors.margins: 1
         radius: Math.max(0, dockBg.radius - 1)
         visible: dockBg.bgIsGlass && dockRoot.livePresetName === "Liquid Glass"
         antialiasing: true
         gradient: Gradient {
             orientation: Gradient.Vertical
-            GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, 0.12) }
-            GradientStop { position: 0.4; color: Qt.rgba(1, 1, 1, 0.02) }
+            GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, 0.055) }
+            GradientStop { position: 0.45; color: Qt.rgba(1, 1, 1, 0.012) }
             GradientStop { position: 1.0; color: Qt.rgba(1, 1, 1, 0.0) }
         }
     }

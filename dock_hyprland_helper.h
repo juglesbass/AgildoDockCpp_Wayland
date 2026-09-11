@@ -1,6 +1,7 @@
 #ifndef DOCK_HYPRLAND_HELPER_H
 #define DOCK_HYPRLAND_HELPER_H
 
+#include <QRect>
 #include <QString>
 #include <QStringList>
 #include <QList>
@@ -20,6 +21,12 @@ struct HyprClient {
     qint64 pid = 0;
     bool mapped = true;
     bool visible = true;
+    // Geometria em coordenadas logicas do monitor. Serve a lente de vidro, que
+    // so' pode refractar o wallpaper quando nao ha' janela nenhuma por tras.
+    QRect geometry;
+    int workspaceId = -1;
+    bool hidden = false;
+    bool fullscreen = false;
 };
 
 class DockHyprlandHelper {
@@ -27,6 +34,11 @@ public:
     static bool isHyprlandActive();
 
     static QList<HyprClient> getClients();
+
+    // Ha' alguma janela visivel do workspace activo por cima desta area?
+    // Coordenadas logicas do monitor. Usa a cache de getClients(), por isso
+    // pode ser chamada com frequencia sem multiplicar chamadas ao compositor.
+    static bool areaCoveredByWindow(const QRect &areaLogical);
     static HyprClient getActiveWindow();
 
     static bool clientMatchesCommand(const HyprClient &client,

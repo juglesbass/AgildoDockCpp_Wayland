@@ -93,6 +93,18 @@ QList<HyprClient> DockHyprlandHelper::getClients()
         c.pid = obj.value(QStringLiteral("pid")).toVariant().toLongLong();
         c.mapped = obj.value(QStringLiteral("mapped")).toBool(true);
         c.visible = obj.value(QStringLiteral("visible")).toBool(true);
+        c.hidden = obj.value(QStringLiteral("hidden")).toBool(false);
+        c.fullscreen = obj.value(QStringLiteral("fullscreen")).toInt(0) != 0;
+        const QJsonArray at = obj.value(QStringLiteral("at")).toArray();
+        const QJsonArray sz = obj.value(QStringLiteral("size")).toArray();
+        if (at.size() == 2 && sz.size() == 2) {
+            c.geometry = QRect(at.at(0).toInt(), at.at(1).toInt(),
+                               sz.at(0).toInt(), sz.at(1).toInt());
+        }
+        c.workspaceId = obj.value(QStringLiteral("workspace"))
+                            .toObject()
+                            .value(QStringLiteral("id"))
+                            .toInt(-1);
         list.append(c);
     }
 
@@ -102,6 +114,70 @@ QList<HyprClient> DockHyprlandHelper::getClients()
         s_cachedClients.clients = list;
     }
     return list;
+}
+
+namespace {
+
+// Workspaces activos por monitor. A lente pergunta uma vez por segundo, mas
+// isto so' consulta o compositor de dois em dois: trocar de workspace muda a
+// resposta, e dois segundos de atraso num efeito que ja' desvanece em 260ms
+// nao se notam -- enquanto um processo novo a cada pergunta notava-se.
+QSet<int> activeWorkspaceIds()
+{
+    static QSet<int> cache;
+    static qint64 quando = 0;
+    const qint64 agora = QDateTime::currentMSecsSinceEpoch();
+    if (quando > 0 && (agora - quando) < 2000) {
+        return cache;
+    }
+
+    QProcess proc;
+    proc.start(QStringLiteral("hyprctl"), {QStringLiteral("monitors"), QStringLiteral("-j")});
+    if (!proc.waitForFinished(120)) {
+        proc.kill();
+        return cache;
+    }
+    const QJsonDocument doc = QJsonDocument::fromJson(proc.readAllStandardOutput());
+    if (!doc.isArray()) {
+        return cache;
+    }
+
+    QSet<int> encontrados;
+    const QJsonArray arr = doc.array();
+    for (const QJsonValue &v : arr) {
+        const QJsonObject m = v.toObject();
+        encontrados.insert(m.value(QStringLiteral("activeWorkspace"))
+                               .toObject()
+                               .value(QStringLiteral("id"))
+                               .toInt(-1));
+    }
+    cache = encontrados;
+    quando = agora;
+    return cache;
+}
+
+} // namespace
+
+bool DockHyprlandHelper::areaCoveredByWindow(const QRect &areaLogical)
+{
+    if (!isHyprlandActive() || areaLogical.isEmpty()) {
+        return false;
+    }
+
+    const QSet<int> activos = activeWorkspaceIds();
+    const QList<HyprClient> clientes = getClients();
+    for (const HyprClient &c : clientes) {
+        if (!c.mapped || c.hidden || c.geometry.isEmpty()) {
+            continue;
+        }
+        if (!activos.isEmpty() && !activos.contains(c.workspaceId)) {
+            continue;
+        }
+        if (c.geometry.intersects(areaLogical)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 HyprClient DockHyprlandHelper::getActiveWindow()
@@ -486,8 +562,14 @@ void DockHyprlandHelper::applyDockLayerRules()
             // ignorezero (ignorar apenas o que e' de fato transparente) sem
             // alcancar o fundo translucido da barra, que segue o bgOpacity do
             // utilizador e pode ser baixo.
+            //
+            // 0.01 ainda era alto demais: o preset Liquid Glass compunha ~0.0055
+            // de alfa a meio da barra e essa faixa deixava de ser desfocada. O
+            // limiar desce para 0.004 -- continua a excluir o que e' alfa zero
+            // (cantos, doca recolhida) e ja' nao morde o vidro pintado. O piso
+            // de 3% no substrato do DockBlurBackground faz o resto.
             applyKeyword({QStringLiteral("layerrule"),
-                          QStringLiteral("ignore_alpha 0.01, match:namespace ") + scope});
+                          QStringLiteral("ignore_alpha 0.004, match:namespace ") + scope});
         } else {
             applyKeyword({QStringLiteral("layerrule"), QStringLiteral("blur,") + scope});
             applyKeyword({QStringLiteral("layerrule"), QStringLiteral("ignorezero,") + scope});

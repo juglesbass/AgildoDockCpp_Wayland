@@ -16,6 +16,7 @@
 #include "dock_global_shortcuts.h"
 #include "dock_hyprland_helper.h"
 #include "dock_ipc_server.h"
+#include "dock_wallpaper_source.h"
 
 namespace {
 
@@ -151,6 +152,11 @@ int main(int argc, char *argv[]) {
 
     TaskBackend *taskBackend = new TaskBackend(&app);
     engine.rootContext()->setContextProperty("taskBackend", taskBackend);
+
+    // Fonte do wallpaper para a lente de vidro. Fica inactiva ate' o QML a
+    // ligar, por isso nao custa nada a quem tem a lente desligada.
+    DockWallpaperSource *wallpaperSource = new DockWallpaperSource(&app);
+    engine.rootContext()->setContextProperty("wallpaperSource", wallpaperSource);
 
     // Atalhos globais (KGlobalAccel) — independentes do foco na doca.
 

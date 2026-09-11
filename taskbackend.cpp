@@ -907,6 +907,21 @@ void TaskBackend::setPointerInputExcludeTop(int excludeTopPixels)
     m_mainWindow->requestUpdate();
 }
 
+bool TaskBackend::areaHasWindowBehind(int x, int y, int w, int h) const
+{
+    if (w <= 0 || h <= 0) {
+        return false;
+    }
+    // Falha fechada: so' o Hyprland nos da' a geometria das janelas. Noutro
+    // compositor a resposta honesta e' "nao sei", e nao saber tem de contar
+    // como "ha' janela" -- a lente apagada e' sempre melhor do que a lente a
+    // pintar wallpaper por cima de uma janela.
+    if (!DockHyprlandHelper::isHyprlandActive()) {
+        return true;
+    }
+    return DockHyprlandHelper::areaCoveredByWindow(QRect(x, y, w, h));
+}
+
 void TaskBackend::setBlurRegion(int x, int y, int w, int h, int radius, bool immediate)
 {
     m_pendingBlurX = x;

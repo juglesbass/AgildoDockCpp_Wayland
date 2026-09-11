@@ -316,6 +316,8 @@ Window {
         dock.liveIconSpacing = dock.appSettings.iconSpacing
         dock.liveDockMargin = dock.appSettings.dockMargin
         dock.liveBgOpacity = dock.appSettings.bgOpacity
+        dock.liveGlassLens = dock.appSettings.glassLens
+        dock.liveGlassLensIntensity = dock.appSettings.glassLensIntensity
         dock.liveMinIconSize = dock.appSettings.minIconSize
         dock.liveMaxIconSize = Math.max(dock.appSettings.minIconSize, dock.appSettings.maxIconSize)
         dock.clampMaxIconSizeForZoomCap()
@@ -387,6 +389,8 @@ Window {
             dock.appSettings.iconSpacing = dock.liveIconSpacing
             dock.appSettings.dockMargin = dock.liveDockMargin
             dock.appSettings.bgOpacity = dock.liveBgOpacity
+            dock.appSettings.glassLens = dock.liveGlassLens
+            dock.appSettings.glassLensIntensity = dock.liveGlassLensIntensity
             dock.appSettings.minIconSize = minSz
             dock.appSettings.maxIconSize = maxSz
             dock.appSettings.themeMode = dock.liveThemeMode
@@ -488,6 +492,8 @@ Window {
             accentMode: dock.liveAccentMode,
             bg3dStyle: dock.liveBg3dStyle,
             bgOpacity: dock.liveBgOpacity,
+            glassLens: dock.liveGlassLens,
+            glassLensIntensity: dock.liveGlassLensIntensity,
             gradientColorA: dock.liveGradientColorA,
             gradientColorB: dock.liveGradientColorB,
             gradientColorC: dock.liveGradientColorC,
@@ -524,6 +530,8 @@ Window {
             if (p.accentMode !== undefined) dock.liveAccentMode = p.accentMode
             if (p.bg3dStyle !== undefined) dock.liveBg3dStyle = dock.normalizeBg3dStyle(p.bg3dStyle)
             if (p.bgOpacity !== undefined) dock.liveBgOpacity = p.bgOpacity
+            if (p.glassLens !== undefined) dock.liveGlassLens = p.glassLens
+            if (p.glassLensIntensity !== undefined) dock.liveGlassLensIntensity = p.glassLensIntensity
             if (p.gradientColorA !== undefined) dock.liveGradientColorA = p.gradientColorA
             if (p.gradientColorB !== undefined) dock.liveGradientColorB = p.gradientColorB
             if (p.gradientColorC !== undefined) dock.liveGradientColorC = p.gradientColorC
@@ -1353,6 +1361,48 @@ Window {
                             uiAccent: settingsWin.uiAccent
                             settingsDark: settingsWin.settingsDark
                             onMoved: (val) => dock.liveBgOpacity = val
+                        }
+
+                        Label {
+                            text: qsTr("Lente de Vidro")
+                            font.pixelSize: settingsWin.fsBody
+                            font.bold: true
+                            color: settingsWin.uiTextPrimary
+                            Layout.topMargin: 4
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Label {
+                                Layout.fillWidth: true
+                                text: qsTr("Refractar o papel de parede no rebordo")
+                                color: settingsWin.uiTextPrimary
+                                font.pixelSize: settingsWin.fsBody
+                            }
+                            Switch {
+                                checked: dock.liveGlassLens
+                                onToggled: dock.liveGlassLens = checked
+                            }
+                        }
+
+                        SectionHint {
+                            text: qsTr("Exclusivo do tema Vidro Líquido. O vidro deixa ver o papel de parede atravessando a barra, dobrando-o na aresta como uma lente grossa. Só funciona sobre a área de trabalho: com uma janela atrás, o efeito se apaga sozinho.")
+                        }
+
+                        LatteSliderRow {
+                            enabled: dock.liveGlassLens
+                            opacity: enabled ? 1.0 : 0.45
+                            labelText: qsTr("Intensidade da lente")
+                            valueText: Math.round(dock.liveGlassLensIntensity * 100) + " %"
+                            fromValue: 0.1
+                            toValue: 1.0
+                            stepValue: 0.05
+                            currentValue: dock.liveGlassLensIntensity
+                            uiTextPrimary: settingsWin.uiTextPrimary
+                            uiAccent: settingsWin.uiAccent
+                            settingsDark: settingsWin.settingsDark
+                            onMoved: (val) => dock.liveGlassLensIntensity = val
                         }
 
                         Label {

@@ -53,6 +53,11 @@ public:
     Q_INVOKABLE void initLayerShellPopup(QQuickWindow *win, const QString &scopeName = QStringLiteral("agildodock-appmenu"));
     Q_INVOKABLE void repositionLayerShellPopup(QQuickWindow *win, int edge, int marginX, int marginY);
     Q_INVOKABLE void setBlurRegion(int x, int y, int w, int h, int radius, bool immediate = false);
+
+    // Ha' janela por tras deste rectangulo (coordenadas logicas do ecra')?
+    // A lente de vidro usa isto para se apagar: so' consegue refractar o
+    // wallpaper, por isso sobre uma janela estaria a inventar.
+    Q_INVOKABLE bool areaHasWindowBehind(int x, int y, int w, int h) const;
     /// Habilita ou desabilita blur KWin em qualquer QQuickWindow (ex.: Menu de Aplicativos).
     Q_INVOKABLE void enableWindowBlur(QQuickWindow *win, bool enable = true, int x = 0, int y = 0, int w = 0, int h = 0, int radius = 24);
     /// Desliga blur KWin (estilo plano ou doca oculta).

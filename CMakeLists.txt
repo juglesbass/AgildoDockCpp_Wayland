@@ -26,7 +26,7 @@ if(ENABLE_SANITIZERS)
     endif()
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui GuiPrivate Qml Quick WaylandClient Concurrent DBus Network Sql LinguistTools Test QuickTest)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui GuiPrivate Qml Quick WaylandClient Concurrent DBus Network Sql LinguistTools Test QuickTest ShaderTools)
 qt_policy(SET QTP0001 NEW)
 find_package(KF6WindowSystem REQUIRED)
 find_package(KF6GlobalAccel REQUIRED)
@@ -52,6 +52,7 @@ add_library(agildodock_core STATIC
     dock_browser_downloads.cpp
     dock_browser_utils.cpp
     dock_hyprland_helper.cpp
+    dock_wallpaper_source.cpp
     dock_ipc_server.cpp
     kwin_dbus_helper.cpp
     plasma_wayland_manager.cpp
@@ -107,7 +108,14 @@ qt6_add_qml_module(agildodock
         DockModelsStore.qml
         DockPhysicsState.qml
         DockContainer.qml
+        DockGlassLens.qml
     )
+
+# Lente de vidro: o shader que refracta o wallpaper no rebordo da doca.
+qt6_add_shaders(agildodock "agildodock_shaders"
+    PREFIX "/agildodock"
+    FILES shaders/glasslens.frag
+)
 
 # Ícone embutido: fallback quando o tema do sistema ainda não indexou org.agildosoft.agildodock.
 set(_agildo_icon_svg "${CMAKE_CURRENT_SOURCE_DIR}/data/icons/hicolor/scalable/apps/org.agildosoft.agildodock.svg")
