@@ -661,27 +661,122 @@ Window {
                         anchors.fill: parent
                         anchors.margins: 4 * dock.liveScaleFactor
 
-                        readonly property int dynamicCols: Math.max(3, Math.min(8, Math.floor(width / Math.round(140 * dock.liveScaleFactor))))
+                        // Tamanho do ícone do app arredondado para pixel inteiro: pedir um
+                        // tamanho fracionário obriga o Qt a reamostrar e borra o desenho.
+                        readonly property int iconPx: Math.round(dock.liveAppMenuIconSize * dock.liveScaleFactor)
+
+                        // A célula acompanha o ícone: sobra fixa embaixo para o nome do app
+                        // e uma margem lateral constante para o texto não colar nas bordas.
+                        readonly property int colMinWidth: iconPx + Math.round(72 * dock.liveScaleFactor)
+                        readonly property int dynamicCols: Math.max(3, Math.min(8, Math.floor(width / colMinWidth)))
                         cellWidth: Math.floor(width / dynamicCols)
-                        cellHeight: Math.round(120 * dock.liveScaleFactor)
+                        cellHeight: iconPx + Math.round(54 * dock.liveScaleFactor)
                         model: filteredAppsModel
 
                         // --- Física de Rolagem Leve e Suave ---
-                        cacheBuffer: 1200
+                        cacheBuffer: Math.round(cellHeight * 8)
                         reuseItems: true
-                        flickDeceleration: 600
-                        maximumFlickVelocity: 8000
+                        flickDeceleration: 2500
+                        maximumFlickVelocity: 12000
                         boundsBehavior: Flickable.DragAndOvershootBounds
                         boundsMovement: Flickable.FollowBoundsBehavior
                         highlightMoveDuration: 0
                         pixelAligned: true
 
-                        // Rolagem suave com roda do mouse
-                        WheelHandler {
-                            id: gridWheelHandler
+                        // --- Rolagem da roda do mouse: um passo por clique, com animação ---
+                        // Cada clique da roda anda quase uma fileira inteira. Se você gira
+                        // várias vezes seguidas, os passos se somam no mesmo destino em vez
+                        // de recomeçar a animação do zero — é isso que dá a sensação fluida.
+                        readonly property int wheelStep: cellHeight
+                        property real scrollTarget: 0
+                        property bool scrollAnimating: false
+
+                        NumberAnimation {
+                            id: smoothScrollAnim
                             target: macAppsGrid
                             property: "contentY"
-                            rotationScale: -0.8
+                            duration: 230
+                            easing.type: Easing.OutCubic
+                            onStopped: macAppsGrid.scrollAnimating = false
+                        }
+
+                        function maxContentY() {
+                            return Math.max(0, contentHeight - height)
+                        }
+
+                        function cancelSmoothScroll() {
+                            smoothScrollAnim.stop()
+                            scrollAnimating = false
+                        }
+
+                        // Move na hora, sem animação: para gestos contínuos, em que
+                        // cada evento já é um pedacinho do movimento do dedo.
+                        function scrollDirect(deltaY) {
+                            var limite = maxContentY()
+                            if (limite <= 0) {
+                                return
+                            }
+                            cancelSmoothScroll()
+                            contentY = Math.max(0, Math.min(limite, contentY + deltaY))
+                        }
+
+                        function smoothScrollBy(deltaY) {
+                            var limite = maxContentY()
+                            if (limite <= 0) {
+                                return
+                            }
+                            // Parte do destino em curso, não da posição atual: assim os
+                            // cliques seguidos da roda se acumulam.
+                            var base = scrollAnimating ? scrollTarget : contentY
+                            var destino = Math.max(0, Math.min(limite, base + deltaY))
+                            if (Math.abs(destino - contentY) < 1) {
+                                return
+                            }
+                            scrollTarget = destino
+                            scrollAnimating = true
+                            smoothScrollAnim.stop()
+                            smoothScrollAnim.from = contentY
+                            smoothScrollAnim.to = destino
+                            smoothScrollAnim.start()
+                        }
+
+                        // O arrasto com o dedo/mouse manda mais que a animação
+                        onDragStarted: cancelSmoothScroll()
+
+                        WheelHandler {
+                            id: gridWheelHandler
+                            onWheel: function(evento) {
+                                if (macAppsGrid.maxContentY() <= 0) {
+                                    return
+                                }
+
+                                // 1) Touchpad que manda pixels de verdade: segue o dedo 1:1.
+                                var pixels = evento.pixelDelta.y !== 0 ? evento.pixelDelta.y
+                                                                       : evento.pixelDelta.x
+                                if (pixels !== 0) {
+                                    macAppsGrid.scrollDirect(-pixels)
+                                    return
+                                }
+
+                                var graus = evento.angleDelta.y !== 0 ? evento.angleDelta.y
+                                                                      : evento.angleDelta.x
+                                if (graus === 0) {
+                                    return
+                                }
+                                var cliques = graus / 120
+
+                                // 2) Rolagem de alta resolução (o touchpad do K400 Plus manda
+                                //    frações de clique, umas 8 por clique cheio): aplica na hora.
+                                //    Animar cada micro-passo só deixaria a rolagem pastosa.
+                                if (Math.abs(graus) < 120) {
+                                    macAppsGrid.scrollDirect(-cliques * macAppsGrid.wheelStep)
+                                    return
+                                }
+
+                                // 3) Roda de mouse comum: um clique = uma fileira, com
+                                //    animação para o salto não picotar.
+                                macAppsGrid.smoothScrollBy(-cliques * macAppsGrid.wheelStep)
+                            }
                         }
 
                         ScrollBar.vertical: ScrollBar {
@@ -783,15 +878,19 @@ Window {
 
                                 Item {
                                     Layout.alignment: Qt.AlignHCenter
-                                    implicitWidth: 64 * dock.liveScaleFactor
-                                    implicitHeight: 64 * dock.liveScaleFactor
+                                    implicitWidth: macAppsGrid.iconPx
+                                    implicitHeight: macAppsGrid.iconPx
 
                                     Kirigami.Icon {
                                         id: appIcon
                                         source: model.icon
                                         anchors.centerIn: parent
-                                        implicitWidth: 64 * dock.liveScaleFactor
-                                        implicitHeight: 64 * dock.liveScaleFactor
+                                        implicitWidth: macAppsGrid.iconPx
+                                        implicitHeight: macAppsGrid.iconPx
+                                        // Sem arredondar para os tamanhos padrão (16/22/32/48): a maioria
+                                        // dos ícones é SVG e fica mais nítida desenhada no tamanho exato.
+                                        roundToIconSize: false
+                                        smooth: true
                                         scale: appDelegate.itemHovered ? 1.12 : 1.0
                                         Behavior on scale {
                                             NumberAnimation {

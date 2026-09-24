@@ -68,6 +68,7 @@ Window {
     // Lente de vidro: refracta o wallpaper no rebordo. Ver DockGlassLens.qml.
     property bool liveGlassLens: true
     property real liveGlassLensIntensity: 0.55
+    property int liveAppMenuIconSize: 84
     property int liveAnimationProfile: 0 // 0 suave, 1 rapido, 2 elastico, 3 sem animacao
     property real liveWaveRadiusFactor: 3.15
     property real liveWaveFalloff: 1.0
@@ -615,6 +616,7 @@ Window {
         property real shadowStrength: 0.30
         property bool glassLens: true
         property real glassLensIntensity: 0.55
+        property int appMenuIconSize: 84
         property int animationProfile: 0
         property real waveRadiusFactor: 3.15
         property real waveFalloff: 1.0
@@ -784,6 +786,7 @@ Window {
         root.liveShadowStrength = dockSettings.shadowStrength
         root.liveGlassLens = dockSettings.glassLens
         root.liveGlassLensIntensity = dockSettings.glassLensIntensity
+        root.liveAppMenuIconSize = dockSettings.appMenuIconSize
         root.liveAnimationProfile = dockSettings.animationProfile
         root.liveWaveRadiusFactor = dockSettings.waveRadiusFactor
         root.liveWaveFalloff = dockSettings.waveFalloff

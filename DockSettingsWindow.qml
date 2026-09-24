@@ -318,6 +318,7 @@ Window {
         dock.liveBgOpacity = dock.appSettings.bgOpacity
         dock.liveGlassLens = dock.appSettings.glassLens
         dock.liveGlassLensIntensity = dock.appSettings.glassLensIntensity
+        dock.liveAppMenuIconSize = dock.appSettings.appMenuIconSize
         dock.liveMinIconSize = dock.appSettings.minIconSize
         dock.liveMaxIconSize = Math.max(dock.appSettings.minIconSize, dock.appSettings.maxIconSize)
         dock.clampMaxIconSizeForZoomCap()
@@ -391,6 +392,7 @@ Window {
             dock.appSettings.bgOpacity = dock.liveBgOpacity
             dock.appSettings.glassLens = dock.liveGlassLens
             dock.appSettings.glassLensIntensity = dock.liveGlassLensIntensity
+            dock.appSettings.appMenuIconSize = dock.liveAppMenuIconSize
             dock.appSettings.minIconSize = minSz
             dock.appSettings.maxIconSize = maxSz
             dock.appSettings.themeMode = dock.liveThemeMode
@@ -494,6 +496,7 @@ Window {
             bgOpacity: dock.liveBgOpacity,
             glassLens: dock.liveGlassLens,
             glassLensIntensity: dock.liveGlassLensIntensity,
+            appMenuIconSize: dock.liveAppMenuIconSize,
             gradientColorA: dock.liveGradientColorA,
             gradientColorB: dock.liveGradientColorB,
             gradientColorC: dock.liveGradientColorC,
@@ -532,6 +535,7 @@ Window {
             if (p.bgOpacity !== undefined) dock.liveBgOpacity = p.bgOpacity
             if (p.glassLens !== undefined) dock.liveGlassLens = p.glassLens
             if (p.glassLensIntensity !== undefined) dock.liveGlassLensIntensity = p.glassLensIntensity
+            if (p.appMenuIconSize !== undefined) dock.liveAppMenuIconSize = p.appMenuIconSize
             if (p.gradientColorA !== undefined) dock.liveGradientColorA = p.gradientColorA
             if (p.gradientColorB !== undefined) dock.liveGradientColorB = p.gradientColorB
             if (p.gradientColorC !== undefined) dock.liveGradientColorC = p.gradientColorC
@@ -1062,7 +1066,7 @@ Window {
                 ColumnLayout {
                     // Durante a busca a aba so' aparece se algo nela bater;
                     // caso contrario ficava um bloco vazio a ocupar o ecra.
-                    visible: settingsWin.searching ? settingsWin.cardMatch("aparencia presets temas vidro escuro claro liquido neon minimalista tema destaque cor itens tamanho absoluto zoom mouse comprimento maximo plano fundo contorno opacidade gradiente indicadores geometria margem espacamento raio")
+                    visible: settingsWin.searching ? settingsWin.cardMatch("aparencia presets temas vidro escuro claro liquido neon minimalista tema destaque cor itens tamanho absoluto zoom mouse comprimento maximo plano fundo contorno opacidade gradiente indicadores geometria margem espacamento raio menu aplicativos apps tamanho icones grade lancador gaveta")
                                                    : settingsWin.activeTab === 1
 
                     // ---- Prévia ao vivo -------------------------------------
@@ -1271,6 +1275,30 @@ Window {
                             uiAccent: settingsWin.uiAccent
                             settingsDark: settingsWin.settingsDark
                             onMoved: (val) => dock.setLiveMaxIconZoomPercent(val)
+                        }
+
+                        Label {
+                            text: qsTr("Menu de aplicativos")
+                            font.pixelSize: settingsWin.fsHint
+                            color: settingsWin.uiTextSecondary
+                            Layout.alignment: Qt.AlignHCenter
+                        }
+
+                        LatteSliderRow {
+                            labelText: qsTr("Tamanho dos ícones")
+                            valueText: Math.round(dock.liveAppMenuIconSize) + " px."
+                            fromValue: 48
+                            toValue: 128
+                            stepValue: 4
+                            currentValue: dock.liveAppMenuIconSize
+                            uiTextPrimary: settingsWin.uiTextPrimary
+                            uiAccent: settingsWin.uiAccent
+                            settingsDark: settingsWin.settingsDark
+                            onMoved: (val) => dock.liveAppMenuIconSize = Math.round(val)
+                        }
+
+                        SectionHint {
+                            text: qsTr("Tamanho dos ícones dentro do menu de aplicativos. Acima de 96 px alguns ícones antigos, que só existem em imagem pequena, podem ficar menos nítidos.")
                         }
                     }
 
