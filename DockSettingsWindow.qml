@@ -20,9 +20,14 @@ Window {
     title: qsTr("Configurações — AgildoDock")
 
     readonly property bool settingsDark: dock.liveThemeMode === 0 || dock.liveThemeMode === 2 || dock.liveThemeMode === 3
-    readonly property color uiBgColor: settingsDark ? "#16181F" : "#F0F2F5"
-    readonly property color uiHeaderBg: settingsDark ? "#101218" : "#E4E7EC"
-    readonly property color uiCardBg: settingsDark ? "#1E2129" : "#FFFFFF"
+    // Fundos translúcidos para o Hyprland borrar o que está atrás da janela.
+    // As camadas se somam: conteúdo ~78%, cabeçalho/lateral/rodapé ~84% e
+    // cards ~87% de cobertura (no tema claro, 82/87/90). Por isso o cabeçalho
+    // e os cards têm alfa próprio baixo: eles ficam por cima do fundo da
+    // janela. Formato #AARRGGBB.
+    readonly property color uiBgColor: settingsDark ? "#C716181F" : "#D1F0F2F5"
+    readonly property color uiHeaderBg: settingsDark ? "#46101218" : "#47E4E7EC"
+    readonly property color uiCardBg: settingsDark ? "#681E2129" : "#6BFFFFFF"
     // Borda quase invisivel: o card passa a separar-se do fundo pelo contraste
     // e pela sombra, nao por um risco duro de 1px. Ver uiCardRadius.
     readonly property color uiCardBorder: settingsDark ? "#282C36" : "#D0D5DD"
